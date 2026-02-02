@@ -1,40 +1,35 @@
-const CACHE_NAME = 'aeronav-v2';
+const CACHE_NAME = 'aeronav-v1';
 const ASSETS = [
-  '/',
-  'balloon_navigator.html',
-  'manifest.json',
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+  './',
+  './index.html',
+  './manifest.json',
   'https://cdn.tailwindcss.com',
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
   'https://cdn.jsdelivr.net/npm/chart.js'
 ];
 
-// Install Event: Assets cachen
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS);
-    })
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
   );
 });
 
-// Activate Event: Alte Caches aufräumen
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
-      );
-    })
-  );
-});
-
-// Fetch Event: Offline-First Strategie
 self.addEventListener('fetch', (event) => {
+  // Stale-while-revalidate Strategie für Tiles und Assets
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request);
+    caches.match(event.request).then((cachedResponse) => {
+      const fetchPromise = fetch(event.request).then((networkResponse) => {
+        // Caching von OpenStreetMap/CartoDB Kacheln
+        if (event.request.url.includes('tile.openstreetmap') || event.request.url.includes('cartocdn')) {
+            caches.open(CACHE_NAME).then((cache) => {
+                cache.put(event.request, networkResponse.clone());
+            });
+        }
+        return networkResponse;
+      });
+      return cachedResponse || fetchPromise;
     })
   );
 });
