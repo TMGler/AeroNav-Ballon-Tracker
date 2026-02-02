@@ -40,6 +40,11 @@
             z-index: 1100; display: none;
         }
 
+        #nav-indicator {
+            position: absolute; bottom: 100px; left: 10px; right: 10px;
+            z-index: 1000; display: none;
+        }
+
         #controls {
             position: absolute; bottom: 20px; left: 10px; right: 10px;
             z-index: 1000; display: flex; flex-direction: column; gap: 10px;
@@ -67,13 +72,24 @@
             width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem;
         }
 
-        /* Animation für Warnungen */
         @keyframes pulse-red {
             0% { background-color: #ef4444; }
             50% { background-color: #991b1b; }
             100% { background-color: #ef4444; }
         }
         .pulse-error { animation: pulse-red 2s infinite; }
+
+        .ai-shimmer {
+            background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        .nav-arrow { font-size: 2rem; transition: transform 0.3s; }
     </style>
 </head>
 <body>
@@ -95,6 +111,37 @@
         <div class="glass-panel instrument-box pointer-events-auto">
             <div class="value" id="disp-climb">0.0</div>
             <div class="label">Vario</div>
+        </div>
+    </div>
+
+    <!-- KI Navigations-Indikator -->
+    <div id="nav-indicator" class="pointer-events-none">
+        <div class="glass-panel p-4 flex items-center gap-4 border-l-4 border-indigo-600">
+            <div id="nav-arrow-box" class="flex flex-col items-center">
+                <i id="nav-icon" class="fa-solid fa-arrow-up nav-arrow text-indigo-600"></i>
+                <span id="nav-alt-target" class="text-[10px] font-bold text-indigo-900 mt-1">HÖHE</span>
+            </div>
+            <div class="flex-1">
+                <div class="flex justify-between items-center mb-1">
+                    <span class="text-xs font-bold text-indigo-900">✨ KI-NAVIGATOR</span>
+                    <span id="nav-dist" class="text-[10px] font-bold text-slate-500">0.0 km</span>
+                </div>
+                <p id="nav-text" class="text-xs text-slate-700 leading-tight">Berechne besten Kurs zum Ziel...</p>
+            </div>
+            <button onclick="clearWaypoint()" class="pointer-events-auto bg-slate-100 p-2 rounded-full text-slate-400">
+                <i class="fa-solid fa-times"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- KI Wetter-Widget (Schwebend) -->
+    <div id="ai-weather-info" class="absolute top-24 left-3 right-3 z-[1001] hidden">
+        <div class="glass-panel p-3 border-l-4 border-purple-500">
+            <div class="flex items-center gap-2 mb-1">
+                <span class="text-xs font-bold text-purple-700">✨ KI-WETTERCHECK</span>
+                <div id="ai-weather-loading" class="hidden h-1 w-12 ai-shimmer rounded"></div>
+            </div>
+            <p id="ai-weather-text" class="text-[11px] text-gray-700 italic leading-tight">Analysiere Bedingungen...</p>
         </div>
     </div>
 
@@ -138,20 +185,19 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-2">
-                <div class="form-group">
-                    <label>Passagiere</label>
-                    <input type="text" id="save-passengers" placeholder="Name 1, Name 2...">
-                </div>
-                <div class="form-group">
-                    <label>Wetter</label>
-                    <input type="text" id="save-weather" placeholder="23°C, 3kt NW">
+            <div class="form-group">
+                <label>Notizen & ✨ KI-Logbuch</label>
+                <div class="relative">
+                    <textarea id="save-notes" rows="4" placeholder="Startplatz, Landung, Besonderheiten..."></textarea>
+                    <button onclick="generateAIRepo()" id="btn-ai-repo" class="absolute bottom-2 right-2 bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-lg flex items-center gap-1">
+                        ✨ Bericht
+                    </button>
                 </div>
             </div>
 
-            <div class="form-group">
-                <label>Logbuch Notizen</label>
-                <textarea id="save-notes" rows="3" placeholder="Startplatz, Landung, Besonderheiten..."></textarea>
+            <div id="ai-repo-loader" class="hidden mb-4 p-3 bg-purple-50 rounded-xl text-center">
+                <div class="ai-shimmer h-4 w-3/4 mx-auto rounded mb-2"></div>
+                <span class="text-[10px] text-purple-600 font-bold uppercase tracking-wider">Erstelle KI-Analyse...</span>
             </div>
 
             <div id="save-error" class="hidden text-red-600 text-xs font-bold mb-4 bg-red-50 p-2 rounded-lg"></div>
@@ -191,16 +237,23 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
+        const apiKey = ""; 
         const state = {
             recording: false,
             track: [],
-            windLayers: {},
             lastPosTime: null,
             watchId: null,
             maxAlt: 0,
+            currentAlt: 0,
+            currentPos: null,
             startTime: null,
             simulationId: null,
-            wakeLock: null
+            wakeLock: null,
+            lastAIWeatherUpdate: 0,
+            lastAINavUpdate: 0,
+            waypoint: null,
+            waypointMarker: null,
+            windLibrary: {} // Struktur: { "100m": {speed, heading}, "200m": ... }
         };
 
         const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([51.1657, 10.4515], 6);
@@ -208,111 +261,169 @@
         const trackLine = L.polyline([], { color: '#4f46e5', weight: 4, opacity: 0.8 }).addTo(map);
         const marker = L.circleMarker([0,0], { radius: 8, color: 'white', fillColor: '#4f46e5', fillOpacity: 1, weight: 2 }).addTo(map);
 
-        // --- GPS & ERROR HANDLING ---
+        // --- MAP INTERACTION (WAYPOINT SETTING) ---
+        map.on('contextmenu', function(e) {
+            setWaypoint(e.latlng);
+        });
 
-        function showError(title, desc) {
-            document.getElementById('error-title').innerText = title;
-            document.getElementById('error-desc').innerText = desc;
-            document.getElementById('error-overlay').style.display = 'flex';
+        function setWaypoint(latlng) {
+            if (state.waypointMarker) map.removeLayer(state.waypointMarker);
+            state.waypoint = latlng;
+            state.waypointMarker = L.marker(latlng, {
+                icon: L.divIcon({
+                    html: '<i class="fa-solid fa-location-crosshairs text-indigo-600 text-3xl" style="margin-top:-15px; margin-left:-10px"></i>',
+                    className: 'custom-div-icon'
+                })
+            }).addTo(map);
+            document.getElementById('nav-indicator').style.display = 'block';
+            updateAINavigation();
         }
 
-        function hideError() {
-            document.getElementById('error-overlay').style.display = 'none';
+        function clearWaypoint() {
+            if (state.waypointMarker) map.removeLayer(state.waypointMarker);
+            state.waypoint = null;
+            state.waypointMarker = null;
+            document.getElementById('nav-indicator').style.display = 'none';
         }
 
-        function retryGPS() {
-            if (state.watchId) navigator.geolocation.clearWatch(state.watchId);
-            startGPSWatch();
-        }
+        // --- GEMINI API INTEGRATION ---
 
-        function startGPSWatch() {
-            if (!navigator.geolocation) {
-                showError("Hardware Fehler", "GPS wird von diesem Gerät nicht unterstützt.");
-                return;
-            }
+        async function callGemini(prompt, systemPrompt) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            let retries = 0;
+            const delays = [1000, 2000, 4000];
 
-            state.watchId = navigator.geolocation.watchPosition(
-                handlePosition, 
-                (err) => {
-                    let msg = "Unbekannter Fehler";
-                    if(err.code === 1) msg = "Standortzugriff verweigert.";
-                    if(err.code === 2) msg = "Position nicht verfügbar (Funkloch?).";
-                    if(err.code === 3) msg = "Zeitüberschreitung (Timeout).";
-                    showError("GPS Fehler", msg);
-                }, 
-                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-            );
-        }
-
-        // Überprüfung auf Signalverlust (Watchdog)
-        setInterval(() => {
-            if (state.recording && state.lastPosTime) {
-                const diff = (Date.now() - state.lastPosTime) / 1000;
-                if (diff > 15) {
-                    showError("Signalverlust", `Seit ${Math.round(diff)}s keine neuen GPS Daten.`);
-                } else if (diff < 5) {
-                    hideError();
+            while (retries < 3) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: prompt }] }],
+                            systemInstruction: { parts: [{ text: systemPrompt }] }
+                        })
+                    });
+                    const data = await response.json();
+                    return data.candidates?.[0]?.content?.parts?.[0]?.text;
+                } catch (err) {
+                    await new Promise(r => setTimeout(r, delays[retries]));
+                    retries++;
                 }
             }
-        }, 5000);
+            throw new Error("KI offline");
+        }
 
-        // --- WAKE LOCK (Display anlassen) ---
-        async function requestWakeLock() {
+        async function updateAINavigation() {
+            if (!state.waypoint || !state.currentPos) return;
+            if (Date.now() - state.lastAINavUpdate < 15000) return; // Update alle 15 Sek
+
+            const dist = (map.distance(state.currentPos, state.waypoint) / 1000).toFixed(1);
+            document.getElementById('nav-dist').innerText = `${dist} km`;
+
             try {
-                if ('wakeLock' in navigator) {
-                    state.wakeLock = await navigator.wakeLock.request('screen');
-                }
-            } catch (err) {
-                console.warn("WakeLock konnte nicht aktiviert werden");
+                const windProfileStr = Object.entries(state.windLibrary)
+                    .map(([h, w]) => `Höhe ${h}: ${w.heading}°/${w.speed}kmh`)
+                    .join(', ');
+
+                const systemPrompt = "Du bist ein KI-Ballon-Navigator. Analysiere das Windprofil und gib EINE Handlungsanweisung (max 10 Wörter), um den Waypoint zu erreichen. Antworte in Deutsch. Gib NUR die Anweisung zurück. Benutze Begriffe wie 'Steigen auf...', 'Sinken auf...', 'Höhe halten'.";
+                const prompt = `Aktuelle Position: ${state.currentPos.lat}, ${state.currentPos.lng}. Ziel: ${state.waypoint.lat}, ${state.waypoint.lng}. Aktuelle Höhe: ${state.currentAlt}m. Bekannte Winde: ${windProfileStr || 'Keine Daten vorhanden'}.`;
+                
+                const instruction = await callGemini(prompt, systemPrompt);
+                
+                document.getElementById('nav-text').innerText = instruction;
+                
+                // Pfeil-Logik basierend auf Text (einfacher Parser)
+                const lower = instruction.toLowerCase();
+                const icon = document.getElementById('nav-icon');
+                if (lower.includes("steigen")) icon.className = "fa-solid fa-arrow-up nav-arrow text-green-600";
+                else if (lower.includes("sinken")) icon.className = "fa-solid fa-arrow-down nav-arrow text-red-600";
+                else icon.className = "fa-solid fa-arrow-right nav-arrow text-indigo-600";
+
+                state.lastAINavUpdate = Date.now();
+            } catch (e) {
+                console.error("Nav-AI Error", e);
             }
         }
 
-        // --- DATENVERARBEITUNG ---
+        async function checkAIWeather(lat, lng, alt) {
+            if (Date.now() - state.lastAIWeatherUpdate < 300000) return;
+            document.getElementById('ai-weather-info').style.display = 'block';
+            document.getElementById('ai-weather-loading').classList.remove('hidden');
+            try {
+                const systemPrompt = "Du bist ein Ballonpilot. Gib kurze Sicherheitstipps (max 15 Wörter) für Region/Höhe auf Deutsch.";
+                const prompt = `Pos: ${lat}, ${lng}. Alt: ${alt}m. Kurzinfo Wetter/Sicherheit?`;
+                const advice = await callGemini(prompt, systemPrompt);
+                document.getElementById('ai-weather-text').innerText = advice;
+                state.lastAIWeatherUpdate = Date.now();
+            } catch (e) {} finally {
+                document.getElementById('ai-weather-loading').classList.add('hidden');
+            }
+        }
+
+        // --- WIND DATA LOGGING ---
+        function updateWindLibrary(alt, speed, heading) {
+            // Runden auf 100m Intervalle
+            const slot = Math.round(alt / 100) * 100 + "m";
+            if (speed > 2) { // Nur signifikante Winde speichern
+                state.windLibrary[slot] = { speed: Math.round(speed), heading: Math.round(heading) };
+            }
+        }
+
+        // --- TRACKING LOGIC ---
 
         function handlePosition(pos) {
             state.lastPosTime = Date.now();
             const { latitude, longitude, altitude, speed, heading } = pos.coords;
             processData(latitude, longitude, altitude || 0, (speed || 0) * 3.6, heading, pos.timestamp);
+            
+            if (state.recording) {
+                checkAIWeather(latitude, longitude, altitude);
+                updateAINavigation();
+            }
         }
 
         function processData(lat, lng, alt, speedKmh, heading, time) {
+            const climb = state.track.length > 0 ? (alt - state.track[state.track.length-1].alt) : 0;
+            
+            state.currentAlt = alt;
+            state.currentPos = L.latLng(lat, lng);
             if (alt > state.maxAlt) state.maxAlt = alt;
             
             document.getElementById('disp-alt').innerText = Math.round(alt);
             document.getElementById('disp-speed').innerText = Math.round(speedKmh);
             document.getElementById('disp-heading').innerText = heading ? Math.round(heading) + "°" : "---";
+            document.getElementById('disp-climb').innerText = climb.toFixed(1);
 
-            const latlng = [lat, lng];
-            marker.setLatLng(latlng);
+            if (heading) updateWindLibrary(alt, speedKmh, heading);
+
+            marker.setLatLng([lat, lng]);
 
             if (state.recording) {
-                // Check auf plausible Daten (GPX Drift verhindern)
                 if (state.track.length > 0) {
                     const last = state.track[state.track.length - 1];
-                    if (last.lat === lat && last.lng === lng) return; // Keine Duplikate
+                    if (last.lat === lat && last.lng === lng) return;
                 }
-
                 state.track.push({ lat, lng, alt, speedKmh, heading, time });
-                trackLine.addLatLng(latlng);
-                map.panTo(latlng);
+                trackLine.addLatLng([lat, lng]);
+                map.panTo([lat, lng]);
             }
         }
 
+        // --- REST DER APP LOGIK ---
+
         function toggleRecording() {
             if (!state.recording) {
-                // Check ob GPS überhaupt läuft
                 if (!state.lastPosTime && !state.simulationId) {
                     alert("Warte auf GPS Signal...");
                     startGPSWatch();
                     return;
                 }
-                
                 state.recording = true;
                 state.startTime = Date.now();
                 state.track = [];
                 state.maxAlt = 0;
+                state.windLibrary = {};
                 trackLine.setLatLngs([]);
-                
                 requestWakeLock();
                 document.getElementById('btn-toggle').className = "btn-large flex-1 bg-red-600 text-white flex items-center justify-center gap-2";
                 document.getElementById('btn-text').innerText = "Fahrt stoppen";
@@ -320,6 +431,7 @@
             } else {
                 state.recording = false;
                 if (state.wakeLock) state.wakeLock.release().then(() => state.wakeLock = null);
+                document.getElementById('ai-weather-info').style.display = 'none';
                 openSaveModal();
             }
         }
@@ -331,105 +443,38 @@
             document.getElementById('stat-points').innerText = state.track.length;
             const duration = Math.round((Date.now() - state.startTime) / 60000);
             document.getElementById('stat-duration').innerText = duration;
-            document.getElementById('save-error').classList.add('hidden');
+            document.getElementById('save-notes').value = "";
         }
 
-        function closeSaveModal() { 
-            document.getElementById('save-modal').style.display = 'none'; 
-            resetUI(); 
+        async function generateAIRepo() {
+            const loader = document.getElementById('ai-repo-loader');
+            const textarea = document.getElementById('save-notes');
+            loader.classList.remove('hidden');
+            try {
+                const summary = state.track.filter((_, i) => i % 15 === 0).map(p => `${p.alt}m`).join('->');
+                const systemPrompt = "Schreibe einen kurzen Logbucheintrag (Deutsch) für eine Ballonfahrt.";
+                const prompt = `Fahrtbericht: Max ${state.maxAlt}m, Dauer ${document.getElementById('stat-duration').innerText}min. Höhenprofil: ${summary}`;
+                textarea.value = await callGemini(prompt, systemPrompt);
+            } catch (e) { alert("Fehler"); } finally { loader.classList.add('hidden'); }
         }
 
-        function resetUI() {
-            document.getElementById('btn-toggle').className = "btn-large flex-1 bg-green-600 text-white flex items-center justify-center gap-2";
-            document.getElementById('btn-text').innerText = "Fahrt starten";
-        }
+        function closeSaveModal() { document.getElementById('save-modal').style.display = 'none'; resetUI(); }
+        function resetUI() { document.getElementById('btn-toggle').className = "btn-large flex-1 bg-green-600 text-white flex items-center justify-center gap-2"; document.getElementById('btn-text').innerText = "Fahrt starten"; }
 
         function confirmSave() {
-            if (state.track.length < 2) {
-                document.getElementById('save-error').innerText = "Zu wenig Datenpunkte für eine Aufzeichnung.";
-                document.getElementById('save-error').classList.remove('hidden');
-                return;
-            }
-
-            try {
-                const flight = {
-                    id: Date.now(),
-                    name: document.getElementById('save-name').value || "Unbenannt",
-                    registration: document.getElementById('save-reg').value,
-                    passengers: document.getElementById('save-passengers').value,
-                    weather: document.getElementById('save-weather').value,
-                    notes: document.getElementById('save-notes').value,
-                    maxAlt: state.maxAlt,
-                    duration: Math.round((Date.now() - state.startTime) / 60000),
-                    track: state.track,
-                    date: new Date().toISOString()
-                };
-                
-                const flights = JSON.parse(localStorage.getItem('flights') || '[]');
-                flights.push(flight);
-                localStorage.setItem('flights', JSON.stringify(flights));
-                closeSaveModal();
-            } catch (e) {
-                document.getElementById('save-error').innerText = "Fehler beim Speichern: Speicher voll?";
-                document.getElementById('save-error').classList.remove('hidden');
-            }
+            const flight = { id: Date.now(), name: document.getElementById('save-name').value, registration: document.getElementById('save-reg').value, notes: document.getElementById('save-notes').value, maxAlt: state.maxAlt, track: state.track, date: new Date().toISOString() };
+            const flights = JSON.parse(localStorage.getItem('flights') || '[]');
+            flights.push(flight);
+            localStorage.setItem('flights', JSON.stringify(flights));
+            closeSaveModal();
         }
 
-        // --- MENÜ & EXPORT ---
-
-        function openMenu() {
-            document.getElementById('menu-modal').style.display = 'flex';
-            renderHistory();
-        }
-
+        function openMenu() { document.getElementById('menu-modal').style.display = 'flex'; renderHistory(); }
         function closeMenu() { document.getElementById('menu-modal').style.display = 'none'; }
-
         function renderHistory() {
             const list = document.getElementById('saved-list');
             const flights = JSON.parse(localStorage.getItem('flights') || '[]');
-            if (!flights.length) {
-                list.innerHTML = `<div class="p-8 text-center text-gray-400 italic">Noch keine Einträge vorhanden.</div>`;
-                return;
-            }
-            list.innerHTML = flights.reverse().map(f => `
-                <div class="bg-white border-2 border-slate-100 rounded-2xl p-4 shadow-sm">
-                    <div class="flex justify-between items-start mb-2">
-                        <div class="flex-1">
-                            <h3 class="font-bold text-indigo-900 truncate">${f.name}</h3>
-                            <p class="text-[10px] text-gray-400">${new Date(f.date).toLocaleString()} | ${f.registration || 'Keine Reg.'}</p>
-                        </div>
-                        <span class="bg-indigo-50 text-indigo-600 text-[10px] px-2 py-1 rounded-full font-bold ml-2">${f.maxAlt}m</span>
-                    </div>
-                    <div class="flex gap-2">
-                        <button onclick="exportGPX(${f.id})" class="flex-1 py-2 bg-green-50 text-green-700 rounded-lg font-bold text-xs"><i class="fa-solid fa-download mr-1"></i> GPX</button>
-                        <button onclick="loadToMap(${f.id})" class="flex-1 py-2 bg-blue-50 text-blue-700 rounded-lg font-bold text-xs"><i class="fa-solid fa-map-location-dot mr-1"></i> Karte</button>
-                        <button onclick="deleteFlight(${f.id})" class="w-10 py-2 bg-red-50 text-red-400 rounded-lg"><i class="fa-solid fa-trash-can"></i></button>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function exportGPX(id) {
-            const f = JSON.parse(localStorage.getItem('flights')).find(x => x.id === id);
-            let gpx = `<?xml version="1.0" encoding="UTF-8"?>
-<gpx version="1.1" creator="AeroNav Balloon" xmlns="http://www.topografix.com/GPX/1/1">
-  <metadata>
-    <name>${f.name}</name>
-    <desc>Reg: ${f.registration || 'N/A'}, Pax: ${f.passengers || 'N/A'}, Wetter: ${f.weather || 'N/A'}</desc>
-    <time>${f.date}</time>
-  </metadata>
-  <trk><name>${f.name}</name><trkseg>`;
-            f.track.forEach(pt => {
-                gpx += `\n<trkpt lat="${pt.lat}" lon="${pt.lng}"><ele>${pt.alt}</ele><time>${new Date(pt.time).toISOString()}</time></trkpt>`;
-            });
-            gpx += `\n</trkseg></trk></gpx>`;
-            
-            const blob = new Blob([gpx], { type: 'application/gpx+xml' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${f.name.replace(/[^\w]/g, '_')}.gpx`;
-            a.click();
+            list.innerHTML = flights.reverse().map(f => `<div class="bg-white border p-3 rounded-xl mb-2"><h3 class="font-bold">${f.name}</h3><button onclick="loadToMap(${f.id})" class="text-xs text-blue-600">Auf Karte anzeigen</button></div>`).join('');
         }
 
         function loadToMap(id) {
@@ -439,37 +484,24 @@
             closeMenu();
         }
 
-        function deleteFlight(id) {
-            if (confirm("Diesen Flug endgültig aus dem Logbuch löschen?")) {
-                const flights = JSON.parse(localStorage.getItem('flights')).filter(x => x.id !== id);
-                localStorage.setItem('flights', JSON.stringify(flights));
-                renderHistory();
-            }
-        }
-
         function toggleSimulation() {
-            const btn = document.getElementById('sim-btn');
-            if (state.simulationId) { 
-                clearInterval(state.simulationId); 
-                state.simulationId = null; 
-                btn.classList.replace('bg-red-50', 'bg-purple-50');
-                btn.querySelector('span').innerText = "Demo-Modus starten";
-                return; 
-            }
-            closeMenu();
+            if (state.simulationId) { clearInterval(state.simulationId); state.simulationId = null; return; }
             if (!state.recording) toggleRecording();
-            btn.classList.replace('bg-purple-50', 'bg-red-50');
-            btn.querySelector('span').innerText = "Simulation stoppen";
-            
-            let lat = 51.16, lng = 10.45, alt = 150;
+            let lat = 51.16, lng = 10.45, alt = 50, head = 0;
             state.simulationId = setInterval(() => {
-                alt += (Math.random() * 4 - 1.5);
-                lat += 0.0002; lng += 0.0001;
-                processData(lat, lng, alt, 12, 45, Date.now());
+                alt += (Math.random() * 6 - 2); // Simuliere Steigen/Sinken
+                head = (head + 1) % 360;
+                lat += 0.0003; lng += 0.0002;
+                processData(lat, lng, alt, 15, head, Date.now());
             }, 1000);
+            closeMenu();
         }
 
-        // Init GPS on Load
+        function startGPSWatch() {
+            state.watchId = navigator.geolocation.watchPosition(handlePosition, (err) => {}, { enableHighAccuracy: true });
+        }
+
+        async function requestWakeLock() { if ('wakeLock' in navigator) state.wakeLock = await navigator.wakeLock.request('screen'); }
         window.onload = startGPSWatch;
     </script>
 </body>
