@@ -1,19 +1,19 @@
 {
-  "name": "AeroNav Ballon Tracker",
+  "name": "AeroNav Balloon Pilot",
   "short_name": "AeroNav",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#f0fdf4",
-  "theme_color": "#4f46e5",
-  "orientation": "portrait-primary",
+  "background_color": "#1a202c",
+  "theme_color": "#000000",
+  "orientation": "any",
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/3063/3063835.png",
+      "src": "https://cdn-icons-png.flaticon.com/512/2867/2867866.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/3063/3063835.png",
+      "src": "https://cdn-icons-png.flaticon.com/512/2867/2867866.png",
       "sizes": "512x512",
       "type": "image/png"
     }
