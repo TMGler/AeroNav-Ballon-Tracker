@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aeronav-v1';
+const CACHE_NAME = 'aeronav-v2'; // Version erhöht -> Erzwingt Update der index.html
 const ASSETS = [
   './',
   './index.html',
@@ -10,36 +10,52 @@ const ASSETS = [
   'https://cdn.jsdelivr.net/npm/chart.js'
 ];
 
+// Installation: Cache aufbauen
 self.addEventListener('install', (event) => {
+  self.skipWaiting(); // Zwingt den neuen Worker sofort aktiv zu werden
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
   );
 });
 
+// Aktivierung: Alte Caches (v1) löschen
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cache) => {
+          if (cache !== CACHE_NAME) {
+            console.log('Lösche alten Cache:', cache);
+            return caches.delete(cache);
+          }
+        })
+      );
+    })
+  );
+});
+
+// Fetch: Anfragen abfangen und cachen
 self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      // Netzwerk-Request im Hintergrund starten (Stale-while-revalidate)
+      // "Stale-while-revalidate" Strategie
       const fetchPromise = fetch(event.request).then((networkResponse) => {
         
-        // Prüfen, ob es eine Karten-Kachel ist (OSM, CartoDB oder ArcGIS Satellit)
+        // Caching Strategie für Karten-Kacheln (inkl. Satellit)
         const url = event.request.url;
         if (url.includes('tile.openstreetmap') || 
             url.includes('cartocdn') || 
-            url.includes('arcgisonline')) { // Neu: Satellitenbilder cachen
+            url.includes('arcgisonline')) { 
             
             caches.open(CACHE_NAME).then((cache) => {
-                // Klonen ist wichtig, da der Stream nur einmal gelesen werden kann
                 cache.put(event.request, networkResponse.clone());
             });
         }
         return networkResponse;
       }).catch(() => {
-        // Wenn offline und Netzwerk fehlschlägt, ist das okay, 
-        // solange wir eine cachedResponse haben.
+         // Offline und nicht im Cache? Hier könnte man ein Fallback-Bild senden
       });
 
-      // Wenn im Cache, sofort zurückgeben, sonst auf Netzwerk warten
       return cachedResponse || fetchPromise;
     })
   );
