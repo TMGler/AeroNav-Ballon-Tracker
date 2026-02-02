@@ -13,6 +13,8 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js für das Höhenprofil -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
         body, html { height: 100%; margin: 0; padding: 0; overflow: hidden; background: #f0fdf4; font-family: 'Segoe UI', sans-serif; }
@@ -90,6 +92,9 @@
         }
 
         .nav-arrow { font-size: 2rem; transition: transform 0.3s; }
+        
+        /* Chart container */
+        .chart-container { width: 100%; height: 150px; margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -134,7 +139,7 @@
         </div>
     </div>
 
-    <!-- KI Wetter-Widget (Schwebend) -->
+    <!-- KI Wetter-Widget -->
     <div id="ai-weather-info" class="absolute top-24 left-3 right-3 z-[1001] hidden">
         <div class="glass-panel p-3 border-l-4 border-purple-500">
             <div class="flex items-center gap-2 mb-1">
@@ -145,7 +150,7 @@
         </div>
     </div>
 
-    <!-- Error/Status Overlay -->
+    <!-- Status Overlay -->
     <div id="error-overlay" class="pulse-error text-white p-3 rounded-xl shadow-lg flex items-center gap-3">
         <i class="fa-solid fa-triangle-exclamation text-xl"></i>
         <div class="flex-1">
@@ -157,7 +162,7 @@
 
     <div id="map"></div>
 
-    <!-- Hauptsteuerung -->
+    <!-- Steuerung -->
     <div id="controls" class="pointer-events-none">
         <div class="flex gap-2 pointer-events-auto">
             <button id="btn-toggle" onclick="toggleRecording()" class="btn-large flex-1 bg-green-600 text-white flex items-center justify-center gap-2">
@@ -169,7 +174,7 @@
         </div>
     </div>
 
-    <!-- Modal: Flug speichern -->
+    <!-- Modal: Fahrt speichern -->
     <div id="save-modal" class="modal">
         <div class="modal-content">
             <h2 class="text-xl font-bold mb-4 text-indigo-900">Fahrt abschließen</h2>
@@ -186,51 +191,54 @@
             </div>
 
             <div class="form-group">
-                <label>Notizen & ✨ KI-Logbuch</label>
+                <label>✨ KI-Logbuch Bericht</label>
                 <div class="relative">
-                    <textarea id="save-notes" rows="4" placeholder="Startplatz, Landung, Besonderheiten..."></textarea>
+                    <textarea id="save-notes" rows="3" placeholder="Notizen..."></textarea>
                     <button onclick="generateAIRepo()" id="btn-ai-repo" class="absolute bottom-2 right-2 bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-lg flex items-center gap-1">
-                        ✨ Bericht
+                        ✨ Erstellen
                     </button>
                 </div>
             </div>
 
             <div id="ai-repo-loader" class="hidden mb-4 p-3 bg-purple-50 rounded-xl text-center">
                 <div class="ai-shimmer h-4 w-3/4 mx-auto rounded mb-2"></div>
-                <span class="text-[10px] text-purple-600 font-bold uppercase tracking-wider">Erstelle KI-Analyse...</span>
-            </div>
-
-            <div id="save-error" class="hidden text-red-600 text-xs font-bold mb-4 bg-red-50 p-2 rounded-lg"></div>
-
-            <div class="bg-indigo-50 p-3 rounded-lg mb-4 text-xs text-indigo-800 flex justify-between">
-                <span>Max: <b id="stat-max-alt">0</b>m</span>
-                <span>Zeit: <b id="stat-duration">0</b> min</span>
-                <span>Track: <b id="stat-points">0</b> Pkt</span>
+                <span class="text-[10px] text-purple-600 font-bold tracking-wider uppercase">Analysiere Flugdaten...</span>
             </div>
 
             <div class="flex gap-2">
                 <button onclick="confirmSave()" class="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-bold">Speichern</button>
-                <button onclick="closeSaveModal()" class="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl">Abbrechen</button>
+                <button onclick="closeSaveModal()" class="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl">Verwerfen</button>
             </div>
         </div>
     </div>
 
-    <!-- Logbuch Menü -->
+    <!-- Modal: Historie & Replay -->
     <div id="menu-modal" class="modal">
         <div class="modal-content">
             <div class="flex justify-between items-center mb-6">
-                <h2 class="text-xl font-bold">Logbuch & Historie</h2>
+                <h2 class="text-xl font-bold">Historie</h2>
                 <button onclick="closeMenu()" class="text-gray-400 p-2"><i class="fa-solid fa-times text-xl"></i></button>
             </div>
             
-            <div id="saved-list" class="space-y-3 max-h-[60vh] overflow-y-auto pr-2"></div>
+            <div id="replay-info" class="hidden mb-4 p-3 bg-indigo-50 rounded-xl border border-indigo-100">
+                <div class="flex justify-between items-start mb-2">
+                    <h3 id="replay-title" class="font-bold text-indigo-900">Fahrt Details</h3>
+                    <button onclick="downloadGPX()" class="text-xs bg-indigo-600 text-white px-3 py-1 rounded-lg">GPX Export</button>
+                </div>
+                <div class="chart-container">
+                    <canvas id="altitudeChart"></canvas>
+                </div>
+                <p id="replay-notes" class="text-xs text-slate-600 italic mt-2"></p>
+            </div>
+
+            <div id="saved-list" class="space-y-3 max-h-[40vh] overflow-y-auto pr-2"></div>
 
             <div class="mt-6 pt-4 border-t space-y-2">
                 <button onclick="toggleSimulation()" id="sim-btn" class="w-full py-3 px-4 rounded-xl bg-purple-50 text-purple-700 font-bold text-sm flex items-center justify-between">
-                    <span><i class="fa-solid fa-robot mr-2"></i> Demo-Modus</span>
+                    <span><i class="fa-solid fa-robot mr-2"></i> Simulation</span>
                     <i class="fa-solid fa-play"></i>
                 </button>
-                <button onclick="closeMenu()" class="w-full py-4 bg-slate-900 text-white rounded-xl font-bold">Schließen</button>
+                <button onclick="closeMenu()" class="w-full py-4 bg-slate-900 text-white rounded-xl font-bold">Fertig</button>
             </div>
         </div>
     </div>
@@ -248,12 +256,13 @@
             currentPos: null,
             startTime: null,
             simulationId: null,
-            wakeLock: null,
             lastAIWeatherUpdate: 0,
             lastAINavUpdate: 0,
             waypoint: null,
             waypointMarker: null,
-            windLibrary: {} // Struktur: { "100m": {speed, heading}, "200m": ... }
+            windLibrary: {},
+            currentReplay: null,
+            chart: null
         };
 
         const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([51.1657, 10.4515], 6);
@@ -261,130 +270,21 @@
         const trackLine = L.polyline([], { color: '#4f46e5', weight: 4, opacity: 0.8 }).addTo(map);
         const marker = L.circleMarker([0,0], { radius: 8, color: 'white', fillColor: '#4f46e5', fillOpacity: 1, weight: 2 }).addTo(map);
 
-        // --- MAP INTERACTION (WAYPOINT SETTING) ---
-        map.on('contextmenu', function(e) {
-            setWaypoint(e.latlng);
-        });
-
-        function setWaypoint(latlng) {
-            if (state.waypointMarker) map.removeLayer(state.waypointMarker);
-            state.waypoint = latlng;
-            state.waypointMarker = L.marker(latlng, {
-                icon: L.divIcon({
-                    html: '<i class="fa-solid fa-location-crosshairs text-indigo-600 text-3xl" style="margin-top:-15px; margin-left:-10px"></i>',
-                    className: 'custom-div-icon'
-                })
-            }).addTo(map);
-            document.getElementById('nav-indicator').style.display = 'block';
-            updateAINavigation();
-        }
-
-        function clearWaypoint() {
-            if (state.waypointMarker) map.removeLayer(state.waypointMarker);
-            state.waypoint = null;
-            state.waypointMarker = null;
-            document.getElementById('nav-indicator').style.display = 'none';
-        }
-
-        // --- GEMINI API INTEGRATION ---
-
-        async function callGemini(prompt, systemPrompt) {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-            let retries = 0;
-            const delays = [1000, 2000, 4000];
-
-            while (retries < 3) {
-                try {
-                    const response = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            contents: [{ parts: [{ text: prompt }] }],
-                            systemInstruction: { parts: [{ text: systemPrompt }] }
-                        })
-                    });
-                    const data = await response.json();
-                    return data.candidates?.[0]?.content?.parts?.[0]?.text;
-                } catch (err) {
-                    await new Promise(r => setTimeout(r, delays[retries]));
-                    retries++;
-                }
-            }
-            throw new Error("KI offline");
-        }
-
-        async function updateAINavigation() {
-            if (!state.waypoint || !state.currentPos) return;
-            if (Date.now() - state.lastAINavUpdate < 15000) return; // Update alle 15 Sek
-
-            const dist = (map.distance(state.currentPos, state.waypoint) / 1000).toFixed(1);
-            document.getElementById('nav-dist').innerText = `${dist} km`;
-
-            try {
-                const windProfileStr = Object.entries(state.windLibrary)
-                    .map(([h, w]) => `Höhe ${h}: ${w.heading}°/${w.speed}kmh`)
-                    .join(', ');
-
-                const systemPrompt = "Du bist ein KI-Ballon-Navigator. Analysiere das Windprofil und gib EINE Handlungsanweisung (max 10 Wörter), um den Waypoint zu erreichen. Antworte in Deutsch. Gib NUR die Anweisung zurück. Benutze Begriffe wie 'Steigen auf...', 'Sinken auf...', 'Höhe halten'.";
-                const prompt = `Aktuelle Position: ${state.currentPos.lat}, ${state.currentPos.lng}. Ziel: ${state.waypoint.lat}, ${state.waypoint.lng}. Aktuelle Höhe: ${state.currentAlt}m. Bekannte Winde: ${windProfileStr || 'Keine Daten vorhanden'}.`;
-                
-                const instruction = await callGemini(prompt, systemPrompt);
-                
-                document.getElementById('nav-text').innerText = instruction;
-                
-                // Pfeil-Logik basierend auf Text (einfacher Parser)
-                const lower = instruction.toLowerCase();
-                const icon = document.getElementById('nav-icon');
-                if (lower.includes("steigen")) icon.className = "fa-solid fa-arrow-up nav-arrow text-green-600";
-                else if (lower.includes("sinken")) icon.className = "fa-solid fa-arrow-down nav-arrow text-red-600";
-                else icon.className = "fa-solid fa-arrow-right nav-arrow text-indigo-600";
-
-                state.lastAINavUpdate = Date.now();
-            } catch (e) {
-                console.error("Nav-AI Error", e);
-            }
-        }
-
-        async function checkAIWeather(lat, lng, alt) {
-            if (Date.now() - state.lastAIWeatherUpdate < 300000) return;
-            document.getElementById('ai-weather-info').style.display = 'block';
-            document.getElementById('ai-weather-loading').classList.remove('hidden');
-            try {
-                const systemPrompt = "Du bist ein Ballonpilot. Gib kurze Sicherheitstipps (max 15 Wörter) für Region/Höhe auf Deutsch.";
-                const prompt = `Pos: ${lat}, ${lng}. Alt: ${alt}m. Kurzinfo Wetter/Sicherheit?`;
-                const advice = await callGemini(prompt, systemPrompt);
-                document.getElementById('ai-weather-text').innerText = advice;
-                state.lastAIWeatherUpdate = Date.now();
-            } catch (e) {} finally {
-                document.getElementById('ai-weather-loading').classList.add('hidden');
-            }
-        }
-
-        // --- WIND DATA LOGGING ---
-        function updateWindLibrary(alt, speed, heading) {
-            // Runden auf 100m Intervalle
-            const slot = Math.round(alt / 100) * 100 + "m";
-            if (speed > 2) { // Nur signifikante Winde speichern
-                state.windLibrary[slot] = { speed: Math.round(speed), heading: Math.round(heading) };
-            }
-        }
-
-        // --- TRACKING LOGIC ---
-
+        // --- GPS LOGIC ---
         function handlePosition(pos) {
             state.lastPosTime = Date.now();
+            hideError();
             const { latitude, longitude, altitude, speed, heading } = pos.coords;
             processData(latitude, longitude, altitude || 0, (speed || 0) * 3.6, heading, pos.timestamp);
             
             if (state.recording) {
-                checkAIWeather(latitude, longitude, altitude);
-                updateAINavigation();
+                if (Date.now() - state.lastAIWeatherUpdate > 300000) checkAIWeather(latitude, longitude, altitude);
+                if (Date.now() - state.lastAINavUpdate > 20000) updateAINavigation();
             }
         }
 
         function processData(lat, lng, alt, speedKmh, heading, time) {
             const climb = state.track.length > 0 ? (alt - state.track[state.track.length-1].alt) : 0;
-            
             state.currentAlt = alt;
             state.currentPos = L.latLng(lat, lng);
             if (alt > state.maxAlt) state.maxAlt = alt;
@@ -394,114 +294,202 @@
             document.getElementById('disp-heading').innerText = heading ? Math.round(heading) + "°" : "---";
             document.getElementById('disp-climb').innerText = climb.toFixed(1);
 
-            if (heading) updateWindLibrary(alt, speedKmh, heading);
-
             marker.setLatLng([lat, lng]);
 
             if (state.recording) {
-                if (state.track.length > 0) {
-                    const last = state.track[state.track.length - 1];
-                    if (last.lat === lat && last.lng === lng) return;
-                }
                 state.track.push({ lat, lng, alt, speedKmh, heading, time });
                 trackLine.addLatLng([lat, lng]);
-                map.panTo([lat, lng]);
+                if (state.track.length % 5 === 0) map.panTo([lat, lng]);
             }
         }
 
-        // --- REST DER APP LOGIK ---
-
-        function toggleRecording() {
-            if (!state.recording) {
-                if (!state.lastPosTime && !state.simulationId) {
-                    alert("Warte auf GPS Signal...");
-                    startGPSWatch();
-                    return;
+        // --- KI CORE ---
+        async function callGemini(prompt, systemPrompt) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const delays = [1000, 2000, 4000, 8000, 16000];
+            for (let i = 0; i < 5; i++) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: prompt }] }],
+                            systemInstruction: { parts: [{ text: systemPrompt }] }
+                        })
+                    });
+                    if (!response.ok) throw new Error();
+                    const data = await response.json();
+                    return data.candidates[0].content.parts[0].text;
+                } catch (err) {
+                    if (i === 4) throw err;
+                    await new Promise(r => setTimeout(r, delays[i]));
                 }
-                state.recording = true;
-                state.startTime = Date.now();
-                state.track = [];
-                state.maxAlt = 0;
-                state.windLibrary = {};
-                trackLine.setLatLngs([]);
-                requestWakeLock();
-                document.getElementById('btn-toggle').className = "btn-large flex-1 bg-red-600 text-white flex items-center justify-center gap-2";
-                document.getElementById('btn-text').innerText = "Fahrt stoppen";
-                startGPSWatch();
-            } else {
-                state.recording = false;
-                if (state.wakeLock) state.wakeLock.release().then(() => state.wakeLock = null);
-                document.getElementById('ai-weather-info').style.display = 'none';
-                openSaveModal();
             }
-        }
-
-        function openSaveModal() {
-            document.getElementById('save-modal').style.display = 'flex';
-            document.getElementById('save-name').value = `Fahrt ${new Date().toLocaleDateString()}`;
-            document.getElementById('stat-max-alt').innerText = Math.round(state.maxAlt);
-            document.getElementById('stat-points').innerText = state.track.length;
-            const duration = Math.round((Date.now() - state.startTime) / 60000);
-            document.getElementById('stat-duration').innerText = duration;
-            document.getElementById('save-notes').value = "";
         }
 
         async function generateAIRepo() {
+            if (state.track.length < 5) return;
             const loader = document.getElementById('ai-repo-loader');
             const textarea = document.getElementById('save-notes');
             loader.classList.remove('hidden');
             try {
-                const summary = state.track.filter((_, i) => i % 15 === 0).map(p => `${p.alt}m`).join('->');
-                const systemPrompt = "Schreibe einen kurzen Logbucheintrag (Deutsch) für eine Ballonfahrt.";
-                const prompt = `Fahrtbericht: Max ${state.maxAlt}m, Dauer ${document.getElementById('stat-duration').innerText}min. Höhenprofil: ${summary}`;
-                textarea.value = await callGemini(prompt, systemPrompt);
-            } catch (e) { alert("Fehler"); } finally { loader.classList.add('hidden'); }
+                const prompt = `Erstelle Logbucheintrag für Ballonfahrt: Max ${Math.round(state.maxAlt)}m, Start ${new Date(state.startTime).toLocaleTimeString()}.`;
+                textarea.value = await callGemini(prompt, "Du bist ein erfahrener Ballonpilot. Schreibe kurz und atmosphärisch.");
+            } finally { loader.classList.add('hidden'); }
         }
 
-        function closeSaveModal() { document.getElementById('save-modal').style.display = 'none'; resetUI(); }
-        function resetUI() { document.getElementById('btn-toggle').className = "btn-large flex-1 bg-green-600 text-white flex items-center justify-center gap-2"; document.getElementById('btn-text').innerText = "Fahrt starten"; }
+        async function updateAINavigation() {
+            if (!state.waypoint || !state.currentPos) return;
+            try {
+                const prompt = `Pos: ${state.currentPos.lat}, ${state.currentPos.lng}. Ziel: ${state.waypoint.lat}, ${state.waypoint.lng}. Höhe: ${state.currentAlt}m.`;
+                const instruction = await callGemini(prompt, "Gib EINE kurze Handlungsanweisung (max 8 Wörter), um das Ziel zu erreichen.");
+                document.getElementById('nav-text').innerText = instruction;
+                state.lastAINavUpdate = Date.now();
+            } catch (e) {}
+        }
+
+        async function checkAIWeather(lat, lng, alt) {
+            document.getElementById('ai-weather-info').style.display = 'block';
+            try {
+                const advice = await callGemini(`Wettercheck ${lat}, ${lng}, ${alt}m`, "Kurzer Sicherheitstipp für Ballonpiloten (max 10 Wörter).");
+                document.getElementById('ai-weather-text').innerText = advice;
+                state.lastAIWeatherUpdate = Date.now();
+            } catch (e) {}
+        }
+
+        // --- GPX EXPORT ---
+        function downloadGPX() {
+            if (!state.currentReplay) return;
+            const f = state.currentReplay;
+            let gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="AeroNav" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk><name>${f.name}</name><trkseg>`;
+            
+            f.track.forEach(p => {
+                gpx += `\n    <trkpt lat="${p.lat}" lon="${p.lng}"><ele>${p.alt}</ele><time>${new Date(p.time).toISOString()}</time></trkpt>`;
+            });
+
+            gpx += `\n  </trkseg></trk></gpx>`;
+            
+            const blob = new Blob([gpx], { type: 'application/gpx+xml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${f.name.replace(/\s+/g, '_')}.gpx`;
+            a.click();
+        }
+
+        // --- HÖHENPROFIL (Chart) ---
+        function renderAltitudeChart(track) {
+            const ctx = document.getElementById('altitudeChart').getContext('2d');
+            if (state.chart) state.chart.destroy();
+            
+            const labels = track.filter((_, i) => i % 5 === 0).map((_, i) => i);
+            const data = track.filter((_, i) => i % 5 === 0).map(p => p.alt);
+
+            state.chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Höhe (m)',
+                        data: data,
+                        borderColor: '#4f46e5',
+                        backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: false, ticks: { font: { size: 8 } } },
+                        x: { display: false }
+                    }
+                }
+            });
+        }
+
+        // --- REPLAY & HISTORY ---
+        function loadToMap(id) {
+            const flights = JSON.parse(localStorage.getItem('flights') || '[]');
+            const f = flights.find(x => x.id === id);
+            if (!f) return;
+
+            state.currentReplay = f;
+            trackLine.setLatLngs(f.track.map(p => [p.lat, p.lng]));
+            map.fitBounds(trackLine.getBounds());
+            
+            document.getElementById('replay-info').classList.remove('hidden');
+            document.getElementById('replay-title').innerText = f.name;
+            document.getElementById('replay-notes').innerText = f.notes || "Keine Notizen";
+            
+            renderAltitudeChart(f.track);
+        }
+
+        // --- RECORDING & MODALS ---
+        function toggleRecording() {
+            if (!state.recording) {
+                state.recording = true; state.startTime = Date.now(); state.track = [];
+                document.getElementById('btn-toggle').className = "btn-large flex-1 bg-red-600 text-white flex gap-2 justify-center";
+                document.getElementById('btn-text').innerText = "Stoppen";
+            } else {
+                state.recording = false;
+                document.getElementById('save-modal').style.display = 'flex';
+                document.getElementById('save-name').value = `Fahrt ${new Date().toLocaleDateString()}`;
+            }
+        }
 
         function confirmSave() {
-            const flight = { id: Date.now(), name: document.getElementById('save-name').value, registration: document.getElementById('save-reg').value, notes: document.getElementById('save-notes').value, maxAlt: state.maxAlt, track: state.track, date: new Date().toISOString() };
+            const flight = { id: Date.now(), name: document.getElementById('save-name').value, notes: document.getElementById('save-notes').value, track: state.track };
             const flights = JSON.parse(localStorage.getItem('flights') || '[]');
             flights.push(flight);
             localStorage.setItem('flights', JSON.stringify(flights));
             closeSaveModal();
         }
 
+        function closeSaveModal() { document.getElementById('save-modal').style.display = 'none'; resetUI(); }
+        function resetUI() { document.getElementById('btn-toggle').className = "btn-large flex-1 bg-green-600 text-white flex gap-2 justify-center"; document.getElementById('btn-text').innerText = "Fahrt starten"; }
         function openMenu() { document.getElementById('menu-modal').style.display = 'flex'; renderHistory(); }
         function closeMenu() { document.getElementById('menu-modal').style.display = 'none'; }
         function renderHistory() {
             const list = document.getElementById('saved-list');
             const flights = JSON.parse(localStorage.getItem('flights') || '[]');
-            list.innerHTML = flights.reverse().map(f => `<div class="bg-white border p-3 rounded-xl mb-2"><h3 class="font-bold">${f.name}</h3><button onclick="loadToMap(${f.id})" class="text-xs text-blue-600">Auf Karte anzeigen</button></div>`).join('');
+            list.innerHTML = flights.reverse().map(f => `
+                <div class="bg-white border p-3 rounded-xl flex justify-between items-center">
+                    <div>
+                        <h3 class="font-bold text-sm">${f.name}</h3>
+                        <p class="text-[10px] text-slate-400">${f.track.length} Wegpunkte</p>
+                    </div>
+                    <button onclick="loadToMap(${f.id})" class="text-xs bg-indigo-50 text-indigo-600 px-3 py-2 rounded-lg font-bold">Details</button>
+                </div>`).join('');
         }
 
-        function loadToMap(id) {
-            const f = JSON.parse(localStorage.getItem('flights')).find(x => x.id === id);
-            trackLine.setLatLngs(f.track.map(p => [p.lat, p.lng]));
-            map.fitBounds(trackLine.getBounds());
-            closeMenu();
+        // --- UTILS ---
+        function setWaypoint(latlng) {
+            if (state.waypointMarker) map.removeLayer(state.waypointMarker);
+            state.waypoint = latlng;
+            state.waypointMarker = L.marker(latlng).addTo(map);
+            document.getElementById('nav-indicator').style.display = 'block';
+            updateAINavigation();
         }
-
+        function clearWaypoint() { if (state.waypointMarker) map.removeLayer(state.waypointMarker); state.waypoint = null; document.getElementById('nav-indicator').style.display = 'none'; }
+        function retryGPS() { startGPSWatch(); }
+        function startGPSWatch() { navigator.geolocation.watchPosition(handlePosition, () => showError("GPS Fehler", "Signal verloren"), { enableHighAccuracy: true }); }
+        function showError(t, d) { document.getElementById('error-title').innerText = t; document.getElementById('error-desc').innerText = d; document.getElementById('error-overlay').style.display = 'flex'; }
+        function hideError() { document.getElementById('error-overlay').style.display = 'none'; }
+        
         function toggleSimulation() {
-            if (state.simulationId) { clearInterval(state.simulationId); state.simulationId = null; return; }
             if (!state.recording) toggleRecording();
-            let lat = 51.16, lng = 10.45, alt = 50, head = 0;
-            state.simulationId = setInterval(() => {
-                alt += (Math.random() * 6 - 2); // Simuliere Steigen/Sinken
-                head = (head + 1) % 360;
-                lat += 0.0003; lng += 0.0002;
-                processData(lat, lng, alt, 15, head, Date.now());
-            }, 1000);
+            let lat = 51.16, lng = 10.45, alt = 200;
+            setInterval(() => { alt += Math.random()*4-1.5; lat += 0.0002; lng += 0.0001; processData(lat, lng, alt, 15, 45, Date.now()); }, 1000);
             closeMenu();
         }
 
-        function startGPSWatch() {
-            state.watchId = navigator.geolocation.watchPosition(handlePosition, (err) => {}, { enableHighAccuracy: true });
-        }
-
-        async function requestWakeLock() { if ('wakeLock' in navigator) state.wakeLock = await navigator.wakeLock.request('screen'); }
+        map.on('contextmenu', (e) => setWaypoint(e.latlng));
         window.onload = startGPSWatch;
     </script>
 </body>
