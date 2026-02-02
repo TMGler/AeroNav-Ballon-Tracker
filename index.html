@@ -38,7 +38,7 @@
         /* Utility */
         .hidden-ui { display: none !important; }
 
-        /* KML Label Style */
+        /* KML & Map Styles */
         .airspace-label {
             background: transparent;
             border: none;
@@ -48,72 +48,47 @@
             font-size: 10px;
             text-shadow: 1px 1px 2px black;
         }
-
-        /* Dark Mode Popups */
         .leaflet-popup-content-wrapper, .leaflet-popup-tip {
-            background-color: #111827 !important; /* gray-900 */
-            color: #f3f4f6 !important; /* gray-100 */
-            border: 1px solid #374151; /* gray-700 */
-            backdrop-filter: blur(4px);
+            background-color: #111827 !important; color: #f3f4f6 !important;
+            border: 1px solid #374151; backdrop-filter: blur(4px);
         }
-        
-        /* Force text color for generic content */
-        .leaflet-popup-content, 
-        .leaflet-popup-content p, 
-        .leaflet-popup-content div,
-        .leaflet-popup-content span,
-        .leaflet-popup-content li,
-        .leaflet-popup-content font { 
-            color: #f3f4f6 !important;
+        .leaflet-popup-content, .leaflet-popup-content * { color: #f3f4f6 !important; }
+        .leaflet-popup-content table, .leaflet-popup-content td {
+            background: transparent !important; border-color: #4b5563 !important;
         }
+        .leaflet-container a.leaflet-popup-close-button { color: #9ca3af !important; font-size: 18px !important; padding: 8px !important; }
 
-        /* CRITICAL FIX FOR KML TABLES */
-        .leaflet-popup-content table,
-        .leaflet-popup-content tbody,
-        .leaflet-popup-content tr,
-        .leaflet-popup-content td, 
-        .leaflet-popup-content th {
-            background-color: transparent !important;
-            background: transparent !important;
-            color: #f3f4f6 !important;
-            border-color: #4b5563 !important; /* gray-600 */
-        }
-
-        .leaflet-popup-content table {
-            width: 100% !important;
-            border-collapse: collapse !important;
-            margin-top: 0.5rem;
-        }
-
-        .leaflet-popup-content td, 
-        .leaflet-popup-content th {
-            border: 1px solid #374151 !important; /* gray-700 */
-            padding: 4px 8px !important;
-            font-size: 0.8rem !important;
-        }
-        
-        .leaflet-popup-content th {
-            font-weight: bold !important;
-            color: #93c5fd !important; /* blue-300 */
-            background-color: rgba(255, 255, 255, 0.05) !important;
-        }
-
-        .leaflet-container a.leaflet-popup-close-button {
-            color: #9ca3af !important;
-            font-size: 18px !important;
-            padding: 8px !important;
-        }
-        
-        .leaflet-container a.leaflet-popup-close-button:hover {
-            color: #ffffff !important;
+        /* View Cone (Compass) */
+        .compass-cone {
+            width: 0; height: 0;
+            border-left: 100px solid transparent;
+            border-right: 100px solid transparent;
+            border-top: 300px solid rgba(59, 130, 246, 0.15); /* Light Blue Fade */
+            filter: blur(10px);
+            transform-origin: bottom center;
+            opacity: 0.8;
+            pointer-events: none;
         }
 
         /* Mobile Menu Transitions */
         #settings-modal { transition: opacity 0.3s ease; }
         .slide-up-mobile { animation: slideUp 0.3s ease-out; }
-        @keyframes slideUp {
-            from { transform: translateY(100%); }
-            to { transform: translateY(0); }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        
+        /* Animations for AI Button */
+        @keyframes pulse-ring {
+            0% { transform: scale(0.8); opacity: 0.5; }
+            100% { transform: scale(1.3); opacity: 0; }
+        }
+        .ai-pulse::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 0;
+            width: 100%; height: 100%;
+            background-color: inherit;
+            border-radius: 50%;
+            z-index: -1;
+            animation: pulse-ring 2s infinite;
         }
     </style>
 </head>
@@ -130,46 +105,29 @@
 
     <!-- HUD (Head Up Display) - Full Width -->
     <div id="hud-top" class="absolute top-0 left-0 right-0 p-2 z-20 flex justify-center pointer-events-none">
-        <!-- Main Flight Instruments Bar -->
         <div class="glass-panel rounded-xl p-3 w-full max-w-4xl flex justify-between items-center pointer-events-auto shadow-lg relative">
-            
             <!-- Altitude -->
             <div class="flex-1 text-center border-r border-gray-700/50">
                 <div class="text-[10px] text-gray-400 uppercase tracking-widest">Höhe</div>
-                <div class="flex items-baseline justify-center">
-                    <span id="hud-alt" class="text-3xl font-bold hud-value">0</span>
-                    <span class="text-xs text-gray-500 ml-1">m</span>
-                </div>
+                <div class="flex items-baseline justify-center"><span id="hud-alt" class="text-3xl font-bold hud-value">0</span><span class="text-xs text-gray-500 ml-1">m</span></div>
             </div>
-
             <!-- Speed -->
             <div class="flex-1 text-center border-r border-gray-700/50">
                 <div class="text-[10px] text-gray-400 uppercase tracking-widest">Speed</div>
-                <div class="flex items-baseline justify-center">
-                    <span id="hud-speed" class="text-3xl font-bold hud-value">0</span>
-                    <span class="text-xs text-gray-500 ml-1">km/h</span>
-                </div>
+                <div class="flex items-baseline justify-center"><span id="hud-speed" class="text-3xl font-bold hud-value">0</span><span class="text-xs text-gray-500 ml-1">km/h</span></div>
             </div>
-
             <!-- Vario -->
-            <div class="flex-1 text-center border-r border-gray-700/50">
+            <div class="flex-1 text-center border-r border-gray-700/50 relative">
                 <div class="text-[10px] text-gray-400 uppercase tracking-widest">Vario</div>
-                <div class="flex items-baseline justify-center">
-                    <span id="hud-vario" class="text-3xl font-bold hud-value text-gray-300">0.0</span>
-                    <span class="text-xs text-gray-500 ml-1">m/s</span>
-                </div>
+                <div class="flex items-baseline justify-center"><span id="hud-vario" class="text-3xl font-bold hud-value text-gray-300">0.0</span><span class="text-xs text-gray-500 ml-1">m/s</span></div>
+                <div id="baro-indicator" class="hidden absolute top-0 right-1 text-[8px] font-bold text-yellow-500 border border-yellow-600 rounded px-1" title="Barometer aktiv">BARO</div>
             </div>
-
             <!-- Track -->
             <div class="flex-1 text-center">
                 <div class="text-[10px] text-gray-400 uppercase tracking-widest">Kurs</div>
-                <div class="flex items-baseline justify-center">
-                    <span id="hud-heading" class="text-3xl font-bold hud-value">0</span>
-                    <span class="text-xs text-gray-500 ml-1">°</span>
-                </div>
+                <div class="flex items-baseline justify-center"><span id="hud-heading" class="text-3xl font-bold hud-value">0</span><span class="text-xs text-gray-500 ml-1">°</span></div>
             </div>
-
-            <!-- Integrated Status Icons (Small, Absolute or Flex) -->
+            <!-- Status Icons -->
             <div class="absolute -bottom-2 right-2 flex gap-2">
                  <div id="gps-status" class="bg-gray-800/80 px-2 py-0.5 rounded text-[9px] font-bold text-blue-400 border border-gray-700 shadow">SIMULATION</div>
                  <div id="rec-status" class="hidden bg-red-900/80 px-2 py-0.5 rounded text-[9px] font-bold text-red-200 border border-red-700 shadow animate-pulse">REC</div>
@@ -177,83 +135,62 @@
         </div>
     </div>
 
-    <!-- Wind Layer Sidebar (Right) -->
-    <div class="absolute right-0 top-24 bottom-24 w-14 z-10 flex flex-col items-end pointer-events-none">
-        <div id="wind-layers" class="glass-panel rounded-l-xl h-full w-full flex flex-col pointer-events-auto overflow-y-auto text-xs border-r-0">
-            <!-- Dynamic Wind Layers inserted here -->
-        </div>
+    <!-- Right Side: Wind Layer Sidebar & AI Button -->
+    <div class="absolute right-0 top-24 bottom-24 w-14 z-10 flex flex-col items-end pointer-events-none gap-4">
+        <!-- Wind Layers -->
+        <div id="wind-layers" class="glass-panel rounded-l-xl w-full flex flex-col pointer-events-auto overflow-y-auto text-xs border-r-0 flex-1 max-h-[60%]"></div>
+        
+        <!-- AI Button (Moved here) -->
+        <button onclick="app.ai.openAssistant()" class="glass-panel w-12 h-12 rounded-l-xl flex items-center justify-center bg-blue-600/80 hover:bg-blue-500 text-white shadow-[0_0_15px_rgba(59,130,246,0.5)] border-r-0 pointer-events-auto ai-pulse relative mr-0 transition-all transform hover:scale-105 active:scale-95" title="KI Assistent">
+            <i class="fas fa-sparkles text-lg"></i>
+        </button>
     </div>
 
-    <!-- Simulation Controls (Bottom Center) -->
+    <!-- Controls -->
     <div id="sim-controls" class="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-30 flex gap-6">
-        <button id="btn-valve" class="control-btn glass-panel w-20 h-20 rounded-full flex flex-col items-center justify-center border-red-500/50 hover:bg-red-900/40 text-red-300 active:bg-red-700 transition-all shadow-[0_0_20px_rgba(220,38,38,0.3)]">
-            <i class="fas fa-arrow-down text-2xl"></i>
-            <span class="text-xs font-bold mt-1">VENTIL</span>
-        </button>
-        <button id="btn-burner" class="control-btn glass-panel w-20 h-20 rounded-full flex flex-col items-center justify-center border-green-500/50 hover:bg-green-900/40 text-green-300 active:bg-green-600 transition-all shadow-[0_0_20px_rgba(34,197,94,0.3)]">
-            <i class="fas fa-fire text-2xl"></i>
-            <span class="text-xs font-bold mt-1">BRENNER</span>
-        </button>
+        <button id="btn-valve" class="control-btn glass-panel w-20 h-20 rounded-full flex flex-col items-center justify-center border-red-500/50 hover:bg-red-900/40 text-red-300 active:bg-red-700 transition-all shadow-[0_0_20px_rgba(220,38,38,0.3)]"><i class="fas fa-arrow-down text-2xl"></i><span class="text-xs font-bold mt-1">VENTIL</span></button>
+        <button id="btn-burner" class="control-btn glass-panel w-20 h-20 rounded-full flex flex-col items-center justify-center border-green-500/50 hover:bg-green-900/40 text-green-300 active:bg-green-600 transition-all shadow-[0_0_20px_rgba(34,197,94,0.3)]"><i class="fas fa-fire text-2xl"></i><span class="text-xs font-bold mt-1">BRENNER</span></button>
     </div>
 
-    <!-- Main Toolbar (Bottom Left) -->
+    <!-- Main Toolbar (Left Side) -->
     <div class="absolute bottom-6 left-4 z-30 flex flex-col gap-3">
-        <!-- Setup / Menu Button -->
-        <button onclick="app.toggleSettings()" class="glass-panel p-3 rounded-full hover:bg-gray-700 w-12 h-12 flex items-center justify-center text-gray-200" title="Menü / Setup">
-            <i class="fas fa-bars"></i>
-        </button>
-
-        <!-- Center/Follow Button -->
-        <button id="btn-center" onclick="app.toggleFollow()" class="glass-panel p-3 rounded-full hover:bg-blue-900/50 w-12 h-12 flex items-center justify-center text-blue-400" title="Karte zentrieren">
-            <i class="fas fa-crosshairs"></i>
-        </button>
-        
-        <button id="btn-record" onclick="app.logbook.toggleRecording()" class="glass-panel p-3 rounded-full hover:bg-red-900/50 w-12 h-12 flex items-center justify-center hidden" title="Record Track">
-            <i id="icon-record" class="fas fa-circle text-gray-400"></i>
-        </button>
-        
-        <button onclick="app.ui.cycleMapLayer()" class="glass-panel p-3 rounded-full hover:bg-gray-700 w-12 h-12 flex items-center justify-center" title="Kartenstil wechseln">
-            <i class="fas fa-layer-group"></i>
-        </button>
-        
-         <button onclick="app.ai.openAssistant()" class="glass-panel p-3 rounded-full border-blue-400 border hover:bg-blue-900/50 w-12 h-12 flex items-center justify-center text-blue-300 shadow-[0_0_15px_rgba(59,130,246,0.5)]" title="AI Assistant">
-            <i class="fas fa-sparkles"></i>
-        </button>
+        <button onclick="app.toggleSettings()" class="glass-panel p-3 rounded-full hover:bg-gray-700 w-12 h-12 flex items-center justify-center text-gray-200 shadow-lg"><i class="fas fa-bars"></i></button>
+        <button id="btn-center" onclick="app.toggleFollow()" class="glass-panel p-3 rounded-full hover:bg-blue-900/50 w-12 h-12 flex items-center justify-center text-blue-400"><i class="fas fa-crosshairs"></i></button>
+        <button id="btn-record" onclick="app.logbook.toggleRecording()" class="glass-panel p-3 rounded-full hover:bg-red-900/50 w-12 h-12 flex items-center justify-center hidden"><i id="icon-record" class="fas fa-circle text-gray-400"></i></button>
+        <button onclick="app.ui.cycleMapLayer()" class="glass-panel p-3 rounded-full hover:bg-gray-700 w-12 h-12 flex items-center justify-center"><i class="fas fa-layer-group"></i></button>
     </div>
 
-    <!-- SETTINGS MODAL (Responsive Fixed: Portrait Bottom-Sheet, Landscape/Desktop Centered Modal) -->
+    <!-- SETTINGS MODAL -->
     <div id="settings-modal" class="hidden absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end landscape:items-center md:items-center justify-center transition-opacity duration-300">
-        <!-- Panel -->
         <div class="glass-panel w-full h-[85vh] md:h-auto md:max-h-[90vh] md:max-w-md landscape:h-auto landscape:max-h-[90vh] landscape:max-w-lg md:rounded-2xl landscape:rounded-2xl rounded-t-2xl p-6 overflow-y-auto slide-up-mobile flex flex-col shadow-2xl">
             
             <div class="flex justify-between items-center border-b border-gray-700 pb-4 mb-4 flex-shrink-0">
                 <h2 class="text-xl font-bold">Einstellungen</h2>
-                <button onclick="app.toggleSettings()" class="text-gray-400 hover:text-white p-2">
-                    <i class="fas fa-chevron-down md:fa-times landscape:fa-times text-xl"></i>
-                </button>
+                <button onclick="app.toggleSettings()" class="text-gray-400 hover:text-white p-2"><i class="fas fa-chevron-down md:fa-times landscape:fa-times text-xl"></i></button>
             </div>
             
             <div class="space-y-6 flex-1 overflow-y-auto">
-                <!-- Data Import Section -->
+                <!-- Logbook Section -->
                 <div>
-                    <label class="block text-sm text-gray-300 font-bold mb-2">Karten-Ebenen (KML/GPX)</label>
-                    
-                    <!-- Layer List Container -->
-                    <div id="layer-list" class="space-y-2 mb-3 max-h-40 overflow-y-auto pr-1 bg-gray-900/50 rounded-lg p-2 border border-gray-700/50">
-                        <div class="text-xs text-gray-500 text-center py-2 italic">Keine Karten geladen</div>
+                    <label class="block text-sm text-green-400 font-bold mb-2"><i class="fas fa-book mr-2"></i> Flug-Logbuch</label>
+                    <div id="log-list" class="space-y-2 mb-3 max-h-40 overflow-y-auto pr-1 bg-gray-900/50 rounded-lg p-2 border border-gray-700/50">
+                        <div class="text-xs text-gray-500 text-center py-2 italic">Keine Aufzeichnungen</div>
                     </div>
-
-                    <!-- File Dropzone -->
-                    <label class="flex flex-col items-center justify-center w-full h-12 border border-gray-600 border-dashed rounded-lg cursor-pointer bg-gray-800/50 hover:bg-gray-700/50">
-                        <div class="flex items-center justify-center gap-2">
-                            <i class="fas fa-plus text-sm text-gray-400"></i>
-                            <p class="text-xs text-gray-400">Datei hinzufügen...</p>
-                        </div>
-                        <input type="file" accept=".kml,.gpx,.xml" class="hidden" onchange="app.data.handleKML(this.files[0])" />
-                    </label>
                 </div>
 
                 <hr class="border-gray-700/50">
+
+                <!-- Compass Toggle -->
+                <div class="flex justify-between items-center">
+                    <div>
+                        <label class="block text-sm text-gray-200 font-bold">Blickrichtung (Kompass)</label>
+                        <p class="text-[10px] text-gray-500">Zeigt Sichtkegel auf Karte</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="compass-toggle-check" class="sr-only peer" onchange="app.compass.toggle()">
+                        <div class="w-12 h-7 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                </div>
 
                 <!-- Simulation Mode -->
                 <div class="flex justify-between items-center">
@@ -267,89 +204,54 @@
                     </label>
                 </div>
 
-                <!-- HUD Opacity -->
+                <!-- Data Import -->
+                <div>
+                    <label class="block text-sm text-gray-300 font-bold mb-2">Karten-Ebenen (KML/GPX)</label>
+                    <div id="layer-list" class="space-y-2 mb-3 max-h-40 overflow-y-auto pr-1 bg-gray-900/50 rounded-lg p-2 border border-gray-700/50">
+                        <div class="text-xs text-gray-500 text-center py-2 italic">Keine Karten geladen</div>
+                    </div>
+                    <label class="flex flex-col items-center justify-center w-full h-12 border border-gray-600 border-dashed rounded-lg cursor-pointer bg-gray-800/50 hover:bg-gray-700/50">
+                        <div class="flex items-center justify-center gap-2"><i class="fas fa-plus text-sm text-gray-400"></i><p class="text-xs text-gray-400">Datei hinzufügen...</p></div>
+                        <input type="file" accept=".kml,.gpx,.xml" class="hidden" onchange="app.data.handleKML(this.files[0])" />
+                    </label>
+                </div>
+
+                <!-- Basic Settings -->
                 <div>
                     <label class="block text-sm text-gray-400 mb-2">HUD Transparenz</label>
                     <input type="range" min="0.0" max="0.95" step="0.05" value="0.85" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer" oninput="app.ui.updateOpacity(this.value)">
                 </div>
-
-                <!-- Custom Icon -->
                 <div>
                     <label class="block text-sm text-gray-400 mb-2">Eigenes Ballon Icon</label>
-                    <div class="flex items-center gap-2">
-                         <label class="flex-1 flex flex-col items-center justify-center h-10 bg-gray-800 text-gray-300 rounded border border-gray-600 cursor-pointer hover:bg-gray-700">
-                            <span class="text-xs">Bild wählen...</span>
-                            <input type='file' class="hidden" accept="image/*" onchange="app.ui.loadCustomIcon(this.files[0])" />
-                        </label>
-                    </div>
+                    <div class="flex items-center gap-2"><label class="flex-1 flex flex-col items-center justify-center h-10 bg-gray-800 text-gray-300 rounded border border-gray-600 cursor-pointer hover:bg-gray-700"><span class="text-xs">Bild wählen...</span><input type='file' class="hidden" accept="image/*" onchange="app.ui.loadCustomIcon(this.files[0])" /></label></div>
                 </div>
-
-                <!-- API Key -->
                 <div>
                     <label class="block text-sm text-gray-400 mb-2">Gemini API Key</label>
                     <input type="password" id="api-key" placeholder="Key eingeben..." class="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white text-xs">
                 </div>
             </div>
 
-            <!-- Danger Zone -->
             <div class="mt-4 pt-4 border-t border-gray-700 flex-shrink-0">
-                <button onclick="app.data.clearAllData()" class="w-full text-red-400 text-xs hover:text-red-200 flex items-center justify-center py-2">
-                    <i class="fas fa-trash-alt mr-2"></i> Alles zurücksetzen
-                </button>
+                <button onclick="app.data.clearAllData()" class="w-full text-red-400 text-xs hover:text-red-200 flex items-center justify-center py-2"><i class="fas fa-trash-alt mr-2"></i> Alles zurücksetzen</button>
             </div>
-            
-             <!-- Bottom padding for mobile scroll safety -->
              <div class="h-6 md:hidden landscape:hidden"></div>
         </div>
     </div>
 
-    <!-- AI ASSISTANT PANEL -->
-    <div id="ai-panel" class="hidden absolute right-4 bottom-24 z-40 w-80">
+    <!-- AI Panel (Right Side) -->
+    <div id="ai-panel" class="hidden absolute right-16 bottom-24 z-40 w-80">
         <div class="glass-panel p-4 rounded-xl">
-            <div class="flex justify-between items-center mb-2">
-                <h3 class="font-bold text-blue-300"><i class="fas fa-robot mr-1"></i> Gemini Co-Pilot</h3>
-                <button onclick="app.ai.close()" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
-            </div>
-            <div id="ai-output" class="text-sm text-gray-200 mb-3 min-h-[50px] max-h-[200px] overflow-y-auto">
-                Bereit für Anweisungen. Rechtsklick auf Karte setzt Ziel.
-            </div>
-            <div class="flex gap-2">
-                <button onclick="app.ai.analyzeWind()" class="flex-1 bg-purple-700/50 hover:bg-purple-600/50 border border-purple-500 rounded px-2 py-1 text-xs">
-                    Wind Analyse
-                </button>
-                <button onclick="app.ai.generateLogSummary()" class="flex-1 bg-green-700/50 hover:bg-green-600/50 border border-green-500 rounded px-2 py-1 text-xs">
-                    Logbuch
-                </button>
-            </div>
+            <div class="flex justify-between items-center mb-2"><h3 class="font-bold text-blue-300"><i class="fas fa-robot mr-1"></i> Gemini Co-Pilot</h3><button onclick="app.ai.close()" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button></div>
+            <div id="ai-output" class="text-sm text-gray-200 mb-3 min-h-[50px] max-h-[200px] overflow-y-auto">Bereit für Anweisungen. Rechtsklick auf Karte setzt Ziel.</div>
+            <div class="flex gap-2"><button onclick="app.ai.analyzeWind()" class="flex-1 bg-purple-700/50 hover:bg-purple-600/50 border border-purple-500 rounded px-2 py-1 text-xs">Wind Analyse</button><button onclick="app.ai.generateLogSummary()" class="flex-1 bg-green-700/50 hover:bg-green-600/50 border border-green-500 rounded px-2 py-1 text-xs">Logbuch</button></div>
         </div>
     </div>
 
     <!-- JAVASCRIPT LOGIC -->
     <script>
-        // --- GLOBAL CONSTANTS & CONFIG ---
-        const CONSTANTS = {
-            GRAVITY: 9.81,
-            AIR_DENSITY: 1.225,
-            BALLOON_MASS: 450,
-            OSM_API: 'https://overpass-api.de/api/interpreter'
-        };
+        const CONSTANTS = { GRAVITY: 9.81, OSM_API: 'https://overpass-api.de/api/interpreter' };
+        const state = { mode: 'simulation', recording: false, gpsLocked: false, position: { lat: 50.1109, lng: 8.6821, alt: 0 }, velocity: { h: 0, v: 0, heading: 0 }, history: [], windLayers: [], target: null, trackPoints: [], apiKey: localStorage.getItem('gemini_key') || '', autoFollow: true };
 
-        // --- APP STATE ---
-        const state = {
-            mode: 'simulation',
-            recording: false,
-            gpsLocked: false,
-            position: { lat: 50.1109, lng: 8.6821, alt: 0 },
-            velocity: { h: 0, v: 0, heading: 0 },
-            history: [],
-            windLayers: [],
-            target: null,
-            trackPoints: [],
-            apiKey: localStorage.getItem('gemini_key') || '',
-            autoFollow: true
-        };
-
-        // --- PERSISTENCE MANAGER ---
         const Settings = {
             save: () => {
                 localStorage.setItem('an_sim_mode', state.mode);
@@ -357,73 +259,147 @@
                 localStorage.setItem('an_map_layer', app.ui.currentLayerIndex);
             },
             load: () => {
-                const savedSim = localStorage.getItem('an_sim_mode');
-                if (savedSim) state.mode = savedSim;
-                
-                const savedOpacity = localStorage.getItem('an_hud_opacity');
-                if (savedOpacity) {
-                    app.ui.updateOpacity(savedOpacity);
-                    document.querySelector('input[type=range]').value = savedOpacity;
+                if (localStorage.getItem('an_sim_mode')) state.mode = localStorage.getItem('an_sim_mode');
+                if (localStorage.getItem('an_hud_opacity')) {
+                    app.ui.updateOpacity(localStorage.getItem('an_hud_opacity'));
+                    document.querySelector('input[type=range]').value = localStorage.getItem('an_hud_opacity');
                 }
-
-                const savedLayer = localStorage.getItem('an_map_layer');
-                if (savedLayer !== null) app.ui.currentLayerIndex = parseInt(savedLayer);
+                if (localStorage.getItem('an_map_layer')) app.ui.currentLayerIndex = parseInt(localStorage.getItem('an_map_layer'));
             }
         };
 
-        // --- WIND MODEL ---
         class WindManager {
-            constructor() {
-                this.generateWindProfile(state.position.lat, state.position.lng, false);
-            }
+            constructor() { this.generateWindProfile(state.position.lat, state.position.lng, false); }
             generateWindProfile(lat, lng, updateUI = true) {
                 const baseDir = (lat + lng) % 360; 
-                state.windLayers = [
-                    { min: 0, max: 200, speed: 5, dir: baseDir, label: 'Boden' },
-                    { min: 200, max: 500, speed: 12, dir: (baseDir + 20) % 360, label: '500m' },
-                    { min: 500, max: 1000, speed: 25, dir: (baseDir + 45) % 360, label: '1000m' },
-                    { min: 1000, max: 2000, speed: 35, dir: (baseDir + 90) % 360, label: '2000m' },
-                    { min: 2000, max: 9000, speed: 55, dir: (baseDir + 120) % 360, label: 'High' }
-                ];
+                state.windLayers = [ { min: 0, max: 200, speed: 5, dir: baseDir, label: 'Boden' }, { min: 200, max: 500, speed: 12, dir: (baseDir + 20) % 360, label: '500m' }, { min: 500, max: 1000, speed: 25, dir: (baseDir + 45) % 360, label: '1000m' }, { min: 1000, max: 2000, speed: 35, dir: (baseDir + 90) % 360, label: '2000m' }, { min: 2000, max: 9000, speed: 55, dir: (baseDir + 120) % 360, label: 'High' } ];
                 if (updateUI && typeof app !== 'undefined' && app.ui) app.ui.renderWindSidebar();
             }
-            getCurrentWind(alt) {
-                const layer = state.windLayers.find(l => alt >= l.min && alt < l.max) || state.windLayers[state.windLayers.length - 1];
-                return layer;
+            getCurrentWind(alt) { return state.windLayers.find(l => alt >= l.min && alt < l.max) || state.windLayers[state.windLayers.length - 1]; }
+        }
+
+        class BarometerManager {
+            constructor() { this.available = false; this.sensor = null; this.history = []; this.vario = 0; }
+            init() {
+                if ('Barometer' in window) {
+                    try {
+                        this.sensor = new Barometer({ frequency: 10 });
+                        this.sensor.addEventListener('reading', () => this.processReading());
+                        this.sensor.start(); this.available = true;
+                    } catch (e) { console.warn("Barometer not available"); }
+                }
+            }
+            processReading() {
+                if (!this.sensor.pressure) return;
+                const alt = 44330 * (1 - Math.pow(this.sensor.pressure / 1013.25, 0.1903));
+                const now = Date.now();
+                this.history.push({ t: now, a: alt });
+                const cutoff = now - 2000;
+                this.history = this.history.filter(item => item.t > cutoff);
+                const oldSample = this.history.find(item => item.t >= now - 1000);
+                if (oldSample && this.history.length > 5) {
+                     const dt = (now - oldSample.t) / 1000;
+                     if (dt > 0.5) this.vario = (alt - oldSample.a) / dt;
+                }
             }
         }
 
-        // --- PHYSICS ENGINE ---
-        class Physics {
-            constructor() {
-                this.burnerOn = false;
-                this.valveOpen = false;
-                this.lastUpdate = Date.now();
-                this.loop = this.loop.bind(this);
-            }
+        class CompassManager {
+            constructor() { this.active = false; this.heading = 0; }
+            toggle() { document.getElementById('compass-toggle-check').checked ? this.start() : this.stop(); }
             start() {
-                this.lastUpdate = Date.now();
-                requestAnimationFrame(this.loop);
+                const handler = (e) => {
+                    let heading = e.webkitCompassHeading || Math.abs(e.alpha - 360);
+                    this.heading = heading;
+                    if(this.active) app.ui.updateViewCone(heading);
+                };
+                this.handleOrientation = handler;
+
+                if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    DeviceOrientationEvent.requestPermission().then(r => {
+                        if (r === 'granted') { window.addEventListener('deviceorientation', this.handleOrientation); this.active = true; app.ui.toggleViewCone(true); }
+                        else { alert("Erlaubnis verweigert."); document.getElementById('compass-toggle-check').checked = false; }
+                    }).catch(console.error);
+                } else {
+                    window.addEventListener('deviceorientationabsolute', this.handleOrientation);
+                    window.addEventListener('deviceorientation', this.handleOrientation);
+                    this.active = true; app.ui.toggleViewCone(true);
+                }
             }
-            setControls(burner, valve) {
-                this.burnerOn = burner;
-                this.valveOpen = valve;
+            stop() {
+                window.removeEventListener('deviceorientation', this.handleOrientation);
+                window.removeEventListener('deviceorientationabsolute', this.handleOrientation);
+                this.active = false; app.ui.toggleViewCone(false);
             }
+        }
+
+        class Physics {
+            constructor() { 
+                this.burnerOn = false; 
+                this.valveOpen = false; 
+                this.lastUpdate = Date.now(); 
+                this.loop = this.loop.bind(this);
+                // NEW: Envelope Thermodynamics
+                this.envelopeTemp = 50; // Arbitrary "Heat Units". 50 = Equilibrium
+            }
+            start() { this.lastUpdate = Date.now(); requestAnimationFrame(this.loop); }
+            setControls(burner, valve) { this.burnerOn = burner; this.valveOpen = valve; }
             loop() {
                 const now = Date.now();
                 const dt = (now - this.lastUpdate) / 1000;
                 this.lastUpdate = now;
 
                 if (state.mode === 'simulation') {
-                    let lift = 0;
-                    if (this.burnerOn) lift = 2.5; 
-                    else if (this.valveOpen) lift = -3.0; 
-                    else lift = -0.15; 
+                    // --- ENHANCED PHYSICS (Thermodynamics) ---
+                    // 1. Heating (Burner)
+                    // Burner adds heat rapidly. 
+                    if (this.burnerOn) {
+                        this.envelopeTemp += 30 * dt; // Heating rate
+                    }
 
-                    state.velocity.v += (lift - state.velocity.v * 0.5) * dt; 
+                    // 2. Cooling (Newton's Law of Cooling approx)
+                    // The hotter it is (relative to ambient), the faster it cools.
+                    // Base cooling + dynamic cooling
+                    // Ambient is roughly 0 in this scale.
+                    const coolingRate = 0.5 + (this.envelopeTemp * 0.02); 
+                    this.envelopeTemp -= coolingRate * dt;
+
+                    // 3. Venting (Valve)
+                    // Releases heat very fast
+                    if (this.valveOpen) {
+                        this.envelopeTemp -= 40 * dt;
+                    }
+
+                    // Clamp Temp
+                    if (this.envelopeTemp < 0) this.envelopeTemp = 0; 
+                    if (this.envelopeTemp > 150) this.envelopeTemp = 150; // Safety limit
+
+                    // 4. Calculate Lift based on Temp Delta from Equilibrium (50)
+                    // If Temp > 50 -> Climb. Temp < 50 -> Sink.
+                    // Scale factor 0.1 gives reasonable vario response
+                    const buoyancyLift = (this.envelopeTemp - 50) * 0.15;
+
+                    // Apply acceleration
+                    // Gravity is already "counteracted" at equilibrium 50.
+                    // So buoyancyLift is net acceleration.
+                    
+                    // Dampening (Air resistance) varies with speed squared typically, 
+                    // but simple linear drag (0.5 * v) is stable for sim.
+                    const drag = state.velocity.v * 0.3; 
+                    
+                    state.velocity.v += (buoyancyLift - drag) * dt; 
+
+                    // Update Altitude
                     state.position.alt += state.velocity.v * dt;
-                    if (state.position.alt < 0) { state.position.alt = 0; state.velocity.v = 0; }
+                    
+                    // Ground Collision
+                    if (state.position.alt < 0) { 
+                        state.position.alt = 0; 
+                        state.velocity.v = 0; 
+                        // If on ground, temp doesn't reset, but velocity stops.
+                    }
 
+                    // Horizontal Movement (Wind)
                     if (state.position.alt > 10) { 
                         const wind = app.wind.getCurrentWind(state.position.alt);
                         state.velocity.h = wind.speed;
@@ -443,384 +419,192 @@
             }
         }
 
-        // --- UI MANAGER ---
         class UIManager {
             constructor() {
-                this.map = null;
-                this.markers = {};
-                this.baseLayers = {};
-                this.currentLayerIndex = 0; 
-                this.layerKeys = ['dark', 'light', 'sat'];
+                this.map = null; this.markers = {}; this.baseLayers = {}; this.currentLayerIndex = 0; this.layerKeys = ['dark', 'light', 'sat'];
             }
-
             initMap() {
-                // SYSTEM THEME DETECTION
-                if (localStorage.getItem('an_map_layer') === null) {
-                    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-                        this.currentLayerIndex = 1; 
-                    }
-                } else {
-                    this.currentLayerIndex = parseInt(localStorage.getItem('an_map_layer'));
-                }
+                if (localStorage.getItem('an_map_layer') === null && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) this.currentLayerIndex = 1; 
+                else if (localStorage.getItem('an_map_layer')) this.currentLayerIndex = parseInt(localStorage.getItem('an_map_layer'));
 
-                this.baseLayers.dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-                    attribution: '&copy; CARTO', subdomains: 'abcd', maxZoom: 19
-                });
-                this.baseLayers.light = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                     attribution: '&copy; OpenStreetMap'
-                });
-                this.baseLayers.sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                    attribution: '&copy; ESRI'
-                });
+                this.baseLayers.dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; CARTO', subdomains: 'abcd', maxZoom: 19 });
+                this.baseLayers.light = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' });
+                this.baseLayers.sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '&copy; ESRI' });
 
-                const startLayerKey = this.layerKeys[this.currentLayerIndex];
-
-                this.map = L.map('map', { 
-                    zoomControl: false,
-                    layers: [this.baseLayers[startLayerKey]] 
-                }).setView([state.position.lat, state.position.lng], 13);
-
+                this.map = L.map('map', { zoomControl: false, layers: [this.baseLayers[this.layerKeys[this.currentLayerIndex]]] }).setView([state.position.lat, state.position.lng], 13);
                 this.updateBalloonMarker();
                 this.markers.track = L.polyline([], {color: 'red', weight: 3}).addTo(this.map);
                 this.markers.vector = L.polyline([], {color: 'deepskyblue', dashArray: '5, 10', weight: 2}).addTo(this.map);
-                // Main LayerGroup is handled by DataManager now
+                this.markers.kmlLayerGroup = L.layerGroup().addTo(this.map);
+                this.markers.playbackLayer = L.layerGroup().addTo(this.map);
 
                 this.map.on('contextmenu', (e) => this.setTarget(e.latlng));
-                this.map.on('dragstart', () => {
-                    state.autoFollow = false;
-                    app.ui.updateFollowButton();
-                });
+                this.map.on('dragstart', () => { state.autoFollow = false; app.ui.updateFollowButton(); });
             }
-
             updateBalloonMarker() {
                 if (this.markers.balloon) this.map.removeLayer(this.markers.balloon);
+                if (this.markers.cone) this.map.removeLayer(this.markers.cone); // Remove old cone
+
                 const storedIcon = localStorage.getItem('aeronav_custom_icon');
-                let iconObj;
-                if (storedIcon) {
-                     iconObj = L.icon({
-                        iconUrl: storedIcon,
-                        iconSize: [48, 48],
-                        iconAnchor: [24, 24],
-                        popupAnchor: [0, -24],
-                        className: 'custom-balloon-icon'
-                    });
-                } else {
-                    iconObj = L.divIcon({
-                        html: '<div style="font-size: 24px; color: #ff4500; text-shadow: 0 0 10px #ff0000; transition: transform 0.5s;"><i class="fas fa-hotair-balloon"></i></div>',
-                        className: 'balloon-marker',
-                        iconSize: [24, 30],
-                        iconAnchor: [12, 30]
-                    });
-                }
+                let iconObj = storedIcon ? L.icon({ iconUrl: storedIcon, iconSize: [48, 48], iconAnchor: [24, 24], popupAnchor: [0, -24] }) : 
+                                           L.divIcon({ html: '<div style="font-size: 24px; color: #ff4500; text-shadow: 0 0 10px #ff0000; transition: transform 0.5s;"><i class="fas fa-hotair-balloon"></i></div>', className: 'balloon-marker', iconSize: [24, 30], iconAnchor: [12, 30] });
+                
+                // Add Compass Cone First (so it's under balloon)
+                const coneIcon = L.divIcon({ className: 'hidden', html: '<div class="compass-cone"></div>', iconSize: [0,0], iconAnchor: [0, 0] });
+                this.markers.cone = L.marker([state.position.lat, state.position.lng], {icon: coneIcon}).addTo(this.map);
+                
+                // Add Balloon
                 this.markers.balloon = L.marker([state.position.lat, state.position.lng], {icon: iconObj}).addTo(this.map);
             }
-
+            toggleViewCone(show) {
+                const el = document.querySelector('.compass-cone');
+                if(el) el.parentElement.classList.toggle('hidden', !show);
+            }
+            updateViewCone(heading) {
+                const el = document.querySelector('.compass-cone');
+                if(el) el.style.transform = `rotate(${heading}deg)`;
+            }
             loadCustomIcon(file) {
                 if (!file) return;
                 const reader = new FileReader();
-                reader.onload = (e) => {
-                    try {
-                        localStorage.setItem('aeronav_custom_icon', e.target.result);
-                        this.updateBalloonMarker();
-                        alert("Icon gespeichert!");
-                    } catch (err) { alert("Fehler: " + err); }
-                };
+                reader.onload = (e) => { localStorage.setItem('aeronav_custom_icon', e.target.result); this.updateBalloonMarker(); alert("Icon gespeichert!"); };
                 reader.readAsDataURL(file);
             }
-
             cycleMapLayer() {
-                const currentKey = this.layerKeys[this.currentLayerIndex];
-                this.map.removeLayer(this.baseLayers[currentKey]);
+                this.map.removeLayer(this.baseLayers[this.layerKeys[this.currentLayerIndex]]);
                 this.currentLayerIndex = (this.currentLayerIndex + 1) % this.layerKeys.length;
-                const nextKey = this.layerKeys[this.currentLayerIndex];
-                this.map.addLayer(this.baseLayers[nextKey]);
+                this.map.addLayer(this.baseLayers[this.layerKeys[this.currentLayerIndex]]);
                 Settings.save();
             }
-
             updateHUD() {
                 document.getElementById('hud-alt').innerText = Math.round(state.position.alt);
                 document.getElementById('hud-speed').innerText = Math.round(state.velocity.h);
                 document.getElementById('hud-heading').innerText = Math.round(state.velocity.heading);
-                
+                const vario = (state.mode === 'gps' && app.barometer.available && app.barometer.vario !== 0) ? app.barometer.vario : state.velocity.v;
                 const varioEl = document.getElementById('hud-vario');
-                const v = state.velocity.v.toFixed(1);
-                varioEl.innerText = (state.velocity.v > 0 ? '+' : '') + v;
-                
-                if (state.velocity.v > 0.5) varioEl.className = 'text-3xl font-bold hud-value text-green-400';
-                else if (state.velocity.v < -0.5) varioEl.className = 'text-3xl font-bold hud-value text-red-400';
-                else varioEl.className = 'text-3xl font-bold hud-value text-gray-300';
-
+                varioEl.innerText = (vario > 0 ? '+' : '') + vario.toFixed(1);
+                varioEl.className = `text-3xl font-bold hud-value ${vario > 0.5 ? 'text-green-400' : (vario < -0.5 ? 'text-red-400' : 'text-gray-300')}`;
+                document.getElementById('baro-indicator').classList.toggle('hidden', !(state.mode === 'gps' && app.barometer.available));
                 const activeWind = app.wind.getCurrentWind(state.position.alt);
                 document.querySelectorAll('.wind-bar-item').forEach(el => el.classList.remove('active'));
-                const activeEl = document.getElementById(`wind-${activeWind.min}`);
-                if (activeEl) activeEl.classList.add('active');
+                if (document.getElementById(`wind-${activeWind.min}`)) document.getElementById(`wind-${activeWind.min}`).classList.add('active');
             }
-
             renderWindSidebar() {
-                const container = document.getElementById('wind-layers');
-                container.innerHTML = '';
+                const container = document.getElementById('wind-layers'); container.innerHTML = '';
                 [...state.windLayers].reverse().forEach(layer => {
-                    const el = document.createElement('div');
-                    el.id = `wind-${layer.min}`;
-                    el.className = 'wind-bar-item p-2 border-b border-gray-700/50 flex flex-col justify-center h-16 transition-all';
-                    el.innerHTML = `
-                        <div class="text-[10px] text-gray-400">${layer.label}</div>
-                        <div class="flex items-center justify-between">
-                            <i class="fas fa-arrow-up transform rotate-[${layer.dir}deg] text-gray-200" style="transform: rotate(${layer.dir}deg)"></i>
-                            <span class="font-bold text-gray-200">${layer.speed} <span class="text-[9px]">km/h</span></span>
-                        </div>
-                    `;
-                    container.appendChild(el);
+                    container.innerHTML += `<div id="wind-${layer.min}" class="wind-bar-item p-2 border-b border-gray-700/50 flex flex-col justify-center h-16 transition-all"><div class="text-[10px] text-gray-400">${layer.label}</div><div class="flex items-center justify-between"><i class="fas fa-arrow-up transform text-gray-200" style="transform: rotate(${layer.dir}deg)"></i><span class="font-bold text-gray-200">${layer.speed} <span class="text-[9px]">km/h</span></span></div></div>`;
                 });
             }
-
             updateMap(pos) {
                 if (!this.markers.balloon) return;
                 const latLng = [pos.lat, pos.lng];
                 this.markers.balloon.setLatLng(latLng);
-                if (state.recording) this.markers.track.addLatLng(latLng);
-
+                this.markers.cone.setLatLng(latLng);
+                if (state.recording) {
+                    this.markers.track.addLatLng(latLng);
+                    state.trackPoints.push({ lat: pos.lat, lng: pos.lng, alt: pos.alt, time: new Date().toISOString() });
+                }
                 const wind = app.wind.getCurrentWind(pos.alt);
                 const dist5min = (wind.speed / 3.6) * 300; 
-                const R = 6378137;
-                const dn = dist5min * Math.cos(wind.dir * Math.PI / 180);
-                const de = dist5min * Math.sin(wind.dir * Math.PI / 180);
-                const pLat = pos.lat + (dn / R) * (180 / Math.PI);
-                const pLng = pos.lng + (de / R) * (180 / Math.PI) / Math.cos(pos.lat * Math.PI / 180);
+                const pLat = pos.lat + (dist5min * Math.cos(wind.dir * Math.PI / 180) / 6378137) * (180 / Math.PI);
+                const pLng = pos.lng + (dist5min * Math.sin(wind.dir * Math.PI / 180) / 6378137) * (180 / Math.PI) / Math.cos(pos.lat * Math.PI / 180);
                 this.markers.vector.setLatLngs([latLng, [pLat, pLng]]);
-                
                 if (state.mode === 'simulation' && state.autoFollow) this.map.panTo(latLng);
             }
-
             updateFollowButton() {
                 const btn = document.getElementById('btn-center');
-                if (state.autoFollow) {
-                    btn.classList.add('text-blue-400');
-                    btn.classList.remove('text-gray-400');
-                } else {
-                    btn.classList.add('text-gray-400');
-                    btn.classList.remove('text-blue-400');
-                }
+                btn.className = `glass-panel p-3 rounded-full w-12 h-12 flex items-center justify-center ${state.autoFollow ? 'text-blue-400 hover:bg-blue-900/50' : 'text-gray-400 hover:bg-gray-700'}`;
             }
-
             setTarget(latlng) {
                 if (this.markers.target) this.map.removeLayer(this.markers.target);
-                this.markers.target = L.marker(latlng, {
-                    icon: L.divIcon({html: '<i class="fas fa-flag-checkered text-yellow-400 text-2xl"></i>', className: 'target-icon'})
-                }).addTo(this.map);
-                state.target = latlng;
-                app.ai.suggestCourse();
+                this.markers.target = L.marker(latlng, { icon: L.divIcon({html: '<i class="fas fa-flag-checkered text-yellow-400 text-2xl"></i>', className: 'target-icon'}) }).addTo(this.map);
+                state.target = latlng; app.ai.suggestCourse();
             }
-
             updateOpacity(val) {
                 const blur = Math.round(val * 12); 
                 document.querySelectorAll('.glass-panel').forEach(el => {
-                    el.style.backgroundColor = `rgba(15, 23, 42, ${val})`;
-                    el.style.backdropFilter = `blur(${blur}px)`;
-                    el.style.webkitBackdropFilter = `blur(${blur}px)`;
-                    const borderAlpha = Math.max(0.05, val * 0.2);
-                    el.style.borderColor = `rgba(255, 255, 255, ${borderAlpha})`;
-                    el.style.boxShadow = val < 0.2 ? 'none' : '0 8px 32px 0 rgba(0, 0, 0, 0.37)';
+                    el.style.backgroundColor = `rgba(15, 23, 42, ${val})`; el.style.backdropFilter = `blur(${blur}px)`; el.style.webkitBackdropFilter = `blur(${blur}px)`;
+                    el.style.borderColor = `rgba(255, 255, 255, ${Math.max(0.05, val * 0.2)})`; el.style.boxShadow = val < 0.2 ? 'none' : '0 8px 32px 0 rgba(0, 0, 0, 0.37)';
                 });
                 Settings.save();
             }
         }
 
-        // --- DATA MANAGER WITH REAL LAYER MANAGEMENT ---
         class DataManager {
-            constructor() { 
-                this.layers = []; // { id, name, visible, data, leafletGroup }
-            }
-
+            constructor() { this.layers = []; }
             loadStoredLayers() {
                 const storedJSON = localStorage.getItem('aeronav_layers_v2');
-                if (storedJSON) {
-                    try {
-                        const data = JSON.parse(storedJSON);
-                        data.forEach(item => this.addLayer(item.name, item.data, item.visible, false));
-                    } catch (e) {
-                        console.error("Layer Load Error:", e);
-                    }
-                }
+                if (storedJSON) { try { JSON.parse(storedJSON).forEach(item => this.addLayer(item.name, item.data, item.visible, false)); } catch (e) { console.error(e); } }
                 this.renderLayerList();
             }
-
             saveLayers() {
-                // Save only necessary data, exclude leaflet objects
-                const toSave = this.layers.map(l => ({
-                    name: l.name,
-                    visible: l.visible,
-                    data: l.data // XML String
-                }));
-                try {
-                    localStorage.setItem('aeronav_layers_v2', JSON.stringify(toSave));
-                } catch(e) {
-                    console.warn("Storage Full");
-                }
+                try { localStorage.setItem('aeronav_layers_v2', JSON.stringify(this.layers.map(l => ({ name: l.name, visible: l.visible, data: l.data })))); } catch(e) { console.warn("Storage Full"); }
                 this.renderLayerList();
             }
-
             handleKML(file) {
                 if (!file) return;
                 document.getElementById('loading-overlay').classList.remove('hidden');
                 const reader = new FileReader();
-                reader.onload = (e) => {
-                    const text = e.target.result;
-                    this.addLayer(file.name, text, true, true); // true = save & render
-                    document.getElementById('loading-overlay').classList.add('hidden');
-                };
+                reader.onload = (e) => { this.addLayer(file.name, e.target.result, true, true); document.getElementById('loading-overlay').classList.add('hidden'); };
                 reader.readAsText(file);
             }
-
             addLayer(name, xmlString, visible, autoSave) {
-                const id = Date.now() + Math.random();
-                const group = L.layerGroup();
-                
-                // Parse and add to group
-                try {
-                    const parser = new DOMParser();
-                    const xml = parser.parseFromString(xmlString, 'text/xml');
-                    this.parseKMLToGroup(xml, group);
-                } catch(e) {
-                    console.error("Parse Error", e);
-                    return;
-                }
-
-                // Add to map if visible
-                if (visible) {
-                    group.addTo(app.ui.map);
-                }
-
-                this.layers.push({
-                    id: id,
-                    name: name,
-                    visible: visible,
-                    data: xmlString,
-                    leafletGroup: group
-                });
-
+                const id = Date.now() + Math.random(); const group = L.layerGroup();
+                try { this.parseKMLToGroup(new DOMParser().parseFromString(xmlString, 'text/xml'), group); } catch(e) { return; }
+                if (visible) group.addTo(app.ui.map);
+                this.layers.push({ id, name, visible, data: xmlString, leafletGroup: group });
                 if (autoSave) this.saveLayers();
             }
-
             toggleLayer(id) {
                 const layer = this.layers.find(l => l.id == id);
-                if (layer) {
-                    layer.visible = !layer.visible;
-                    if (layer.visible) {
-                        layer.leafletGroup.addTo(app.ui.map);
-                    } else {
-                        app.ui.map.removeLayer(layer.leafletGroup);
-                    }
-                    this.saveLayers();
-                }
+                if (layer) { layer.visible = !layer.visible; layer.visible ? layer.leafletGroup.addTo(app.ui.map) : app.ui.map.removeLayer(layer.leafletGroup); this.saveLayers(); }
             }
-
             deleteLayer(id) {
                 const index = this.layers.findIndex(l => l.id == id);
-                if (index > -1) {
-                    app.ui.map.removeLayer(this.layers[index].leafletGroup);
-                    this.layers.splice(index, 1);
-                    this.saveLayers();
-                }
+                if (index > -1) { app.ui.map.removeLayer(this.layers[index].leafletGroup); this.layers.splice(index, 1); this.saveLayers(); }
             }
-
             clearAllData() {
-                if(confirm("Alle Karten und Einstellungen löschen?")) {
-                    this.layers.forEach(l => app.ui.map.removeLayer(l.leafletGroup));
-                    this.layers = [];
-                    localStorage.removeItem('aeronav_layers_v2');
-                    localStorage.removeItem('aeronav_custom_icon');
-                    app.ui.updateBalloonMarker();
-                    this.renderLayerList();
-                    alert("Daten gelöscht.");
+                if(confirm("Alle Daten löschen?")) {
+                    this.layers.forEach(l => app.ui.map.removeLayer(l.leafletGroup)); this.layers = []; localStorage.removeItem('aeronav_layers_v2'); localStorage.removeItem('aeronav_custom_icon'); localStorage.removeItem('aeronav_flight_logs');
+                    app.ui.updateBalloonMarker(); this.renderLayerList(); app.logbook.renderLogList(); alert("Daten gelöscht.");
                 }
             }
-
             renderLayerList() {
-                const container = document.getElementById('layer-list');
-                container.innerHTML = '';
-                
-                if (this.layers.length === 0) {
-                    container.innerHTML = '<div class="text-xs text-gray-500 text-center py-2 italic">Keine Karten geladen</div>';
-                    return;
-                }
-
+                const container = document.getElementById('layer-list'); container.innerHTML = '';
+                if (this.layers.length === 0) { container.innerHTML = '<div class="text-xs text-gray-500 text-center py-2 italic">Keine Karten geladen</div>'; return; }
                 this.layers.forEach(l => {
-                    const div = document.createElement('div');
-                    div.className = 'flex items-center justify-between bg-gray-800 p-2 rounded border border-gray-700';
-                    div.innerHTML = `
-                        <div class="flex items-center gap-2 overflow-hidden">
-                            <input type="checkbox" ${l.visible ? 'checked' : ''} class="rounded bg-gray-700 border-gray-600 text-blue-600 focus:ring-blue-600 ring-offset-gray-800 focus:ring-2" onchange="app.data.toggleLayer(${l.id})">
-                            <span class="text-xs text-gray-200 truncate" title="${l.name}">${l.name}</span>
-                        </div>
-                        <button onclick="app.data.deleteLayer(${l.id})" class="text-gray-500 hover:text-red-400 ml-2">
-                            <i class="fas fa-trash-alt text-xs"></i>
-                        </button>
-                    `;
-                    container.appendChild(div);
+                    container.innerHTML += `<div class="flex items-center justify-between bg-gray-800 p-2 rounded border border-gray-700"><div class="flex items-center gap-2 overflow-hidden"><input type="checkbox" ${l.visible ? 'checked' : ''} class="rounded bg-gray-700 border-gray-600 text-blue-600 focus:ring-blue-600" onchange="app.data.toggleLayer(${l.id})"><span class="text-xs text-gray-200 truncate" title="${l.name}">${l.name}</span></div><button onclick="app.data.deleteLayer(${l.id})" class="text-gray-500 hover:text-red-400 ml-2"><i class="fas fa-trash-alt text-xs"></i></button></div>`;
                 });
             }
-
-            // Core Parsing Logic (modified to add to specific group)
             parseKMLToGroup(xmlDoc, group) {
                 const placemarks = xmlDoc.getElementsByTagName('Placemark');
                 for (let i = 0; i < placemarks.length; i++) {
-                    const pm = placemarks[i];
-                    const name = this.getNodeValue(pm, 'name') || 'Unbenannt';
-                    const desc = this.getNodeValue(pm, 'description') || '';
-                    
-                    const popupContent = `
-                        <div class="font-bold text-blue-400 mb-2 text-base border-b border-gray-600 pb-1 pr-4">${name}</div>
-                        <div class="text-sm leading-relaxed max-h-60 overflow-y-auto text-gray-100 mt-1 space-y-1">
-                            ${desc || '<span class="italic text-gray-400">Keine Details verfügbar.</span>'}
-                        </div>
-                    `;
-                    
+                    const pm = placemarks[i]; const name = pm.getElementsByTagName('name')[0]?.textContent || 'Unbenannt'; const desc = pm.getElementsByTagName('description')[0]?.textContent || '';
+                    const popupContent = `<div class="font-bold text-blue-400 mb-2 text-base border-b border-gray-600 pb-1 pr-4">${name}</div><div class="text-sm leading-relaxed max-h-60 overflow-y-auto text-gray-100 mt-1 space-y-1">${desc || '<span class="italic text-gray-400">Keine Details.</span>'}</div>`;
                     const point = pm.getElementsByTagName('Point')[0];
                     if (point) {
-                        const coords = this.getCoordinates(point);
-                        if (coords) {
-                            L.circleMarker([coords.lat, coords.lng], { radius: 5, color: '#ffffff', fillColor: '#3b82f6', fillOpacity: 0.9, weight: 2 }).bindPopup(popupContent, {maxWidth: 300}).addTo(group);
-                        }
+                        const s = point.getElementsByTagName('coordinates')[0]?.textContent.trim().split(',');
+                        if(s) L.circleMarker([parseFloat(s[1]), parseFloat(s[0])], { radius: 5, color: '#ffffff', fillColor: '#3b82f6', fillOpacity: 0.9, weight: 2 }).bindPopup(popupContent, {maxWidth: 300}).addTo(group);
                     }
                     const polygon = pm.getElementsByTagName('Polygon')[0];
                     if (polygon) {
-                        const coords = this.getCoordinatesArray(polygon);
-                        if (coords.length > 0) {
-                            let color = '#3b82f6'; let weight = 1; let dashArray = '5, 5';
-                            const n = name.toUpperCase();
-                            if (n.includes('CTR') || n.includes('ED-R') || n.includes('DANGER') || n.includes('PROHIBITED')) {
-                                color = '#ef4444'; weight = 2; dashArray = null;
-                            } else if (n.includes('C ') || n.includes('D ')) {
-                                color = '#60a5fa'; weight = 1;
-                            }
-                            L.polygon(coords, { color: color, fillColor: color, fillOpacity: 0.15, weight: weight, dashArray: dashArray }).bindTooltip(name, { permanent: true, direction: 'center', className: 'airspace-label' }).bindPopup(popupContent, {maxWidth: 300}).addTo(group);
+                        const s = polygon.getElementsByTagName('coordinates')[0]?.textContent.trim().split(/\s+/).map(p => [parseFloat(p.split(',')[1]), parseFloat(p.split(',')[0])]);
+                        if(s.length > 0) {
+                            let color = '#3b82f6', weight = 1, dash = '5, 5';
+                            if (name.toUpperCase().match(/CTR|ED-R|DANGER|PROHIBITED/)) { color = '#ef4444'; weight = 2; dash = null; } else if (name.toUpperCase().match(/C |D /)) { color = '#60a5fa'; weight = 1; }
+                            L.polygon(s, { color, fillColor: color, fillOpacity: 0.15, weight, dashArray: dash }).bindTooltip(name, { permanent: true, direction: 'center', className: 'airspace-label' }).bindPopup(popupContent, {maxWidth: 300}).addTo(group);
                         }
                     }
                 }
             }
-            getNodeValue(parent, tagName) { return parent.getElementsByTagName(tagName)[0]?.textContent || null; }
-            getCoordinates(node) {
-                const s = node.getElementsByTagName('coordinates')[0]?.textContent;
-                if (!s) return null;
-                const p = s.trim().split(',');
-                return { lng: parseFloat(p[0]), lat: parseFloat(p[1]) };
-            }
-            getCoordinatesArray(node) {
-                const s = node.getElementsByTagName('coordinates')[0]?.textContent;
-                if (!s) return [];
-                return s.trim().split(/\s+/).map(p => { const pt = p.split(','); return [parseFloat(pt[1]), parseFloat(pt[0])]; });
-            }
         }
 
-        // --- AI & LOGBOOK ---
         class AIAssistant {
             openAssistant() { document.getElementById('ai-panel').classList.remove('hidden'); }
             close() { document.getElementById('ai-panel').classList.add('hidden'); }
             async suggestCourse() {
                 if (!state.target) return;
-                const msgEl = document.getElementById('ai-output');
-                msgEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Berechne optimalen Flugpfad...';
+                const msgEl = document.getElementById('ai-output'); msgEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Berechne optimalen Flugpfad...';
                 setTimeout(() => msgEl.innerHTML = "Kurs berechnet.", 1000);
             }
             analyzeWind() { document.getElementById('ai-output').innerText = "Analysiere lokale Orographie... (Mock)"; }
@@ -828,47 +612,105 @@
         }
 
         class Logbook {
+            constructor() { this.logs = JSON.parse(localStorage.getItem('aeronav_flight_logs') || '[]'); }
             toggleRecording() {
                 state.recording = !state.recording;
-                const btn = document.getElementById('rec-status');
-                const btnUi = document.getElementById('btn-record');
-                const icon = document.getElementById('icon-record');
+                const btn = document.getElementById('rec-status'); const btnUi = document.getElementById('btn-record'); const icon = document.getElementById('icon-record');
                 if (state.recording) {
                     btn.classList.remove('hidden'); icon.classList.remove('text-gray-400'); icon.classList.add('text-red-500'); btnUi.classList.add('bg-red-900/50');
                     state.trackPoints = []; app.ui.markers.track.setLatLngs([]);
                 } else {
                     btn.classList.add('hidden'); icon.classList.add('text-gray-400'); icon.classList.remove('text-red-500'); btnUi.classList.remove('bg-red-900/50');
+                    if (state.trackPoints.length > 5) this.saveFlight(state.trackPoints);
                 }
+            }
+            saveFlight(points) {
+                const now = new Date();
+                const log = {
+                    id: now.getTime(),
+                    date: now.toLocaleString(),
+                    duration: Math.round((new Date(points[points.length-1].time) - new Date(points[0].time)) / 60000) + ' min',
+                    points: points
+                };
+                this.logs.unshift(log);
+                this.save();
+                alert("Flug im Logbuch gespeichert!");
+                this.renderLogList();
+            }
+            save() { try { localStorage.setItem('aeronav_flight_logs', JSON.stringify(this.logs)); } catch(e) { alert("Logbuch voll!"); } }
+            deleteLog(id) {
+                if(confirm("Eintrag löschen?")) {
+                    this.logs = this.logs.filter(l => l.id !== id);
+                    this.save(); this.renderLogList();
+                    app.ui.markers.playbackLayer.clearLayers();
+                }
+            }
+            loadLogToMap(id) {
+                const log = this.logs.find(l => l.id === id);
+                if(log) {
+                    const latlngs = log.points.map(p => [p.lat, p.lng]);
+                    app.ui.markers.playbackLayer.clearLayers();
+                    L.polyline(latlngs, {color: 'violet', weight: 4, opacity: 0.7}).addTo(app.ui.markers.playbackLayer);
+                    app.ui.map.fitBounds(L.polyline(latlngs).getBounds());
+                    app.toggleSettings(); 
+                }
+            }
+            exportGPX(id) {
+                const log = this.logs.find(l => l.id === id);
+                if(!log) return;
+                let gpx = `<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="AeroNav"><trk><name>Flight ${log.date}</name><trkseg>`;
+                log.points.forEach(p => { gpx += `<trkpt lat="${p.lat}" lon="${p.lng}"><ele>${p.alt}</ele><time>${p.time}</time></trkpt>`; });
+                gpx += `</trkseg></trk></gpx>`;
+                const blob = new Blob([gpx], {type: 'application/gpx+xml'});
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `flight_${log.id}.gpx`;
+                link.click();
+            }
+            renderLogList() {
+                const container = document.getElementById('log-list'); container.innerHTML = '';
+                if (this.logs.length === 0) { container.innerHTML = '<div class="text-xs text-gray-500 text-center py-2 italic">Keine Aufzeichnungen</div>'; return; }
+                this.logs.forEach(l => {
+                    container.innerHTML += `
+                        <div class="flex items-center justify-between bg-gray-800 p-2 rounded border border-gray-700">
+                            <div class="flex-1">
+                                <div class="text-xs font-bold text-gray-200">${l.date}</div>
+                                <div class="text-[10px] text-gray-400">Dauer: ${l.duration} | Pkt: ${l.points.length}</div>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="app.logbook.loadLogToMap(${l.id})" class="text-purple-400 hover:text-white" title="Anzeigen"><i class="fas fa-eye"></i></button>
+                                <button onclick="app.logbook.exportGPX(${l.id})" class="text-blue-400 hover:text-white" title="GPX"><i class="fas fa-download"></i></button>
+                                <button onclick="app.logbook.deleteLog(${l.id})" class="text-red-400 hover:text-white" title="Löschen"><i class="fas fa-trash-alt"></i></button>
+                            </div>
+                        </div>`;
+                });
             }
         }
 
-        // --- MAIN APP CONTROLLER ---
         class App {
             constructor() {
                 this.wind = new WindManager();
+                this.barometer = new BarometerManager();
                 this.physics = new Physics();
                 this.ui = new UIManager();
                 this.data = new DataManager();
                 this.ai = new AIAssistant();
                 this.logbook = new Logbook();
+                this.compass = new CompassManager();
             }
             init() {
                 Settings.load();
-                
                 this.ui.initMap();
                 this.ui.renderWindSidebar();
                 this.physics.start();
-                this.data.loadStoredLayers(); // New method for layer management
-                
+                this.barometer.init();
+                this.data.loadStoredLayers();
+                this.logbook.renderLogList();
                 this.updateSimModeUI();
                 
-                const bB = document.getElementById('btn-burner');
-                const bV = document.getElementById('btn-valve');
-                const sB = () => this.physics.setControls(true, false);
-                const eB = () => this.physics.setControls(false, false);
-                const sV = () => this.physics.setControls(false, true);
-                const eV = () => this.physics.setControls(false, false);
-
+                const bB = document.getElementById('btn-burner'), bV = document.getElementById('btn-valve');
+                const sB = () => this.physics.setControls(true, false), eB = () => this.physics.setControls(false, false);
+                const sV = () => this.physics.setControls(false, true), eV = () => this.physics.setControls(false, false);
                 bB.addEventListener('mousedown', sB); bB.addEventListener('mouseup', eB); bB.addEventListener('touchstart', (e)=>{e.preventDefault();sB()}); bB.addEventListener('touchend', eB);
                 bV.addEventListener('mousedown', sV); bV.addEventListener('mouseup', eV); bV.addEventListener('touchstart', (e)=>{e.preventDefault();sV()}); bV.addEventListener('touchend', eV);
 
@@ -877,7 +719,7 @@
                         if (state.mode === 'gps') {
                             state.gpsLocked = true;
                             document.getElementById('gps-status').innerText = "GPS OK";
-                            document.getElementById('gps-status').className = "text-xs text-green-400 font-bold mb-1";
+                            document.getElementById('gps-status').className = "text-[9px] font-bold text-green-400 border border-green-700 bg-gray-800/80 px-2 py-0.5 rounded shadow";
                             state.position.lat = pos.coords.latitude; state.position.lng = pos.coords.longitude;
                             if (pos.coords.altitude) state.position.alt = pos.coords.altitude;
                             if (pos.coords.speed) state.velocity.h = pos.coords.speed * 3.6;
@@ -886,57 +728,4 @@
                         }
                     }, (err) => console.warn("GPS Error"), { enableHighAccuracy: true });
                 }
-                if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-                    navigator.serviceWorker.register('./sw.js').catch(console.log);
-                }
-            }
-            updateLocation(pos) { this.ui.updateMap(pos); this.ui.updateHUD(); }
-            
-            toggleSimulation() {
-                state.mode = state.mode === 'simulation' ? 'gps' : 'simulation';
-                this.updateSimModeUI();
-                Settings.save();
-            }
-
-            updateSimModeUI() {
-                const el = document.getElementById('sim-toggle-check');
-                el.checked = (state.mode === 'simulation');
-
-                const simControls = document.getElementById('sim-controls');
-                const recBtn = document.getElementById('btn-record');
-                
-                if (state.mode === 'simulation') {
-                    simControls.classList.remove('hidden'); recBtn.classList.add('hidden');
-                    document.getElementById('gps-status').innerText = "SIMULATION";
-                    document.getElementById('gps-status').className = "text-[9px] font-bold text-blue-400 border border-gray-700 bg-gray-800/80 px-2 py-0.5 rounded shadow";
-                    if(state.recording) this.logbook.toggleRecording();
-                } else {
-                    simControls.classList.add('hidden'); recBtn.classList.remove('hidden');
-                    document.getElementById('gps-status').innerText = "WAITING GPS...";
-                    document.getElementById('gps-status').className = "text-[9px] font-bold text-red-400 border border-red-900 bg-red-900/30 px-2 py-0.5 rounded shadow";
-                }
-            }
-
-            toggleSettings() {
-                const modal = document.getElementById('settings-modal');
-                modal.classList.toggle('hidden');
-                
-                if (!modal.classList.contains('hidden')) {
-                   document.getElementById('api-key').value = state.apiKey;
-                   document.getElementById('sim-toggle-check').checked = (state.mode === 'simulation');
-                } else {
-                   state.apiKey = document.getElementById('api-key').value;
-                   localStorage.setItem('gemini_key', state.apiKey);
-                }
-            }
-            toggleFollow() {
-                state.autoFollow = !state.autoFollow;
-                this.ui.updateFollowButton();
-                if (state.autoFollow) this.ui.map.panTo([state.position.lat, state.position.lng]);
-            }
-        }
-        const app = new App();
-        window.addEventListener('load', () => app.init());
-    </script>
-</body>
-</html>
+                if ('serviceWorker
