@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aeronav-v2'; // Version erhöht -> Erzwingt Update der index.html
+const CACHE_NAME = 'aeronav-v3'; // Version erhöht -> Erzwingt Update
 const ASSETS = [
   './',
   './index.html',
@@ -10,22 +10,21 @@ const ASSETS = [
   'https://cdn.jsdelivr.net/npm/chart.js'
 ];
 
-// Installation: Cache aufbauen
+// Installation
 self.addEventListener('install', (event) => {
-  self.skipWaiting(); // Zwingt den neuen Worker sofort aktiv zu werden
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
   );
 });
 
-// Aktivierung: Alte Caches (v1) löschen
+// Aktivierung & Aufräumen
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cache) => {
           if (cache !== CACHE_NAME) {
-            console.log('Lösche alten Cache:', cache);
             return caches.delete(cache);
           }
         })
@@ -34,28 +33,42 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch: Anfragen abfangen und cachen
+// Fetch Strategie: Cache First, then Network (Stale-while-revalidate)
 self.addEventListener('fetch', (event) => {
+  // Nur GET requests cachen
+  if (event.request.method !== 'GET') return;
+
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      // "Stale-while-revalidate" Strategie
+      // Netzwerk-Request immer starten, um Cache zu aktualisieren
       const fetchPromise = fetch(event.request).then((networkResponse) => {
-        
-        // Caching Strategie für Karten-Kacheln (inkl. Satellit)
+        // Überprüfen ob Antwort gültig ist
+        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic' && networkResponse.type !== 'cors') {
+            return networkResponse;
+        }
+
+        // Caching Strategie für Karten-Kacheln und App-Dateien
         const url = event.request.url;
         if (url.includes('tile.openstreetmap') || 
             url.includes('cartocdn') || 
-            url.includes('arcgisonline')) { 
+            url.includes('arcgisonline') ||
+            url.includes(self.location.origin)) { // Eigene Dateien cachen
             
+            const responseToCache = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => {
-                cache.put(event.request, networkResponse.clone());
+                cache.put(event.request, responseToCache);
             });
         }
         return networkResponse;
-      }).catch(() => {
-         // Offline und nicht im Cache? Hier könnte man ein Fallback-Bild senden
+      }).catch((err) => {
+         // Netzwerkfehler sind okay, wenn wir einen Cache haben.
+         // Wenn KEIN Cache da ist, wird dieser Fehler weitergeworfen,
+         // damit der Browser seine Offline-Seite zeigt (statt weißer Seite).
+         if (cachedResponse) return cachedResponse;
+         throw err;
       });
 
+      // Wenn im Cache, sofort zurückgeben, sonst auf Netzwerk warten
       return cachedResponse || fetchPromise;
     })
   );
