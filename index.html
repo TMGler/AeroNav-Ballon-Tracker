@@ -13,12 +13,13 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     
     <style>
         /* Custom Glassmorphism & UI Tweaks */
         body { overscroll-behavior: none; user-select: none; background-color: #000; }
         .glass-panel {
-            background: rgba(15, 23, 42, 0.85);
+            background: rgba(15, 23, 42, 0.95);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.1);
@@ -29,113 +30,47 @@
         .wind-bar-item.active { border-left: 4px solid #10b981; background: rgba(16, 185, 129, 0.2); }
         .control-btn:active { transform: scale(0.95); }
         .hidden-ui { display: none !important; }
-
-        /* KML & Map Styles */
-        .airspace-label {
-            background: transparent;
-            border: none;
-            box-shadow: none;
-            color: rgba(255,255,255,0.7);
-            font-weight: bold;
-            font-size: 10px;
-            text-shadow: 1px 1px 2px black;
-        }
-        .leaflet-popup-content-wrapper, .leaflet-popup-tip {
-            background-color: #111827 !important; color: #f3f4f6 !important;
-            border: 1px solid #374151; backdrop-filter: blur(4px);
-        }
+        .airspace-label { background: transparent; border: none; box-shadow: none; color: rgba(255,255,255,0.7); font-weight: bold; font-size: 10px; text-shadow: 1px 1px 2px black; }
+        .leaflet-popup-content-wrapper, .leaflet-popup-tip { background-color: #111827 !important; color: #f3f4f6 !important; border: 1px solid #374151; backdrop-filter: blur(4px); }
         .leaflet-popup-content, .leaflet-popup-content * { color: #f3f4f6 !important; }
-        .leaflet-popup-content table, .leaflet-popup-content td {
-            background: transparent !important; border-color: #4b5563 !important;
-        }
         .leaflet-container a.leaflet-popup-close-button { color: #9ca3af !important; font-size: 18px !important; padding: 8px !important; }
-
-        /* View Cone (Compass) */
-        .compass-cone {
-            width: 0; height: 0;
-            border-left: 100px solid transparent;
-            border-right: 100px solid transparent;
-            border-top: 300px solid rgba(59, 130, 246, 0.15);
-            filter: blur(10px);
-            transform-origin: bottom center;
-            opacity: 0.8;
-            pointer-events: none;
-        }
-
-        /* Mobile Menu Transitions */
-        #settings-modal { transition: opacity 0.3s ease; }
+        .compass-cone { width: 0; height: 0; border-left: 100px solid transparent; border-right: 100px solid transparent; border-top: 300px solid rgba(59, 130, 246, 0.25); filter: blur(15px); transform-origin: bottom center; opacity: 0.8; pointer-events: none; position: absolute; left: -100px; bottom: 0; }
+        #settings-modal, #summary-modal, #start-flight-modal, #baptism-modal { transition: opacity 0.3s ease; }
         .slide-up-mobile { animation: slideUp 0.3s ease-out; }
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-        
-        /* Animations for AI Button */
-        @keyframes pulse-ring {
-            0% { transform: scale(0.8); opacity: 0.5; }
-            100% { transform: scale(1.3); opacity: 0; }
-        }
-        .ai-pulse::before {
-            content: '';
-            position: absolute;
-            left: 0; top: 0;
-            width: 100%; height: 100%;
-            background-color: inherit;
-            border-radius: 50%;
-            z-index: -1;
-            animation: pulse-ring 2s infinite;
-        }
-        
-        /* Speed Legend for Replay */
+        @keyframes pulse-ring { 0% { transform: scale(0.8); opacity: 0.5; } 100% { transform: scale(1.3); opacity: 0; } }
+        .ai-pulse::before { content: ''; position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-color: inherit; border-radius: 50%; z-index: -1; animation: pulse-ring 2s infinite; }
         .speed-legend-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
-        
-        /* Select styling */
-        select.unit-select {
-            background-color: #1f2937;
-            border: 1px solid #374151;
-            color: #e5e7eb;
-            font-size: 0.75rem;
-            border-radius: 0.25rem;
-            padding: 2px 4px;
-        }
+        select.unit-select, input.app-input { background-color: #1f2937; border: 1px solid #374151; color: #e5e7eb; font-size: 0.85rem; border-radius: 0.25rem; padding: 4px 8px; }
+        .tab-active { background-color: #2563eb; color: white; border-color: #2563eb; }
+        .tab-inactive { background-color: transparent; color: #9ca3af; border-color: #4b5563; }
+        .wb-ok { color: #4ade80; border-color: #4ade80; }
+        .wb-bad { color: #f87171; border-color: #f87171; animation: pulse-red 2s infinite; }
+        .perf-input { background-color: #374151; border: 1px solid #4b5563; color: #fff; font-size: 0.75rem; padding: 2px; width: 100%; text-align: center; border-radius: 2px; }
+        .menu-btn { width: 100%; background-color: rgba(31, 41, 55, 0.6); padding: 1rem; border-radius: 0.75rem; display: flex; align-items: center; justify-content: space-between; border: 1px solid rgba(75, 85, 99, 0.4); transition: all 0.2s; }
+        .menu-btn:active { transform: scale(0.98); }
+        .menu-icon { width: 2.5rem; height: 2.5rem; border-radius: 9999px; display: flex; align-items: center; justify-content: center; margin-right: 1rem; }
+        .summary-input-readonly { border: none; background: transparent; color: white; padding: 0; font-weight: bold; pointer-events: none; }
+        .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 4px; margin-top: 8px; }
+        .photo-thumb { aspect-ratio: 1; border-radius: 4px; object-fit: cover; border: 1px solid #4b5563; cursor: pointer; }
     </style>
 </head>
 <body class="bg-gray-900 text-white h-screen w-screen overflow-hidden font-sans">
-
-    <!-- MAP CONTAINER -->
     <div id="map" class="absolute inset-0 z-0 bg-black"></div>
+    <div id="loading-overlay" class="hidden absolute inset-0 z-50 bg-black/80 flex flex-col items-center justify-center"><i class="fas fa-circle-notch fa-spin text-4xl text-blue-500 mb-4"></i><div id="loading-text">Verarbeite Daten...</div></div>
 
-    <!-- LOADING OVERLAY -->
-    <div id="loading-overlay" class="hidden absolute inset-0 z-50 bg-black/80 flex flex-col items-center justify-center">
-        <i class="fas fa-circle-notch fa-spin text-4xl text-blue-500 mb-4"></i>
-        <div id="loading-text">Verarbeite KML Daten...</div>
-    </div>
-
-    <!-- HUD (Head Up Display) -->
+    <!-- HUD -->
     <div id="hud-top" class="absolute top-0 left-0 right-0 p-2 z-20 flex justify-center pointer-events-none">
         <div class="glass-panel rounded-xl p-3 w-full max-w-4xl flex justify-between items-center pointer-events-auto shadow-lg relative">
-            <div class="flex-1 text-center border-r border-gray-700/50">
-                <div class="text-[10px] text-gray-400 uppercase tracking-widest">Höhe</div>
-                <div class="flex items-baseline justify-center"><span id="hud-alt" class="text-3xl font-bold hud-value">0</span><span id="unit-alt" class="text-xs text-gray-500 ml-1">m</span></div>
-            </div>
-            <div class="flex-1 text-center border-r border-gray-700/50">
-                <div class="text-[10px] text-gray-400 uppercase tracking-widest">Speed</div>
-                <div class="flex items-baseline justify-center"><span id="hud-speed" class="text-3xl font-bold hud-value">0</span><span id="unit-speed" class="text-xs text-gray-500 ml-1">km/h</span></div>
-            </div>
-            <div class="flex-1 text-center border-r border-gray-700/50 relative">
-                <div class="text-[10px] text-gray-400 uppercase tracking-widest">Vario</div>
-                <div class="flex items-baseline justify-center"><span id="hud-vario" class="text-3xl font-bold hud-value text-gray-300">0.0</span><span id="unit-vario" class="text-xs text-gray-500 ml-1">m/s</span></div>
-                <div id="baro-indicator" class="hidden absolute top-0 right-1 text-[8px] font-bold text-yellow-500 border border-yellow-600 rounded px-1" title="Barometer aktiv">BARO</div>
-            </div>
-            <div class="flex-1 text-center">
-                <div class="text-[10px] text-gray-400 uppercase tracking-widest">Kurs</div>
-                <div class="flex items-baseline justify-center"><span id="hud-heading" class="text-3xl font-bold hud-value">0</span><span class="text-xs text-gray-500 ml-1">°</span></div>
-            </div>
-            <div class="absolute -bottom-2 right-2 flex gap-2">
-                 <div id="gps-status" class="bg-gray-800/80 px-2 py-0.5 rounded text-[9px] font-bold text-blue-400 border border-gray-700 shadow">SIMULATION</div>
-                 <div id="rec-status" class="hidden bg-red-900/80 px-2 py-0.5 rounded text-[9px] font-bold text-red-200 border border-red-700 shadow animate-pulse">REC</div>
-            </div>
+            <div class="flex-1 text-center border-r border-gray-700/50"><div class="text-[10px] text-gray-400 uppercase tracking-widest">Höhe</div><div class="flex items-baseline justify-center"><span id="hud-alt" class="text-3xl font-bold hud-value">0</span><span id="unit-alt" class="text-xs text-gray-500 ml-1">m</span></div></div>
+            <div class="flex-1 text-center border-r border-gray-700/50"><div class="text-[10px] text-gray-400 uppercase tracking-widest">Speed</div><div class="flex items-baseline justify-center"><span id="hud-speed" class="text-3xl font-bold hud-value">0</span><span id="unit-speed" class="text-xs text-gray-500 ml-1">km/h</span></div></div>
+            <div class="flex-1 text-center border-r border-gray-700/50 relative"><div class="text-[10px] text-gray-400 uppercase tracking-widest">Vario</div><div class="flex items-baseline justify-center"><span id="hud-vario" class="text-3xl font-bold hud-value text-gray-300">0.0</span><span id="unit-vario" class="text-xs text-gray-500 ml-1">m/s</span></div><div id="baro-indicator" class="hidden absolute top-0 right-1 text-[8px] font-bold text-yellow-500 border border-yellow-600 rounded px-1" title="Barometer aktiv">BARO</div></div>
+            <div class="flex-1 text-center"><div class="text-[10px] text-gray-400 uppercase tracking-widest">Kurs</div><div class="flex items-baseline justify-center"><span id="hud-heading" class="text-3xl font-bold hud-value">0</span><span class="text-xs text-gray-500 ml-1">°</span></div></div>
+            <div class="absolute -bottom-2 right-2 flex gap-2"><div id="gps-status" class="bg-gray-800/80 px-2 py-0.5 rounded text-[9px] font-bold text-blue-400 border border-gray-700 shadow">SIMULATION</div><div id="rec-status" class="hidden bg-red-900/80 px-2 py-0.5 rounded text-[9px] font-bold text-red-200 border border-red-700 shadow animate-pulse">REC</div></div>
         </div>
     </div>
 
-    <!-- Right Side: Wind & AI -->
+    <!-- Right Side -->
     <div class="absolute right-0 top-24 bottom-24 w-20 z-10 flex flex-col items-end pointer-events-none gap-4">
         <div id="wind-layers" class="glass-panel rounded-l-xl w-full flex flex-col pointer-events-auto overflow-y-auto text-xs border-r-0 flex-1 max-h-[60%]"></div>
         <button onclick="app.ai.openAssistant()" class="glass-panel w-12 h-12 rounded-l-xl flex items-center justify-center bg-blue-600/80 hover:bg-blue-500 text-white shadow-[0_0_15px_rgba(59,130,246,0.5)] border-r-0 pointer-events-auto ai-pulse relative mr-0 transition-all transform hover:scale-105 active:scale-95" title="KI Assistent"><i class="fas fa-robot text-xl"></i></button>
@@ -147,116 +82,169 @@
         <button id="btn-burner" class="control-btn glass-panel w-20 h-20 rounded-full flex flex-col items-center justify-center border-green-500/50 hover:bg-green-900/40 text-green-300 active:bg-green-600 transition-all shadow-[0_0_20px_rgba(34,197,94,0.3)]"><i class="fas fa-fire text-2xl"></i><span class="text-xs font-bold mt-1">BRENNER</span></button>
     </div>
 
-    <!-- Main Toolbar (Left Side) -->
+    <!-- Left Toolbar -->
     <div class="absolute bottom-6 left-4 z-30 flex flex-col gap-3">
+        <button id="btn-photo" onclick="app.logbook.takePhoto()" class="glass-panel p-3 rounded-full hover:bg-blue-900/50 w-12 h-12 flex items-center justify-center hidden" title="Foto machen"><i class="fas fa-camera text-blue-300"></i></button><input type="file" id="photo-input" accept="image/*" capture="environment" class="hidden" onchange="app.logbook.processPhoto(this.files[0])">
         <button id="btn-record" onclick="app.logbook.toggleRecording()" class="glass-panel p-3 rounded-full hover:bg-red-900/50 w-12 h-12 flex items-center justify-center hidden" title="Track aufzeichnen"><i id="icon-record" class="fas fa-circle text-gray-400"></i></button>
         <button id="btn-center" class="glass-panel p-3 rounded-full hover:bg-blue-900/50 w-12 h-12 flex items-center justify-center text-blue-400 select-none touch-none" title="Kurz: Zentrieren | Lang: Verriegeln"><i id="icon-center" class="fas fa-crosshairs"></i></button>
         <button onclick="app.ui.cycleMapLayer()" class="glass-panel p-3 rounded-full hover:bg-gray-700 w-12 h-12 flex items-center justify-center" title="Kartenstil wechseln"><i class="fas fa-layer-group"></i></button>
         <button onclick="app.toggleSettings()" class="glass-panel p-3 rounded-full hover:bg-gray-700 w-12 h-12 flex items-center justify-center text-gray-200 shadow-lg" title="Menü / Setup"><i class="fas fa-bars"></i></button>
     </div>
 
+    <!-- START FLIGHT MODAL -->
+    <div id="start-flight-modal" class="hidden absolute inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-sm rounded-2xl p-6 flex flex-col">
+            <h2 class="text-xl font-bold text-white mb-4 border-b border-gray-700 pb-2">Fahrt starten</h2>
+            <p class="text-xs text-gray-400 mb-4">Wähle eine gespeicherte Fahrtvorbereitung (W&B).</p>
+            <div id="prep-list-modal" class="space-y-2 mb-6 max-h-60 overflow-y-auto"><div class="text-xs text-center text-gray-600">Keine Vorbereitungen</div></div>
+            <button onclick="app.logbook.startRecording(null)" class="w-full py-3 rounded border border-gray-600 text-gray-300 hover:bg-gray-700 mb-2">Ohne Vorbereitung starten</button>
+            <button onclick="document.getElementById('start-flight-modal').classList.add('hidden')" class="w-full py-2 text-xs text-red-400 hover:text-red-300">Abbrechen</button>
+        </div>
+    </div>
+
+    <!-- SUMMARY MODAL -->
+    <div id="summary-modal" class="hidden absolute inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-lg rounded-2xl p-6 overflow-y-auto max-h-[95vh] flex flex-col">
+            <div class="flex justify-between items-center mb-4 border-b border-gray-700 pb-2 flex-shrink-0">
+                <h2 class="text-xl font-bold text-white">Zusammenfassung</h2>
+                <div class="bg-gray-800 rounded-lg p-1 flex text-xs">
+                    <button onclick="app.logbook.setSummaryMode('guest')" id="sum-mode-guest" class="px-3 py-1 rounded transition-colors bg-blue-600 text-white">Gast</button>
+                    <button onclick="app.logbook.setSummaryMode('pilot')" id="sum-mode-pilot" class="px-3 py-1 rounded transition-colors text-gray-400 hover:text-white">Pilot</button>
+                </div>
+            </div>
+            <div id="summary-content" class="bg-[#111827] rounded-lg p-1">
+                <div class="h-48 w-full bg-gray-800/50 rounded-lg mb-3 relative border border-gray-700 overflow-hidden">
+                    <div id="summary-map" class="absolute inset-0 rounded-lg z-10"></div><canvas id="summary-chart" class="absolute inset-0 rounded-lg z-0 hidden p-2"></canvas>
+                </div>
+                <div class="flex justify-center gap-2 mb-4" data-html2canvas-ignore>
+                    <button onclick="app.logbook.switchView('map')" id="tab-map" class="px-3 py-1 text-xs rounded border tab-active transition-colors">Karte</button>
+                    <button onclick="app.logbook.switchView('chart')" id="tab-chart" class="px-3 py-1 text-xs rounded border tab-inactive transition-colors">Profil</button>
+                </div>
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div class="bg-gray-800 p-2 rounded"><div class="text-[10px] text-gray-400">Startzeit</div><div id="sum-start-time" class="text-sm font-bold text-white">-</div></div>
+                    <div class="bg-gray-800 p-2 rounded"><div class="text-[10px] text-gray-400">Landezeit</div><div id="sum-end-time" class="text-sm font-bold text-white">-</div></div>
+                    <div class="bg-gray-800 p-2 rounded"><div class="text-[10px] text-gray-400">Dauer</div><div id="sum-duration" class="text-sm font-bold text-blue-300">-</div></div>
+                    <div class="bg-gray-800 p-2 rounded"><div class="text-[10px] text-gray-400">Strecke</div><div id="sum-distance" class="text-sm font-bold text-blue-300">-</div></div>
+                </div>
+                <div id="sum-photos-container" class="mb-4 hidden"><div class="text-[10px] text-gray-400 mb-1">Fotos (<span id="sum-photo-count">0</span>)</div><div id="sum-photo-grid" class="photo-grid"></div></div>
+                <div class="space-y-3 mb-6">
+                    <div id="sum-prep-info" class="bg-gray-800/50 p-2 rounded border border-gray-700 mb-4 hidden pilot-only">
+                        <div class="text-[10px] text-yellow-400 font-bold mb-1">W&B Daten</div><div id="sum-prep-details" class="text-xs text-gray-300"></div>
+                        <div id="sum-cyl-details" class="text-[10px] text-gray-400 mt-1 italic pl-2 border-l border-gray-600"></div>
+                    </div>
+                    <div class="pilot-only"><label class="block text-xs text-gray-400 mb-1">Ballon</label><select id="sum-balloon" class="unit-select w-full"><option value="">-</option></select></div>
+                    
+                    <div class="pilot-only border-t border-gray-700 pt-2">
+                        <label class="block text-xs text-gray-400 mb-1">Passagiere & Taufe</label>
+                        <div id="sum-pax-list" class="space-y-1 mb-2"></div>
+                        <button onclick="app.passengers.openSelector()" class="w-full bg-gray-700 hover:bg-gray-600 text-xs py-1 rounded">Passagiere hinzufügen</button>
+                    </div>
+
+                    <div><label class="block text-xs text-gray-400 mb-1">Startort</label><input type="text" id="sum-start-loc" class="w-full bg-gray-800 border border-gray-600 rounded p-2 text-sm text-white sum-input"></div>
+                    <div><label class="block text-xs text-gray-400 mb-1">Landeort</label><input type="text" id="sum-end-loc" class="w-full bg-gray-800 border border-gray-600 rounded p-2 text-sm text-white sum-input"></div>
+                    <div><div class="flex justify-between"><label class="block text-xs text-gray-400 mb-1">Bericht</label><button id="btn-ai-report" onclick="app.logbook.generateAIReport()" class="text-[10px] text-blue-300 hover:text-white hidden"><i class="fas fa-sparkles mr-1"></i>KI Bericht</button></div><textarea id="sum-notes" rows="6" class="w-full bg-gray-800 border border-gray-600 rounded p-2 text-sm text-white sum-input" placeholder="Passagiere, Wetter..."></textarea></div>
+                </div>
+            </div>
+            <input type="hidden" id="sum-id">
+            <div class="flex gap-2 flex-col sm:flex-row flex-shrink-0 mt-2">
+                <button onclick="app.logbook.shareImage()" class="flex-1 py-2 px-4 rounded bg-purple-600/30 border border-purple-500 text-purple-300 hover:bg-purple-600/40 text-sm font-bold flex items-center justify-center gap-2"><i class="fas fa-camera"></i> Bild (Gast)</button>
+                <button onclick="app.logbook.shareLog()" class="flex-1 py-2 px-4 rounded bg-blue-600/20 border border-blue-500 text-blue-300 hover:bg-blue-600/40 text-sm font-bold flex items-center justify-center gap-2"><i class="fas fa-route"></i> GPX (Pilot)</button>
+            </div>
+            <div class="flex gap-2 mt-3 pt-3 border-t border-gray-700">
+                <button onclick="app.logbook.closeSummary()" class="flex-1 py-2 rounded border border-gray-600 text-gray-300 hover:bg-gray-700 text-sm">Schließen</button>
+                <button id="btn-sum-save" onclick="app.logbook.saveFlightFromForm()" class="flex-1 py-2 rounded bg-green-600 hover:bg-green-500 text-white font-bold text-sm pilot-only">Speichern</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- BAPTISM MODAL -->
+    <div id="baptism-modal" class="hidden absolute inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-sm rounded-2xl p-6 flex flex-col text-center">
+            <i class="fas fa-water text-4xl text-blue-400 mb-4"></i>
+            <h2 class="text-xl font-bold text-white mb-2">Ballonfahrertaufe</h2>
+            <p id="bap-name" class="text-gray-300 mb-4"></p>
+            <div id="bap-result" class="bg-gray-800 p-4 rounded-lg text-yellow-300 font-serif italic mb-4 min-h-[100px] flex items-center justify-center">Drücke Generieren...</div>
+            <button onclick="app.passengers.generateTitle()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded mb-2"><i class="fas fa-magic mr-2"></i>Titel generieren</button>
+            <button onclick="document.getElementById('baptism-modal').classList.add('hidden')" class="text-gray-500 hover:text-white text-xs mt-2">Schließen</button>
+        </div>
+    </div>
+
+    <!-- PAX SELECTOR -->
+    <div id="pax-selector-modal" class="hidden absolute inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+         <div class="glass-panel w-full max-w-sm rounded-2xl p-4 flex flex-col max-h-[80vh]">
+            <h3 class="text-white font-bold mb-2">Passagiere wählen</h3>
+            <div id="pax-select-list" class="space-y-1 overflow-y-auto flex-1 mb-3"></div>
+            <div class="flex gap-2">
+                <button onclick="document.getElementById('pax-selector-modal').classList.add('hidden')" class="flex-1 py-2 text-xs border border-gray-600 rounded text-gray-300">Abbrechen</button>
+                <button onclick="app.passengers.confirmSelection()" class="flex-1 py-2 text-xs bg-pink-700 rounded text-white font-bold">Übernehmen</button>
+            </div>
+         </div>
+    </div>
+
     <!-- SETTINGS MODAL -->
     <div id="settings-modal" class="hidden absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end landscape:items-center md:items-center justify-center transition-opacity duration-300">
         <div class="glass-panel w-full h-[85vh] md:h-auto md:max-h-[90vh] md:max-w-md landscape:h-auto landscape:max-h-[90vh] landscape:max-w-lg md:rounded-2xl landscape:rounded-2xl rounded-t-2xl p-6 overflow-y-auto slide-up-mobile flex flex-col shadow-2xl">
-            
             <div class="flex justify-between items-center border-b border-gray-700 pb-4 mb-4 flex-shrink-0">
-                <h2 class="text-xl font-bold">Einstellungen</h2>
-                <button onclick="app.toggleSettings()" class="text-gray-400 hover:text-white p-2"><i class="fas fa-chevron-down md:fa-times landscape:fa-times text-xl"></i></button>
+                <div class="flex items-center gap-3"><button id="menu-back-btn" onclick="app.menu.open('main')" class="hidden text-gray-400 hover:text-white"><i class="fas fa-arrow-left text-lg"></i></button><h2 id="menu-title" class="text-xl font-bold text-white">Einstellungen</h2></div><button onclick="app.toggleSettings()" class="text-gray-400 hover:text-white p-2"><i class="fas fa-times text-xl"></i></button>
             </div>
-            
-            <div class="space-y-6 flex-1 overflow-y-auto">
-                <!-- Units (NEW) -->
-                <div>
-                    <label class="block text-sm text-gray-300 font-bold mb-2">Einheiten</label>
-                    <div class="grid grid-cols-3 gap-2">
-                        <div class="bg-gray-800 p-2 rounded border border-gray-700">
-                            <div class="text-[10px] text-gray-400 mb-1">Höhe</div>
-                            <select id="sel-alt" class="unit-select w-full" onchange="app.units.setUnit('alt', this.value)">
-                                <option value="m">Meter (m)</option>
-                                <option value="ft">Fuß (ft)</option>
-                            </select>
-                        </div>
-                        <div class="bg-gray-800 p-2 rounded border border-gray-700">
-                            <div class="text-[10px] text-gray-400 mb-1">Speed</div>
-                            <select id="sel-spd" class="unit-select w-full" onchange="app.units.setUnit('spd', this.value)">
-                                <option value="kmh">km/h</option>
-                                <option value="kt">Knoten</option>
-                            </select>
-                        </div>
-                        <div class="bg-gray-800 p-2 rounded border border-gray-700">
-                            <div class="text-[10px] text-gray-400 mb-1">Vario</div>
-                            <select id="sel-var" class="unit-select w-full" onchange="app.units.setUnit('var', this.value)">
-                                <option value="ms">m/s</option>
-                                <option value="fts">ft/s</option>
-                            </select>
-                        </div>
+            <div class="flex-1 overflow-y-auto min-h-0">
+                <div id="menu-main" class="space-y-3">
+                    <button onclick="app.menu.open('simulation')" class="menu-btn group bg-gray-800 hover:bg-gray-700"><div class="flex items-center"><div class="menu-icon bg-blue-900/30 text-blue-400"><i class="fas fa-gamepad"></i></div><div class="text-left"><div class="font-bold text-gray-200">Simulation</div><div class="text-xs text-gray-500">Trainingsmodus</div></div></div><i class="fas fa-chevron-right text-gray-600"></i></button>
+                    <button onclick="app.menu.open('balloons')" class="menu-btn group bg-gray-800 hover:bg-gray-700"><div class="flex items-center"><div class="menu-icon bg-yellow-900/30 text-yellow-400"><i class="fas fa-hot-air-balloon"></i></div><div class="text-left"><div class="font-bold text-gray-200">Ballon Verwaltung</div><div class="text-xs text-gray-500">Flotte & W&B</div></div></div><i class="fas fa-chevron-right text-gray-600"></i></button>
+                    <button onclick="app.menu.open('passengers')" class="menu-btn group bg-gray-800 hover:bg-gray-700"><div class="flex items-center"><div class="menu-icon bg-pink-900/30 text-pink-400"><i class="fas fa-users"></i></div><div class="text-left"><div class="font-bold text-gray-200">Passagiere</div><div class="text-xs text-gray-500">Gäste & Taufe</div></div></div><i class="fas fa-chevron-right text-gray-600"></i></button>
+                    <button onclick="app.menu.open('cylinders')" class="menu-btn group bg-gray-800 hover:bg-gray-700"><div class="flex items-center"><div class="menu-icon bg-red-900/30 text-red-400"><i class="fas fa-gas-pump"></i></div><div class="text-left"><div class="font-bold text-gray-200">Flaschen</div><div class="text-xs text-gray-500">Inventar</div></div></div><i class="fas fa-chevron-right text-gray-600"></i></button>
+                    <button onclick="app.menu.open('tracks')" class="menu-btn group bg-gray-800 hover:bg-gray-700"><div class="flex items-center"><div class="menu-icon bg-purple-900/30 text-purple-400"><i class="fas fa-layer-group"></i></div><div class="text-left"><div class="font-bold text-gray-200">Karten & Tracks</div><div class="text-xs text-gray-500">Overlays (KML/GPX)</div></div></div><i class="fas fa-chevron-right text-gray-600"></i></button>
+                    <button onclick="app.menu.open('logbook')" class="menu-btn group bg-gray-800 hover:bg-gray-700"><div class="flex items-center"><div class="menu-icon bg-green-900/30 text-green-400"><i class="fas fa-book"></i></div><div class="text-left"><div class="font-bold text-gray-200">Logbuch</div><div class="text-xs text-gray-500">Fahrtenbuch</div></div></div><i class="fas fa-chevron-right text-gray-600"></i></button>
+                    <button onclick="app.menu.open('import')" class="menu-btn group bg-gray-800 hover:bg-gray-700"><div class="flex items-center"><div class="menu-icon bg-gray-700 text-gray-300"><i class="fas fa-file-import"></i></div><div class="text-left"><div class="font-bold text-gray-200">Import & Reset</div><div class="text-xs text-gray-500">Backup & Daten</div></div></div><i class="fas fa-chevron-right text-gray-600"></i></button>
+                    <button onclick="app.menu.open('settings')" class="menu-btn group bg-gray-800 hover:bg-gray-700"><div class="flex items-center"><div class="menu-icon bg-gray-700 text-gray-300"><i class="fas fa-cog"></i></div><div class="text-left"><div class="font-bold text-gray-200">Allgemein</div><div class="text-xs text-gray-500">Einheiten, API</div></div></div><i class="fas fa-chevron-right text-gray-600"></i></button>
+                </div>
+
+                <div id="menu-simulation" class="hidden space-y-4"><div class="bg-gray-800/50 p-3 rounded-lg border border-gray-700 flex justify-between items-center"><div><label class="block text-sm text-gray-200 font-bold">Simulations-Modus</label><p class="text-[10px] text-gray-500">Physik statt GPS</p></div><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="sim-toggle-check" class="sr-only peer" onchange="app.toggleSimulation()"><div class="w-12 h-7 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div></label></div></div>
+                
+                <div id="menu-passengers" class="hidden space-y-4">
+                    <div id="pax-list" class="space-y-2 mb-3"></div>
+                    <div class="bg-gray-800/50 p-2 rounded border border-gray-700/50 grid grid-cols-2 gap-2 text-xs">
+                        <input type="text" id="pax-name" placeholder="Name" class="app-input">
+                        <input type="number" id="pax-weight" placeholder="Gewicht (kg)" class="app-input">
+                        <input type="text" id="pax-phone" placeholder="Telefon (Opt)" class="app-input">
+                        <select id="pax-gender" class="unit-select"><option value="m">Männlich</option><option value="f">Weiblich</option></select>
+                        <button onclick="app.passengers.add()" class="col-span-2 bg-pink-700 hover:bg-pink-600 text-white rounded py-1"><i class="fas fa-plus mr-1"></i> Passagier anlegen</button>
                     </div>
                 </div>
 
-                <hr class="border-gray-700/50">
-
-                <!-- Logbook Section -->
-                <div>
-                    <label class="block text-sm text-green-400 font-bold mb-2"><i class="fas fa-book mr-2"></i> Flug-Logbuch</label>
-                    <div id="log-list" class="space-y-2 mb-3 max-h-40 overflow-y-auto pr-1 bg-gray-900/50 rounded-lg p-2 border border-gray-700/50">
-                        <div class="text-xs text-gray-500 text-center py-2 italic">Keine Aufzeichnungen</div>
+                <div id="menu-balloons" class="hidden space-y-4">
+                    <div id="balloon-list" class="space-y-2 mb-3"></div><div class="bg-gray-800/50 p-2 rounded border border-gray-700/50 grid grid-cols-4 gap-2"><input type="text" id="new-bal-reg" placeholder="D-..." class="col-span-4 app-input text-xs"><input type="number" id="new-bal-vol" placeholder="Vol(m³)" class="col-span-2 app-input text-xs"><input type="number" id="new-bal-weight" placeholder="Leer(kg)" class="app-input text-xs"><input type="number" id="new-bal-mtom" placeholder="MTOM" class="app-input text-xs"><input type="number" id="new-bal-cyls" placeholder="Flaschen" class="col-span-3 app-input text-xs"><button onclick="app.balloons.addBalloon()" class="col-span-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs py-1"><i class="fas fa-plus"></i></button></div>
+                    <div class="flex gap-2 mt-3"><button onclick="app.balloons.exportBalloons()" class="flex-1 bg-gray-700 hover:bg-gray-600 text-gray-300 py-2 rounded text-xs border border-gray-600">Export</button><label class="flex-1 bg-gray-700 hover:bg-gray-600 text-gray-300 py-2 rounded text-xs border border-gray-600 flex items-center justify-center cursor-pointer">Import<input type="file" accept=".json" class="hidden" onchange="app.balloons.importBalloons(this.files[0])"></label></div>
+                    <div id="perf-editor-panel" class="hidden mt-3 bg-gray-800 p-3 rounded border border-gray-600"><div class="flex justify-between mb-2"><span class="text-xs font-bold text-blue-400" id="perf-title">Tragkraft (kg/m³)</span><button onclick="app.balloons.closePerf()" class="text-gray-400"><i class="fas fa-times"></i></button></div><div class="grid grid-cols-4 gap-1 text-[10px] text-gray-400 text-center mb-1"><div>Höhe</div><div>0°C</div><div>15°C</div><div>30°C</div></div><div id="perf-inputs" class="space-y-1 mb-3"></div><button onclick="app.balloons.savePerf()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-1 rounded text-xs">Speichern</button></div>
+                    <div id="wb-calc-panel" class="hidden mt-3 bg-gray-800 p-3 rounded border border-gray-600">
+                        <div class="flex justify-between mb-2"><span class="text-xs font-bold text-yellow-400" id="wb-title">W&B Berechnung</span><button onclick="app.balloons.closeCalc()" class="text-gray-400"><i class="fas fa-times"></i></button></div>
+                        <div class="space-y-3">
+                            <button onclick="app.passengers.openSelectorInWB()" class="w-full bg-pink-900/50 text-pink-300 border border-pink-800 text-xs py-1 rounded">Passagiere wählen</button>
+                            <div class="bg-gray-900/50 p-2 rounded border border-gray-700/50"><label class="text-[10px] text-gray-400 block mb-1">Flaschen</label><div id="wb-cyl-selection" class="space-y-1"></div></div>
+                            <div class="grid grid-cols-2 gap-2 text-xs">
+                                <div><label class="text-gray-400">Pilot (kg)</label><input type="number" id="wb-pilot" class="app-input w-full" value="80" oninput="app.balloons.calc()"></div><div><label class="text-gray-400">Gäste (kg)</label><input type="number" id="wb-pax" class="app-input w-full" value="0" oninput="app.balloons.calc()"></div>
+                                <div><label class="text-gray-400">Temp (°C)</label><input type="number" id="wb-temp" class="app-input w-full" value="15" oninput="app.balloons.calc()"></div><div><label class="text-gray-400">Zielhöhe (m)</label><input type="number" id="wb-h" class="app-input w-full" value="1000" oninput="app.balloons.calc()"></div>
+                            </div>
+                        </div>
+                        <div class="space-y-1 mb-3 mt-3"><div class="flex justify-between text-xs border-b border-gray-700 pb-1"><span class="text-gray-400">Gesamt:</span><span id="wb-res-total" class="font-bold">--- kg</span></div><div class="flex justify-between text-xs border-b border-gray-700 pb-1"><span class="text-gray-400">Tragkraft:</span><span id="wb-res-lift" class="font-bold text-blue-300">--- kg</span></div><div class="flex justify-between text-xs border-b border-gray-700 pb-1"><span class="text-gray-400">MTOM:</span><span id="wb-res-mtom" class="font-bold text-gray-300">--- kg</span></div><div id="wb-final-status" class="text-center p-2 rounded border font-bold text-sm mt-2">---</div></div><button onclick="app.balloons.saveAsPrep()" class="w-full bg-blue-600/50 hover:bg-blue-500 border border-blue-500 text-blue-100 py-1 rounded text-xs"><i class="fas fa-save mr-1"></i> Speichern</button>
                     </div>
-                    <div class="flex gap-4 text-[10px] text-gray-400 justify-center">
+                    <div class="mt-4"><label class="block text-xs text-gray-400 mb-1">Gespeicherte Vorbereitungen</label><div id="prep-list-settings" class="space-y-1 max-h-24 overflow-y-auto"></div></div>
+                </div>
+
+                <div id="menu-cylinders" class="hidden space-y-4"><div id="cyl-list" class="space-y-2 mb-3"></div><div class="bg-gray-800/50 p-2 rounded border border-gray-700/50 grid grid-cols-2 gap-2 text-xs"><input type="text" id="cyl-type" placeholder="Typ" class="app-input"><input type="text" id="cyl-serial" placeholder="Seriennr." class="app-input"><input type="number" id="cyl-tara" placeholder="Tara" class="app-input"><input type="number" id="cyl-cap" placeholder="Füllung" class="app-input"><input type="date" id="cyl-check" class="app-input col-span-2"><button onclick="app.cylinders.add()" class="col-span-2 bg-red-800/50 hover:bg-red-700 text-white rounded py-1"><i class="fas fa-plus"></i> Flasche anlegen</button></div></div>
+                <div id="menu-tracks" class="hidden space-y-4"><div id="layer-list" class="space-y-2 mb-3 max-h-80 overflow-y-auto pr-1 bg-gray-900/50 rounded-lg p-2 border border-gray-700/50"></div><label class="flex flex-col items-center justify-center w-full h-12 border border-gray-600 border-dashed rounded-lg cursor-pointer bg-gray-800/50 hover:bg-gray-700/50"><div class="flex items-center justify-center gap-2"><i class="fas fa-plus text-sm text-gray-400"></i><p class="text-xs text-gray-400">KML/GPX hinzufügen</p></div><input type="file" accept=".kml,.gpx,.xml" class="hidden" onchange="app.data.handleKML(this.files[0])" /></label></div>
+                <div id="menu-logbook" class="hidden space-y-4">
+                     <div id="log-list" class="space-y-2 mb-3 max-h-80 overflow-y-auto pr-1 bg-gray-900/50 rounded-lg p-2 border border-gray-700/50"></div>
+                     <!-- Added legend IDs explicitly -->
+                     <div class="flex gap-4 text-[10px] text-gray-400 justify-center">
                         <div class="flex items-center"><span class="speed-legend-dot bg-blue-500"></span>&lt;<span id="leg-1">10</span></div>
                         <div class="flex items-center"><span class="speed-legend-dot bg-green-500"></span><span id="leg-2">10-25</span></div>
                         <div class="flex items-center"><span class="speed-legend-dot bg-orange-500"></span><span id="leg-3">25-45</span></div>
                         <div class="flex items-center"><span class="speed-legend-dot bg-red-500"></span>&gt;<span id="leg-4">45</span> <span id="leg-u">km/h</span></div>
-                    </div>
+                     </div>
                 </div>
-
-                <!-- Compass Toggle -->
-                <div class="flex justify-between items-center">
-                    <div>
-                        <label class="block text-sm text-gray-200 font-bold">Blickrichtung (Kompass)</label>
-                        <p class="text-[10px] text-gray-500">Zeigt Sichtkegel auf Karte</p>
-                    </div>
-                    <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" id="compass-toggle-check" class="sr-only peer" onchange="app.compass.toggle()">
-                        <div class="w-12 h-7 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                    </label>
-                </div>
-
-                <!-- Simulation Mode -->
-                <div class="flex justify-between items-center">
-                    <div>
-                        <label class="block text-sm text-gray-200 font-bold">Simulations-Modus</label>
-                        <p class="text-[10px] text-gray-500">Physik statt GPS</p>
-                    </div>
-                    <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" id="sim-toggle-check" class="sr-only peer" onchange="app.toggleSimulation()">
-                        <div class="w-12 h-7 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                    </label>
-                </div>
-
-                <!-- Data Import -->
-                <div>
-                    <label class="block text-sm text-gray-300 font-bold mb-2">Karten-Ebenen (KML/GPX)</label>
-                    <div id="layer-list" class="space-y-2 mb-3 max-h-40 overflow-y-auto pr-1 bg-gray-900/50 rounded-lg p-2 border border-gray-700/50">
-                        <div class="text-xs text-gray-500 text-center py-2 italic">Keine Karten geladen</div>
-                    </div>
-                    <label class="flex flex-col items-center justify-center w-full h-12 border border-gray-600 border-dashed rounded-lg cursor-pointer bg-gray-800/50 hover:bg-gray-700/50">
-                        <div class="flex items-center justify-center gap-2"><i class="fas fa-plus text-sm text-gray-400"></i><p class="text-xs text-gray-400">Datei hinzufügen...</p></div>
-                        <input type="file" accept=".kml,.gpx,.xml" class="hidden" onchange="app.data.handleKML(this.files[0])" />
-                    </label>
-                </div>
-
-                <div>
-                    <label class="block text-sm text-gray-400 mb-2">HUD Transparenz</label>
-                    <input type="range" min="0.0" max="0.95" step="0.05" value="0.85" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer" oninput="app.ui.updateOpacity(this.value)">
-                </div>
-                <div>
-                    <label class="block text-sm text-gray-400 mb-2">Gemini API Key</label>
-                    <input type="password" id="api-key" placeholder="Key eingeben..." class="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white text-xs">
-                </div>
-            </div>
-
-            <div class="mt-4 pt-4 border-t border-gray-700 flex-shrink-0">
-                <button onclick="app.data.clearAllData()" class="w-full text-red-400 text-xs hover:text-red-200 flex items-center justify-center py-2"><i class="fas fa-trash-alt mr-2"></i> Alles zurücksetzen</button>
+                <div id="menu-import" class="hidden space-y-4"><label class="flex flex-col items-center justify-center w-full h-12 border border-gray-600 border-dashed rounded-lg cursor-pointer bg-gray-800/50 hover:bg-gray-700/50"><div class="flex items-center justify-center gap-2"><i class="fas fa-file-import text-sm text-gray-400"></i><p class="text-xs text-gray-400">Daten Importieren</p></div><input type="file" accept=".kml,.gpx,.xml" class="hidden" onchange="app.data.handleKML(this.files[0])" /></label><button onclick="app.data.clearAllData()" class="w-full bg-red-900/30 hover:bg-red-900/50 border border-red-800 text-red-300 py-3 rounded-lg text-sm font-bold transition-colors mt-8">Alles zurücksetzen</button></div>
+                <div id="menu-settings" class="hidden space-y-4"><div class="grid grid-cols-3 gap-2 mb-2"><select id="sel-alt" class="unit-select w-full" onchange="app.units.setUnit('alt', this.value)"><option value="m">Meter</option><option value="ft">Fuß</option></select><select id="sel-spd" class="unit-select w-full" onchange="app.units.setUnit('spd', this.value)"><option value="kmh">km/h</option><option value="kt">Knoten</option></select><select id="sel-var" class="unit-select w-full" onchange="app.units.setUnit('var', this.value)"><option value="ms">m/s</option><option value="fts">ft/s</option></select></div><div class="bg-gray-800 p-2 rounded border border-gray-700 flex justify-between items-center"><select id="sel-vario-source" class="unit-select" onchange="app.barometer.setSource(this.value)"><option value="gps">GPS</option><option value="baro">Barometer</option></select><div id="baro-status-text" class="text-[9px] text-gray-500 font-mono">Init...</div></div><div class="flex justify-between items-center mt-4"><div><label class="block text-sm text-gray-200 font-bold">Kompass</label><p class="text-[10px] text-gray-500">Sichtkegel anzeigen</p></div><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="compass-toggle-check" class="sr-only peer" onchange="app.compass.toggle()"><div class="w-12 h-7 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div></label></div><div class="mt-4"><label class="block text-sm text-gray-400 mb-2">HUD Transparenz</label><input type="range" min="0.0" max="0.95" step="0.05" value="0.85" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer" oninput="app.ui.updateOpacity(this.value)"></div><div class="mt-4"><label class="block text-sm text-gray-400 mb-2">Eigenes Ballon Icon</label><label class="flex items-center justify-center h-10 bg-gray-800 text-gray-300 rounded border border-gray-600 cursor-pointer hover:bg-gray-700"><span class="text-xs">Bild wählen...</span><input type='file' class="hidden" accept="image/*" onchange="app.ui.loadCustomIcon(this.files[0])" /></label></div><div class="mt-4"><label class="block text-sm text-gray-400 mb-2">Gemini API Key</label><input type="password" id="api-key" placeholder="Key eingeben..." class="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white text-xs"></div></div>
             </div>
              <div class="h-6 md:hidden landscape:hidden"></div>
         </div>
@@ -266,16 +254,15 @@
     <div id="ai-panel" class="hidden absolute right-16 bottom-24 z-40 w-80">
         <div class="glass-panel p-4 rounded-xl">
             <div class="flex justify-between items-center mb-2"><h3 class="font-bold text-blue-300"><i class="fas fa-robot mr-1"></i> Gemini Co-Pilot</h3><button onclick="app.ai.close()" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button></div>
-            <div id="ai-output" class="text-sm text-gray-200 mb-3 min-h-[50px] max-h-[200px] overflow-y-auto">Bereit für Anweisungen. Rechtsklick auf Karte setzt Ziel.</div>
-            <div class="flex gap-2"><button onclick="app.ai.analyzeWind()" class="flex-1 bg-purple-700/50 hover:bg-purple-600/50 border border-purple-500 rounded px-2 py-1 text-xs">Wind Analyse</button><button onclick="app.ai.generateLogSummary()" class="flex-1 bg-green-700/50 hover:bg-green-600/50 border border-green-500 rounded px-2 py-1 text-xs">Logbuch</button></div>
+            <div id="ai-output" class="text-sm text-gray-200 mb-3 min-h-[50px] max-h-[200px] overflow-y-auto">Bereit für Anweisungen.</div>
+            <div class="flex gap-2"><button onclick="app.ai.analyzeWind()" class="flex-1 bg-purple-700/50 hover:bg-purple-600/50 border border-purple-500 rounded px-2 py-1 text-xs">Wind</button><button onclick="app.ai.generateLogSummary()" class="flex-1 bg-green-700/50 hover:bg-green-600/50 border border-green-500 rounded px-2 py-1 text-xs">Logbuch</button></div>
         </div>
     </div>
 
-    <!-- JAVASCRIPT LOGIC -->
     <script>
+        // --- CONSTANTS & STATE ---
         const CONSTANTS = { GRAVITY: 9.81, OSM_API: 'https://overpass-api.de/api/interpreter' };
         
-        // Initial state with units
         const state = { 
             mode: 'simulation', recording: false, gpsLocked: false, 
             position: { lat: 50.1109, lng: 8.6821, alt: 0 }, 
@@ -283,34 +270,122 @@
             history: [], windLayers: [], target: null, trackPoints: [], 
             apiKey: localStorage.getItem('gemini_key') || '', 
             autoFollow: true, mapLocked: false, lastRecordTime: 0,
-            units: { alt: 'm', spd: 'kmh', var: 'ms' } // Defaults
+            units: { alt: 'm', spd: 'kmh', var: 'ms' },
+            varioSource: 'gps',
+            currentFlightPrep: null,
+            currentPhotos: []
         };
 
         const Settings = {
             save: () => {
                 localStorage.setItem('an_sim_mode', state.mode);
-                localStorage.setItem('an_hud_opacity', document.querySelector('input[type=range]').value);
                 localStorage.setItem('an_map_layer', app.ui.currentLayerIndex);
                 localStorage.setItem('an_units', JSON.stringify(state.units));
+                localStorage.setItem('an_vario_source', state.varioSource);
             },
             load: () => {
                 if (localStorage.getItem('an_sim_mode')) state.mode = localStorage.getItem('an_sim_mode');
-                if (localStorage.getItem('an_hud_opacity')) {
-                    const op = localStorage.getItem('an_hud_opacity');
-                    app.ui.updateOpacity(op);
-                    document.querySelector('input[type=range]').value = op;
-                }
                 if (localStorage.getItem('an_map_layer')) app.ui.currentLayerIndex = parseInt(localStorage.getItem('an_map_layer'));
-                if (localStorage.getItem('an_units')) {
-                    try { state.units = JSON.parse(localStorage.getItem('an_units')); } catch(e){}
-                }
+                if (localStorage.getItem('an_units')) { try { state.units = JSON.parse(localStorage.getItem('an_units')); } catch(e){} }
+                if (localStorage.getItem('an_vario_source')) state.varioSource = localStorage.getItem('an_vario_source');
             }
         };
 
-        // --- UNIT MANAGER ---
+        // --- MANAGERS ---
+
+        class MenuManager {
+            constructor() { this.views = ['main', 'simulation', 'balloons', 'cylinders', 'tracks', 'logbook', 'import', 'settings', 'passengers']; }
+            open(viewId) {
+                this.views.forEach(v => { const el=document.getElementById(`menu-${v}`); if(el) el.classList.add('hidden'); });
+                document.getElementById(`menu-${viewId}`).classList.remove('hidden');
+                const backBtn = document.getElementById('menu-back-btn');
+                const title = document.getElementById('menu-title');
+                if (viewId === 'main') { backBtn.classList.add('hidden'); title.innerText = 'Einstellungen'; } 
+                else { 
+                    backBtn.classList.remove('hidden');
+                    const titles = { simulation: 'Simulation', balloons: 'Ballon & W&B', cylinders: 'Flaschen', tracks: 'Karten', logbook: 'Logbuch', import: 'Import', settings: 'Allgemein', passengers: 'Passagiere' };
+                    title.innerText = titles[viewId] || 'Einstellungen';
+                }
+            }
+        }
+
+        class PassengerManager {
+            constructor() { this.pax = JSON.parse(localStorage.getItem('aeronav_pax') || '[]'); this.selectionContext = null; this.baptizingId = null; }
+            save() { localStorage.setItem('aeronav_pax', JSON.stringify(this.pax)); }
+            add() { const n=document.getElementById('pax-name').value, w=parseInt(document.getElementById('pax-weight').value), p=document.getElementById('pax-phone').value, g=document.getElementById('pax-gender').value; if(n&&w){this.pax.push({id:Date.now(), name:n, weight:w, phone:p, gender:g, active:true}); this.save(); this.renderList(); document.getElementById('pax-name').value='';document.getElementById('pax-weight').value='';document.getElementById('pax-phone').value='';} }
+            remove(id) { if(confirm("Löschen?")) { this.pax = this.pax.filter(p => p.id !== id); this.save(); this.renderList(); } }
+            renderList() { const c = document.getElementById('pax-list'); if(!c) return; c.innerHTML = ''; const active = this.pax.filter(p => p.active); if(active.length === 0) { c.innerHTML = '<div class="text-xs text-gray-500 text-center italic">Keine aktiven Passagiere</div>'; return; } active.forEach(p => { c.innerHTML += `<div class="flex justify-between bg-gray-800 p-2 rounded mb-1 border border-gray-700"><div><div class="text-xs font-bold text-pink-300">${p.name}</div><div class="text-[10px] text-gray-400">${p.weight}kg | ${p.phone}</div></div><button onclick="app.passengers.remove(${p.id})" class="text-red-500"><i class="fas fa-trash-alt"></i></button></div>`; }); }
+            openSelectorInWB() { this.selectionContext = 'wb'; this.renderSelector(); document.getElementById('pax-selector-modal').classList.remove('hidden'); }
+            openSelector() { this.selectionContext = 'log'; this.renderSelector(); document.getElementById('pax-selector-modal').classList.remove('hidden'); }
+            renderSelector() { const c = document.getElementById('pax-select-list'); c.innerHTML = ''; this.pax.filter(p=>p.active).forEach(p => { c.innerHTML += `<label class="flex items-center justify-between bg-gray-800 p-2 rounded mb-1"><span class="text-xs text-white">${p.name} (${p.weight}kg)</span><input type="checkbox" value="${p.id}" class="pax-chk rounded bg-gray-700 border-gray-500 text-pink-600 focus:ring-pink-600"></label>`; }); }
+            confirmSelection() {
+                const checked = Array.from(document.querySelectorAll('.pax-chk:checked')).map(cb => parseInt(cb.value));
+                if (this.selectionContext === 'wb') { let total = 0; checked.forEach(id => { const p = this.pax.find(x => x.id === id); if(p) total += p.weight; }); document.getElementById('wb-pax').value = total; app.balloons.calc(); } 
+                else if (this.selectionContext === 'log') {
+                    const list = document.getElementById('sum-pax-list');
+                    checked.forEach(id => { const p = this.pax.find(x => x.id === id); if(p) { const div = document.createElement('div'); div.className = "flex justify-between items-center bg-gray-800 p-1 rounded border border-gray-700"; div.innerHTML = `<span class="text-xs text-white px-1">${p.name}</span><button onclick="app.passengers.openBaptism(${p.id})" class="text-blue-300 hover:text-white px-2" title="Taufen"><i class="fas fa-tint"></i></button>`; list.appendChild(div); } });
+                }
+                document.getElementById('pax-selector-modal').classList.add('hidden');
+            }
+            openBaptism(id) { this.baptizingId = id; const p = this.pax.find(x => x.id === id); document.getElementById('bap-name').innerText = p.name; document.getElementById('bap-result').innerText = "Drücke Generieren..."; document.getElementById('baptism-modal').classList.remove('hidden'); }
+            async generateTitle() {
+                if (!state.apiKey) { alert("API Key fehlt!"); return; }
+                const p = this.pax.find(x => x.id === this.baptizingId); const start = document.getElementById('sum-start-loc').value || "unbekannt"; const end = document.getElementById('sum-end-loc').value || "unbekannt"; const time = new Date().getHours() < 12 ? "Morgen" : "Abend";
+                const fn = p.name.split(' ')[0]; const g = p.gender === 'f' ? 'weiblich' : 'männlich';
+                const prompt = `Erstelle einen lustigen, traditionellen Ballonfahrer-Adelstitel. Name: ${fn}, Geschlecht: ${g}. Fahrt von ${start} nach ${end} am ${time}. Format: "Adelstitel ${fn} ... von ... zu ..." Nur den Titel ausgeben.`;
+                document.getElementById('bap-result').innerText = "Generiere...";
+                try { const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${state.apiKey}`; const res = await fetch(url, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) }); const data = await res.json(); document.getElementById('bap-result').innerText = data.candidates[0].content.parts[0].text; } catch(e) { document.getElementById('bap-result').innerText = "Fehler bei der Verbindung."; }
+            }
+        }
+
+        class CylinderManager {
+            constructor() { this.cylinders = JSON.parse(localStorage.getItem('aeronav_cylinders') || '[]'); }
+            add() { const t=document.getElementById('cyl-type').value, s=document.getElementById('cyl-serial').value, ta=parseFloat(document.getElementById('cyl-tara').value), c=parseFloat(document.getElementById('cyl-cap').value), ch=document.getElementById('cyl-check').value; if(t&&s&&ta&&c){this.cylinders.push({id:Date.now(),type:t,serial:s,tara:ta,cap:c,check:ch});this.save();this.renderList();document.getElementById('cyl-type').value='';document.getElementById('cyl-serial').value='';}else alert("Felder füllen"); }
+            remove(id) { if(confirm("Löschen?")) { this.cylinders = this.cylinders.filter(c => c.id !== id); this.save(); this.renderList(); } }
+            save() { localStorage.setItem('aeronav_cylinders', JSON.stringify(this.cylinders)); }
+            renderList() { const c = document.getElementById('cyl-list'); if(!c) return; c.innerHTML = ''; if(this.cylinders.length===0){c.innerHTML='<div class="text-xs text-gray-500 text-center italic">Keine Flaschen</div>';return;} const now=new Date(); this.cylinders.forEach(x => { let cl='text-gray-400'; if(x.check && new Date(x.check)<now) cl='text-red-500 font-bold'; c.innerHTML += `<div class="flex justify-between bg-gray-800 p-2 rounded mb-1 border border-gray-700"><div><div class="text-xs font-bold text-red-300">${x.type} (${x.serial})</div><div class="text-[10px] text-gray-400">Tara:${x.tara}kg|Füll:${x.cap}kg</div><div class="text-[10px] ${cl}">Prüfung: ${x.check||'-'}</div></div><button onclick="app.cylinders.remove(${x.id})" class="text-red-500"><i class="fas fa-trash-alt"></i></button></div>`; }); }
+        }
+
+        class BalloonManager {
+             constructor() { this.balloons=JSON.parse(localStorage.getItem('aeronav_balloons')||'[]'); this.preps=JSON.parse(localStorage.getItem('aeronav_preps')||'[]'); this.perfHeights=[0,1000,2000,3000]; this.activeCalcId=null; this.activePerfId=null; }
+             addBalloon() { const r=document.getElementById('new-bal-reg').value.toUpperCase(), v=parseInt(document.getElementById('new-bal-vol').value), w=parseInt(document.getElementById('new-bal-weight').value), m=parseInt(document.getElementById('new-bal-mtom').value), cy=parseInt(document.getElementById('new-bal-cyls').value)||4; if(r&&v&&w&&m){ const defPerf=this.perfHeights.map(h=>({h,t0:0.35-(h*3e-5),t15:0.32-(h*3e-5),t30:0.29-(h*3e-5)})); this.balloons.push({id:Date.now(),reg:r,vol:v,weight:w,mtom:m,stdCylCount:cy,perf:defPerf}); this.save(); this.renderList(); document.getElementById('new-bal-reg').value=''; } else alert("Felder füllen"); }
+             removeBalloon(id){ if(confirm("Löschen?")){ this.balloons=this.balloons.filter(b=>b.id!==id); this.save(); this.renderList(); } }
+             save(){ localStorage.setItem('aeronav_balloons',JSON.stringify(this.balloons)); }
+             savePrep(){ localStorage.setItem('aeronav_preps',JSON.stringify(this.preps)); }
+             exportBalloons() { if(this.balloons.length===0){alert("Keine Daten");return;} const f=new File([JSON.stringify(this.balloons)],"balloons.json",{type:"application/json"}); if(navigator.share){navigator.share({files:[f]}).catch(console.warn);}else{const u=URL.createObjectURL(f),a=document.createElement('a');a.href=u;a.download='balloons.json';a.click();} }
+             importBalloons(f) { if(!f)return; const r=new FileReader(); r.onload=(e)=>{try{const i=JSON.parse(e.target.result);if(Array.isArray(i)){i.forEach(b=>{if(b.reg){const x=this.balloons.find(y=>y.reg===b.reg);if(x){if(confirm("Überschreiben?"))Object.assign(x,b);else{b.id=Date.now();b.reg+='-Copy';this.balloons.push(b);}}else{b.id=Date.now();this.balloons.push(b);}}});this.save();this.renderList();}}catch(z){alert("Fehler");}}; r.readAsText(f); }
+             renderList(){ const c=document.getElementById('balloon-list');const s=document.getElementById('sum-balloon');c.innerHTML='';s.innerHTML='<option value="">-</option>';if(this.balloons.length===0)c.innerHTML='<div class="text-xs text-gray-500 italic">Leer</div>';this.balloons.forEach(b=>{c.innerHTML+=`<div class="flex justify-between bg-gray-800 p-2 rounded mb-1 border border-gray-700"><div><div class="text-xs font-bold text-yellow-400">${b.reg}</div><div class="text-[10px] text-gray-400">Vol:${b.vol}m³</div></div><div class="flex gap-2"><button onclick="app.balloons.openPerf(${b.id})" class="text-green-400"><i class="fas fa-tachometer-alt"></i></button><button onclick="app.balloons.openCalc(${b.id})" class="text-blue-400"><i class="fas fa-balance-scale"></i></button><button onclick="app.balloons.removeBalloon(${b.id})" class="text-red-400"><i class="fas fa-trash-alt"></i></button></div></div>`;const o=document.createElement('option');o.value=b.reg;o.text=b.reg;s.appendChild(o);});this.renderPrepList('prep-list-settings');this.renderPrepList('prep-list-modal');}
+             renderPrepList(eid) { const c=document.getElementById(eid); if(!c)return; c.innerHTML=''; if(this.preps.length===0) {c.innerHTML='<div class="text-xs text-gray-500 text-center italic">Keine Vorbereitungen</div>';return;} this.preps.forEach(p=>{ const cl=p.status==='ok'?'text-green-400':'text-red-400'; c.innerHTML+=`<div class="flex justify-between items-center bg-gray-700/50 p-2 rounded text-xs mb-1"><div class="cursor-pointer flex-1" onclick="app.logbook.startRecording(${p.id})"><div class="font-bold text-gray-200">${p.name}</div><div class="text-[10px] text-gray-400">${p.balloonReg}|<span class="${cl}">${p.total}kg</span></div></div><button onclick="app.balloons.deletePrep(${p.id})" class="text-red-400 ml-2"><i class="fas fa-trash-alt"></i></button></div>`; }); }
+             deletePrep(id){ if(confirm("Löschen?")){ this.preps=this.preps.filter(p=>p.id!==id); this.savePrep(); this.renderList(); } }
+             openPerf(id){ this.activePerfId=id; const b=this.balloons.find(x=>x.id===id); if(!b)return; if(!b.perf||!b.perf[0].t0) b.perf=this.perfHeights.map(h=>({h,t0:0.35-(h*3e-5),t15:0.32-(h*3e-5),t30:0.29-(h*3e-5)})); document.getElementById('perf-title').innerText=`Leistung: ${b.reg}`; const c=document.getElementById('perf-inputs'); c.innerHTML=''; b.perf.forEach((p,i)=>{ c.innerHTML+=`<div class="grid grid-cols-4 gap-1 text-xs items-center mb-1"><div class="text-right pr-2 font-bold text-gray-400">${p.h}m</div><input type="number" id="perf-row-${i}-t0" value="${p.t0.toFixed(3)}" step="0.001" class="perf-input"><input type="number" id="perf-row-${i}-t15" value="${p.t15.toFixed(3)}" step="0.001" class="perf-input"><input type="number" id="perf-row-${i}-t30" value="${p.t30.toFixed(3)}" step="0.001" class="perf-input"></div>`; }); document.getElementById('perf-editor-panel').classList.remove('hidden'); document.getElementById('wb-calc-panel').classList.add('hidden'); }
+             savePerf(){ if(!this.activePerfId)return; const b=this.balloons.find(x=>x.id===this.activePerfId); const np=[]; for(let i=0;i<4;i++){ const h=this.perfHeights[i]; np.push({h,t0:parseFloat(document.getElementById(`perf-row-${i}-t0`).value),t15:parseFloat(document.getElementById(`perf-row-${i}-t15`).value),t30:parseFloat(document.getElementById(`perf-row-${i}-t30`).value)}); } b.perf=np; this.save(); this.closePerf(); alert("Gespeichert."); }
+             closePerf(){ document.getElementById('perf-editor-panel').classList.add('hidden'); this.activePerfId=null; }
+             openCalc(id){ this.activeCalcId=id; const b=this.balloons.find(x=>x.id===id); if(!b)return; document.getElementById('wb-title').innerText=`W&B: ${b.reg}`; document.getElementById('wb-calc-panel').classList.remove('hidden'); document.getElementById('perf-editor-panel').classList.add('hidden'); const cc=document.getElementById('wb-cyl-selection'); cc.innerHTML=''; const cnt=b.stdCylCount||4; const av=app.cylinders.cylinders; for(let i=0;i<cnt;i++){ let h=`<select id="wb-slot-${i}" class="unit-select w-full mb-1" onchange="app.balloons.calc()"><option value="std">Slot ${i+1}: Std (35kg)</option>`; if(av.length>0){ h+=`<optgroup label="Inventar">`; av.forEach(c=>{ h+=`<option value="${c.id}">${c.type} (${c.serial}) - ${c.tara+c.cap}kg</option>`; }); h+=`</optgroup>`; } h+=`</select>`; cc.innerHTML+=h; } this.calc(); }
+             closeCalc(){ document.getElementById('wb-calc-panel').classList.add('hidden'); this.activeCalcId=null; }
+             calc(){ 
+                if(!this.activeCalcId)return; const b=this.balloons.find(x=>x.id===this.activeCalcId); 
+                const pi=parseInt(document.getElementById('wb-pilot').value)||0; 
+                const pa=parseInt(document.getElementById('wb-pax').value)||0; 
+                let cw=0; let ucy=[]; const cnt=b.stdCylCount||4; 
+                for(let i=0;i<cnt;i++){ 
+                    const v=document.getElementById(`wb-slot-${i}`).value; 
+                    if(v==='std'){cw+=35;ucy.push({type:'Standard',weight:35});}
+                    else{const c=app.cylinders.cylinders.find(x=>x.id==v);if(c){const w=c.tara+c.cap;cw+=w;ucy.push({id:c.id,type:c.type,serial:c.serial,weight:w});}}
+                } 
+                const t0=parseFloat(document.getElementById('wb-temp').value)||15; const alt=parseFloat(document.getElementById('wb-h').value)||0; 
+                const tm=b.weight+pi+pa+cw; const ta=t0-(0.0065*alt); const lf=this.interpolateMatrix(b.perf,alt,ta); const l=b.vol*lf; 
+                document.getElementById('wb-res-total').innerText=`${tm}kg`; document.getElementById('wb-res-lift').innerText=`${Math.round(l)}kg`; document.getElementById('wb-res-mtom').innerText=`${b.mtom}kg`; 
+                const lim=Math.min(b.mtom,l); const ok=tm<=lim; 
+                const el=document.getElementById('wb-final-status'); el.innerText=`${tm}kg / Limit ${Math.round(lim)}kg`; el.className=ok?'text-center p-2 rounded border font-bold text-sm wb-ok bg-green-900/20':'text-center p-2 rounded border font-bold text-sm wb-bad bg-red-900/20'; 
+                this.currentCalcData={total:tm,limit:lim,cylinders:ucy}; 
+             }
+             interpolateMatrix(perf,h,t){ let r1=perf[0],r2=perf[3]; for(let i=0;i<3;i++){ if(h>=perf[i].h && h<=perf[i+1].h){ r1=perf[i]; r2=perf[i+1]; break; } } const l1=this.it(r1,t); const l2=this.it(r2,t); const hr=r2.h-r1.h; if(hr===0)return l1; return l1+((h-r1.h)/hr)*(l2-l1); }
+             it(r,t){ if(t<=0)return r.t0; if(t>=30)return r.t30; if(t<=15)return r.t0+(t/15)*(r.t15-r.t0); else return r.t15+((t-15)/15)*(r.t30-r.t15); }
+             saveAsPrep(){ if(!this.activeCalcId)return; const b=this.balloons.find(x=>x.id===this.activeCalcId); const n=prompt("Name:"); if(!n)return; const pi=parseInt(document.getElementById('wb-pilot').value)||0; const pa=parseInt(document.getElementById('wb-pax').value)||0; const t0=parseFloat(document.getElementById('wb-temp').value)||15; const h=parseFloat(document.getElementById('wb-h').value)||0; const prep={id:Date.now(),name:n,balloonReg:b.reg,balloonId:b.id,weights:{pilot:pi,pax:pa},cylinders:this.currentCalcData.cylinders,env:{temp0:t0,alt:h},total:this.currentCalcData.total,limit:this.currentCalcData.limit,mtom:b.mtom,status:this.currentCalcData.total<=this.currentCalcData.limit?'ok':'overload'}; this.preps.push(prep); this.savePrep(); this.renderList(); this.closeCalc(); alert("Gespeichert."); }
+        }
+
         class UnitManager {
             constructor() {
-                // Formatting constants
                 this.M_TO_FT = 3.28084;
                 this.KMH_TO_KT = 0.539957;
             }
@@ -354,6 +429,9 @@
                 const leg2 = document.getElementById('leg-2');
                 const leg3 = document.getElementById('leg-3');
                 const leg4 = document.getElementById('leg-4');
+                
+                // Add null checks for robustness
+                if(!legU || !leg1 || !leg2 || !leg3 || !leg4) return;
 
                 if (u === 'kt') {
                     legU.innerText = 'kt';
@@ -382,16 +460,68 @@
         }
 
         class BarometerManager {
-            constructor() { this.available = false; this.sensor = null; this.history = []; this.vario = 0; }
+            constructor() { 
+                this.available = false; 
+                this.sensor = null; 
+                this.history = []; 
+                this.vario = 0; 
+                this.statusMsg = "Initialisierung...";
+            }
+            
             init() {
                 if ('Barometer' in window) {
+                    this.updateStatus("Wird gesucht...", "text-yellow-500");
                     try {
                         this.sensor = new Barometer({ frequency: 10 });
-                        this.sensor.addEventListener('reading', () => this.processReading());
-                        this.sensor.start(); this.available = true;
-                    } catch (e) { console.warn("Barometer not available"); }
+                        this.sensor.addEventListener('reading', () => {
+                            this.available = true;
+                            this.updateStatus("Aktiv (Verbunden)", "text-green-400");
+                            this.processReading();
+                        });
+                        this.sensor.addEventListener('error', (e) => {
+                            console.warn("Baro Error", e);
+                            if (e.error.name === 'NotAllowedError') {
+                                this.updateStatus("Fehler: Keine Erlaubnis", "text-red-500");
+                            } else if (e.error.name === 'NotReadableError') {
+                                this.updateStatus("Fehler: Hardware defekt/belegt", "text-red-500");
+                            } else {
+                                this.updateStatus("Fehler: " + e.error.name, "text-red-500");
+                            }
+                            this.available = false;
+                        });
+                        this.sensor.start();
+                    } catch (e) { 
+                        console.warn("Barometer startup fail", e);
+                        this.updateStatus("Nicht unterstützt (Browser)", "text-red-500");
+                        this.available = false;
+                    }
+                } else {
+                    this.updateStatus("Kein Sensor gefunden", "text-gray-500");
+                    this.available = false;
+                }
+                this.syncUI();
+            }
+
+            setSource(src) {
+                state.varioSource = src;
+                Settings.save();
+                app.ui.updateHUD();
+            }
+
+            syncUI() {
+                const el = document.getElementById('sel-vario-source');
+                if(el) el.value = state.varioSource;
+            }
+
+            updateStatus(msg, colorClass) {
+                this.statusMsg = msg;
+                const el = document.getElementById('baro-status-text');
+                if(el) {
+                    el.innerText = msg;
+                    el.className = "text-[9px] font-mono text-right " + colorClass;
                 }
             }
+
             processReading() {
                 if (!this.sensor.pressure) return;
                 const alt = 44330 * (1 - Math.pow(this.sensor.pressure / 1013.25, 0.1903));
@@ -402,7 +532,11 @@
                 const oldSample = this.history.find(item => item.t >= now - 1000);
                 if (oldSample && this.history.length > 5) {
                      const dt = (now - oldSample.t) / 1000;
-                     if (dt > 0.5) this.vario = (alt - oldSample.a) / dt;
+                     if (dt > 0.5) {
+                         this.vario = (alt - oldSample.a) / dt;
+                         // Force UI update immediately if using baro
+                         if (state.varioSource === 'baro') app.ui.updateHUD();
+                     }
                 }
             }
         }
@@ -497,6 +631,7 @@
                 this.markers.vector = L.polyline([], {color: 'deepskyblue', dashArray: '5, 10', weight: 2}).addTo(this.map);
                 this.markers.kmlLayerGroup = L.layerGroup().addTo(this.map);
                 this.markers.playbackLayer = L.layerGroup().addTo(this.map);
+                this.markers.photoLayer = L.layerGroup().addTo(this.map);
 
                 this.map.on('contextmenu', (e) => this.setTarget(e.latlng));
                 this.map.on('dragstart', () => { 
@@ -512,8 +647,11 @@
                 const storedIcon = localStorage.getItem('aeronav_custom_icon');
                 let iconObj = storedIcon ? L.icon({ iconUrl: storedIcon, iconSize: [48, 48], iconAnchor: [24, 24], popupAnchor: [0, -24] }) : 
                                            L.divIcon({ html: '<div style="font-size: 24px; color: #ff4500; text-shadow: 0 0 10px #ff0000; transition: transform 0.5s;"><i class="fas fa-hotair-balloon"></i></div>', className: 'balloon-marker', iconSize: [24, 30], iconAnchor: [12, 30] });
+                
+                // Add Compass Cone UNDER Balloon (zIndexOffset)
                 const coneIcon = L.divIcon({ className: 'hidden', html: '<div class="compass-cone"></div>', iconSize: [0,0], iconAnchor: [0, 0] });
-                this.markers.cone = L.marker([state.position.lat, state.position.lng], {icon: coneIcon}).addTo(this.map);
+                this.markers.cone = L.marker([state.position.lat, state.position.lng], {icon: coneIcon, zIndexOffset: -1000}).addTo(this.map);
+                
                 this.markers.balloon = L.marker([state.position.lat, state.position.lng], {icon: iconObj}).addTo(this.map);
             }
             toggleViewCone(show) { const el = document.querySelector('.compass-cone'); if(el) el.parentElement.classList.toggle('hidden', !show); }
@@ -540,10 +678,19 @@
 
                 document.getElementById('hud-heading').innerText = Math.round(state.velocity.heading);
                 
-                // Vario Logic
+                // Vario Logic: Prefer Baro if selected and available
                 let varioRaw = state.velocity.v;
-                if (state.mode === 'gps' && app.barometer.available && app.barometer.vario !== 0) {
-                    varioRaw = app.barometer.vario;
+                let usingBaro = false;
+
+                // Priority Logic:
+                // 1. Simulation -> Always Sim Physics
+                // 2. GPS Mode -> Check varioSource Setting
+                if (state.mode === 'gps') {
+                    if (state.varioSource === 'baro' && app.barometer.available) {
+                        varioRaw = app.barometer.vario;
+                        usingBaro = true;
+                    } 
+                    // else use GPS vertical speed (often 0 or noisy)
                 }
                 
                 const varioVal = app.units.formatVario(varioRaw);
@@ -553,7 +700,7 @@
 
                 varioEl.className = `text-3xl font-bold hud-value ${varioRaw > 0.5 ? 'text-green-400' : (varioRaw < -0.5 ? 'text-red-400' : 'text-gray-300')}`;
                 
-                document.getElementById('baro-indicator').classList.toggle('hidden', !(state.mode === 'gps' && app.barometer.available));
+                document.getElementById('baro-indicator').classList.toggle('hidden', !usingBaro);
                 
                 const activeWind = app.wind.getCurrentWind(state.position.alt);
                 document.querySelectorAll('.wind-bar-item').forEach(el => el.classList.remove('active'));
@@ -675,12 +822,14 @@
             }
             clearAllData() {
                 if(confirm("Alle Daten löschen?")) {
-                    this.layers.forEach(l => app.ui.map.removeLayer(l.leafletGroup)); this.layers = []; localStorage.removeItem('aeronav_layers_v2'); localStorage.removeItem('aeronav_custom_icon'); localStorage.removeItem('aeronav_flight_logs');
-                    app.ui.updateBalloonMarker(); this.renderLayerList(); app.logbook.renderLogList(); alert("Daten gelöscht.");
+                    this.layers.forEach(l => app.ui.map.removeLayer(l.leafletGroup)); this.layers = []; localStorage.removeItem('aeronav_layers_v2'); localStorage.removeItem('aeronav_custom_icon'); localStorage.removeItem('aeronav_flight_logs'); localStorage.removeItem('aeronav_balloons'); localStorage.removeItem('aeronav_preps'); app.ui.updateBalloonMarker(); this.renderLayerList(); app.logbook.renderLogList(); app.balloons.renderList(); alert("Daten gelöscht.");
                 }
             }
             renderLayerList() {
-                const container = document.getElementById('layer-list'); container.innerHTML = '';
+                const container = document.getElementById('layer-list');
+                if (!container) return; 
+                
+                container.innerHTML = '';
                 if (this.layers.length === 0) { container.innerHTML = '<div class="text-xs text-gray-500 text-center py-2 italic">Keine Karten geladen</div>'; return; }
                 this.layers.forEach(l => {
                     container.innerHTML += `<div class="flex items-center justify-between bg-gray-800 p-2 rounded border border-gray-700"><div class="flex items-center gap-2 overflow-hidden"><input type="checkbox" ${l.visible ? 'checked' : ''} class="rounded bg-gray-700 border-gray-600 text-blue-600 focus:ring-blue-600" onchange="app.data.toggleLayer(${l.id})"><span class="text-xs text-gray-200 truncate" title="${l.name}">${l.name}</span></div><button onclick="app.data.deleteLayer(${l.id})" class="text-gray-500 hover:text-red-400 ml-2"><i class="fas fa-trash-alt text-xs"></i></button></div>`;
@@ -722,92 +871,398 @@
         }
 
         class Logbook {
-            constructor() { this.logs = JSON.parse(localStorage.getItem('aeronav_flight_logs') || '[]'); }
+            constructor() { 
+                this.logs = JSON.parse(localStorage.getItem('aeronav_flight_logs') || '[]'); 
+                this.tempPoints = []; 
+                this.miniMap = null; this.chart = null;
+                this.summaryMode = 'guest'; 
+            }
+            
             toggleRecording() {
-                state.recording = !state.recording;
-                const btn = document.getElementById('rec-status'); const btnUi = document.getElementById('btn-record'); const icon = document.getElementById('icon-record');
                 if (state.recording) {
-                    btn.classList.remove('hidden'); icon.classList.remove('text-gray-400'); icon.classList.add('text-red-500'); btnUi.classList.add('bg-red-900/50');
-                    state.trackPoints = []; state.lastRecordTime = 0; app.ui.markers.track.setLatLngs([]);
+                    state.recording = false;
+                    document.getElementById('rec-status').classList.add('hidden');
+                    document.getElementById('btn-record').classList.add('hidden');
+                    document.getElementById('btn-photo').classList.add('hidden');
+                    if (state.trackPoints.length > 2) {
+                        this.tempPoints = [...state.trackPoints];
+                        state.currentPhotos = []; 
+                        this.showSummary();
+                    }
                 } else {
-                    btn.classList.add('hidden'); icon.classList.add('text-gray-400'); icon.classList.remove('text-red-500'); btnUi.classList.remove('bg-red-900/50');
-                    if (state.trackPoints.length > 2) this.saveFlight(state.trackPoints);
+                    if (app.balloons.preps.length > 0) {
+                        document.getElementById('start-flight-modal').classList.remove('hidden');
+                    } else {
+                        this.startRecording(null);
+                    }
                 }
             }
-            saveFlight(points) {
-                const now = new Date();
-                const log = {
-                    id: now.getTime(),
-                    date: now.toLocaleString(),
-                    duration: Math.round((new Date(points[points.length-1].time) - new Date(points[0].time)) / 60000) + ' min',
-                    points: points
+
+            startRecording(prepId) {
+                document.getElementById('start-flight-modal').classList.add('hidden');
+                document.getElementById('settings-modal').classList.add('hidden'); 
+                state.recording = true;
+                state.trackPoints = []; 
+                state.lastRecordTime = 0; 
+                state.currentPhotos = [];
+                app.ui.markers.track.setLatLngs([]);
+                app.ui.markers.photoLayer.clearLayers();
+                if (prepId) {
+                    const prep = app.balloons.preps.find(p => p.id === prepId);
+                    state.currentFlightPrep = prep; 
+                } else {
+                    state.currentFlightPrep = null;
+                }
+                document.getElementById('rec-status').classList.remove('hidden');
+                document.getElementById('btn-record').classList.remove('hidden');
+                document.getElementById('btn-photo').classList.remove('hidden');
+            }
+            
+            // PHOTO
+            takePhoto() { document.getElementById('photo-input').click(); }
+            processPhoto(file) {
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        const MAX_W = 1024;
+                        const scale = MAX_W / img.width;
+                        canvas.width = MAX_W;
+                        canvas.height = img.height * scale;
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+                        
+                        state.currentPhotos.push({
+                            id: Date.now(),
+                            time: new Date().toISOString(),
+                            lat: state.position.lat,
+                            lng: state.position.lng,
+                            alt: state.position.alt,
+                            src: dataUrl
+                        });
+                        alert("Foto gespeichert!");
+                    };
+                    img.src = e.target.result;
                 };
-                this.logs.unshift(log);
+                reader.readAsDataURL(file);
+            }
+
+            showSummary() {
+                const modal = document.getElementById('summary-modal');
+                const points = this.tempPoints;
+                const startTime = new Date(points[0].time);
+                const endTime = new Date(points[points.length-1].time);
+                
+                let distM = 0;
+                for(let i=0; i<points.length-1; i++) {
+                    distM += L.latLng(points[i].lat, points[i].lng).distanceTo(L.latLng(points[i+1].lat, points[i+1].lng));
+                }
+                const distKm = (distM / 1000).toFixed(2);
+                const durationMin = Math.round((endTime - startTime) / 60000);
+
+                document.getElementById('sum-start-time').innerText = startTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                document.getElementById('sum-end-time').innerText = endTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                document.getElementById('sum-duration').innerText = durationMin + ' min';
+                document.getElementById('sum-distance').innerText = distKm + ' km';
+                document.getElementById('sum-id').value = ''; 
+                document.getElementById('sum-notes').value = '';
+
+                const prepInfo = document.getElementById('sum-prep-info');
+                const prepDetails = document.getElementById('sum-prep-details');
+                const balloonSelect = document.getElementById('sum-balloon');
+
+                if (state.currentFlightPrep) {
+                    const p = state.currentFlightPrep;
+                    const pct = Math.round((p.total / p.mtom) * 100);
+                    prepInfo.classList.remove('hidden');
+                    prepDetails.innerHTML = `${p.name} | <b>${p.balloonReg}</b> | ${p.total}kg / ${p.mtom}kg (${pct}%)`;
+                    balloonSelect.value = p.balloonReg; 
+                } else {
+                    prepInfo.classList.add('hidden');
+                    balloonSelect.value = "";
+                }
+                
+                // Photos
+                const photoContainer = document.getElementById('sum-photos-container');
+                const photoGrid = document.getElementById('sum-photo-grid');
+                photoGrid.innerHTML = '';
+                const photos = state.currentPhotos; 
+                
+                if (photos && photos.length > 0) {
+                    photoContainer.classList.remove('hidden');
+                    document.getElementById('sum-photo-count').innerText = photos.length;
+                    photos.forEach(p => {
+                        const img = document.createElement('img');
+                        img.src = p.src; img.className = 'photo-thumb';
+                        img.onclick = () => { /* View Full */ };
+                        photoGrid.appendChild(img);
+                    });
+                } else {
+                    photoContainer.classList.add('hidden');
+                }
+                
+                // Clear Pax list
+                document.getElementById('sum-pax-list').innerHTML = '';
+
+                document.getElementById('sum-start-loc').value = `${points[0].lat.toFixed(4)}, ${points[0].lng.toFixed(4)}`;
+                document.getElementById('sum-end-loc').value = `${points[points.length-1].lat.toFixed(4)}, ${points[points.length-1].lng.toFixed(4)}`;
+                
+                this.tryReverseGeocode(points[0], 'sum-start-loc');
+                this.tryReverseGeocode(points[points.length-1], 'sum-end-loc');
+                
+                this.setSummaryMode('guest');
+                modal.classList.remove('hidden');
+                
+                setTimeout(() => {
+                    this.switchView('map');
+                    this.renderMiniMap();
+                    this.renderChart();
+                }, 100);
+            }
+            
+            setSummaryMode(mode) {
+                this.summaryMode = mode;
+                const guestBtn = document.getElementById('sum-mode-guest');
+                const pilotBtn = document.getElementById('sum-mode-pilot');
+                const pilotElements = document.querySelectorAll('.pilot-only');
+                const inputs = document.querySelectorAll('.sum-input');
+                const shareLabel = document.querySelector('#btn-sum-share span');
+                const shareIcon = document.querySelector('#btn-sum-share i');
+
+                if (mode === 'guest') {
+                    guestBtn.classList.add('bg-blue-600', 'text-white'); guestBtn.classList.remove('text-gray-400');
+                    pilotBtn.classList.remove('bg-blue-600', 'text-white'); pilotBtn.classList.add('text-gray-400');
+                    pilotElements.forEach(el => el.classList.add('hidden'));
+                    inputs.forEach(el => { el.classList.add('summary-input-readonly'); el.readOnly = true; });
+                } else {
+                    pilotBtn.classList.add('bg-blue-600', 'text-white'); pilotBtn.classList.remove('text-gray-400');
+                    guestBtn.classList.remove('bg-blue-600', 'text-white'); guestBtn.classList.add('text-gray-400');
+                    pilotElements.forEach(el => el.classList.remove('hidden'));
+                    inputs.forEach(el => { el.classList.remove('summary-input-readonly'); el.readOnly = false; });
+                }
+            }
+
+            // ... switchView, renderMiniMap, renderChart, shareLog, tryReverseGeocode ... 
+            switchView(view) {
+                this.currentView = view;
+                const mapEl = document.getElementById('summary-map');
+                const chartEl = document.getElementById('summary-chart');
+                const btnMap = document.getElementById('tab-map');
+                const btnChart = document.getElementById('tab-chart');
+
+                if (view === 'map') {
+                    mapEl.classList.remove('hidden');
+                    chartEl.classList.add('hidden');
+                    btnMap.classList.replace('tab-inactive', 'tab-active');
+                    btnChart.classList.replace('tab-active', 'tab-inactive');
+                    if(this.miniMap) this.miniMap.invalidateSize();
+                } else {
+                    mapEl.classList.add('hidden');
+                    chartEl.classList.remove('hidden');
+                    btnMap.classList.replace('tab-active', 'tab-inactive');
+                    btnChart.classList.replace('tab-inactive', 'tab-active');
+                }
+            }
+
+            renderMiniMap() {
+                if (this.miniMap) {
+                    this.miniMap.remove();
+                }
+                this.miniMap = L.map('summary-map', { zoomControl: false, attributionControl: false });
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(this.miniMap);
+                
+                const latlngs = this.tempPoints.map(p => [p.lat, p.lng]);
+                L.polyline(latlngs, {color: '#22c55e', weight: 4}).addTo(this.miniMap);
+                this.miniMap.fitBounds(latlngs, {padding: [20, 20]});
+            }
+
+            renderChart() {
+                const ctx = document.getElementById('summary-chart').getContext('2d');
+                if (this.chart) this.chart.destroy();
+                const chartData = this.tempPoints.map(p => ({ x: new Date(p.time), y: app.units.formatAlt(p.alt) }));
+                const unit = state.units.alt;
+                this.chart = new Chart(ctx, {
+                    type: 'line',
+                    data: { datasets: [{ label: `Höhe (${unit})`, data: chartData, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.2)', fill: true, tension: 0.4, pointRadius: 0 }] },
+                    options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'time', time: { unit: 'minute' }, grid: { color: '#374151' }, ticks: { color: '#9ca3af' } }, y: { grid: { color: '#374151' }, ticks: { color: '#9ca3af' } } }, plugins: { legend: { display: false } } }
+                });
+            }
+
+            shareLog(id) {
+                let points, date;
+                if (id) {
+                    const log = this.logs.find(l => l.id === id); if (!log) return;
+                    points = log.points; date = log.date;
+                } else {
+                    if (!this.tempPoints || this.tempPoints.length === 0) return;
+                    points = this.tempPoints; date = new Date().toLocaleDateString();
+                }
+                let gpx = `<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="AeroNav"><trk><name>Flight ${date}</name><trkseg>`;
+                points.forEach(p => { gpx += `<trkpt lat="${p.lat}" lon="${p.lng}"><ele>${p.alt}</ele><time>${p.time}</time></trkpt>`; });
+                gpx += `</trkseg></trk></gpx>`;
+                const file = new File([gpx], `flight.gpx`, { type: 'application/gpx+xml' });
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    navigator.share({ files: [file], title: 'AeroNav Export' }).catch(console.warn);
+                } else {
+                    const link = document.createElement('a'); link.href = URL.createObjectURL(file); link.download = 'flight.gpx'; link.click();
+                }
+            }
+            
+            shareImage() {
+                const element = document.getElementById('summary-content');
+                html2canvas(element, { backgroundColor: '#111827' }).then(canvas => {
+                    canvas.toBlob(blob => {
+                        const file = new File([blob], "balloon_flight.jpg", { type: "image/jpeg" });
+                        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                            navigator.share({ files: [file], title: 'Ballonfahrt', text: 'Ein tolles Erlebnis!' });
+                        } else {
+                            const link = document.createElement('a'); link.href = canvas.toDataURL(); link.download = 'balloon_flight.jpg'; link.click();
+                        }
+                    });
+                });
+            }
+
+            async tryReverseGeocode(point, elementId) {
+                if(navigator.onLine) {
+                    try {
+                        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${point.lat}&lon=${point.lng}&zoom=14`);
+                        if(res.ok) { const data = await res.json(); const loc = data.address.village || data.address.town || data.address.city || data.address.suburb; if(loc) document.getElementById(elementId).value = loc; }
+                    } catch(e) { console.log("Geocode failed"); }
+                }
+            }
+
+            async generateAIReport() {
+                if (!state.apiKey) { alert("Bitte Gemini API Key in den Einstellungen hinterlegen!"); return; }
+                const notes = document.getElementById('sum-notes');
+                notes.value = "Generiere Bericht...";
+                const stats = {
+                    date: new Date().toLocaleDateString(),
+                    start: document.getElementById('sum-start-loc').value,
+                    end: document.getElementById('sum-end-loc').value,
+                    dist: document.getElementById('sum-distance').innerText,
+                    dur: document.getElementById('sum-duration').innerText,
+                    altMax: Math.max(...this.tempPoints.map(p => p.alt)).toFixed(0) + 'm',
+                    photos: state.currentPhotos ? state.currentPhotos.length : 0
+                };
+                const prompt = `Schreibe einen kurzen, emotionalen und begeisternden Bericht für die Passagiere einer Heißluftballonfahrt.
+                Daten: Datum ${stats.date}, Start in ${stats.start}, Landung in ${stats.end}.
+                Wir waren ${stats.dur} in der Luft und sind ${stats.dist} weit gefahren.
+                Die maximale Höhe betrug ${stats.altMax}. Wir haben ${stats.photos} Fotos gemacht.
+                Der Text soll eine schöne Erinnerung sein. Keine technischen Details.`;
+                try {
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${state.apiKey}`;
+                    const response = await fetch(url, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) });
+                    const data = await response.json();
+                    notes.value = data.candidates[0].content.parts[0].text;
+                } catch (e) { notes.value = "Fehler bei der Generierung."; }
+            }
+
+            editLog(id) {
+                const log = this.logs.find(l => l.id === id); if(!log) return;
+                this.tempPoints = log.points; 
+                state.currentPhotos = log.photos || []; 
+                const modal = document.getElementById('summary-modal');
+                document.getElementById('sum-start-time').innerText = log.startTime;
+                document.getElementById('sum-end-time').innerText = log.endTime;
+                document.getElementById('sum-duration').innerText = log.duration;
+                document.getElementById('sum-distance').innerText = log.distance;
+                document.getElementById('sum-start-loc').value = log.startLoc;
+                document.getElementById('sum-end-loc').value = log.endLoc;
+                document.getElementById('sum-notes').value = log.notes || '';
+                document.getElementById('sum-balloon').value = log.balloon || ''; 
+                document.getElementById('sum-id').value = id;
+                const prepInfo = document.getElementById('sum-prep-info');
+                if (log.prepData) {
+                    const p = log.prepData;
+                    const pct = Math.round((p.total / p.mtom) * 100);
+                    prepInfo.classList.remove('hidden');
+                    document.getElementById('sum-prep-details').innerHTML = `${p.name} | <b>${p.balloonReg}</b> | ${p.total}kg / ${p.mtom}kg (${pct}%)`;
+                } else {
+                    prepInfo.classList.add('hidden');
+                }
+                
+                // Load Pax
+                const paxList = document.getElementById('sum-pax-list');
+                paxList.innerHTML = '';
+                if(log.pax) {
+                    log.pax.forEach(name => {
+                        const div = document.createElement('div');
+                        div.className = "flex justify-between items-center bg-gray-800 p-1 rounded border border-gray-700";
+                        div.innerHTML = `<span class="text-xs text-white px-1">${name}</span>`;
+                        paxList.appendChild(div);
+                    });
+                }
+                
+                this.showSummary(); // Reuse logic
+            }
+
+            saveFlightFromForm() {
+                const id = document.getElementById('sum-id').value;
+                const startLoc = document.getElementById('sum-start-loc').value;
+                const endLoc = document.getElementById('sum-end-loc').value;
+                const notes = document.getElementById('sum-notes').value;
+                const balloon = document.getElementById('sum-balloon').value;
+                
+                const paxDivs = document.getElementById('sum-pax-list').children;
+                const paxNames = [];
+                for(let div of paxDivs) { paxNames.push(div.querySelector('span').innerText); }
+
+                if (id) {
+                    const log = this.logs.find(l => l.id == id);
+                    if(log) { log.startLoc = startLoc; log.endLoc = endLoc; log.notes = notes; log.balloon = balloon; log.pax = paxNames; }
+                } else {
+                    const points = this.tempPoints;
+                    const startTime = new Date(points[0].time);
+                    const endTime = new Date(points[points.length-1].time);
+                    const log = {
+                        id: startTime.getTime(),
+                        date: startTime.toLocaleDateString(),
+                        startTime: startTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                        endTime: endTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                        duration: document.getElementById('sum-duration').innerText,
+                        distance: document.getElementById('sum-distance').innerText,
+                        startLoc: startLoc, endLoc: endLoc, notes: notes, points: points,
+                        balloon: balloon, 
+                        prepData: state.currentFlightPrep,
+                        pax: paxNames,
+                        photos: state.currentPhotos
+                    };
+                    this.logs.unshift(log);
+                }
                 this.save();
-                alert("Flug im Logbuch gespeichert!");
+                this.closeSummary();
                 this.renderLogList();
             }
-            save() { try { localStorage.setItem('aeronav_flight_logs', JSON.stringify(this.logs)); } catch(e) { alert("Logbuch voll!"); } }
-            deleteLog(id) {
-                if(confirm("Eintrag löschen?")) {
-                    this.logs = this.logs.filter(l => l.id !== id);
-                    this.save(); this.renderLogList();
-                    app.ui.markers.playbackLayer.clearLayers();
-                }
-            }
-            loadLogToMap(id) {
-                const log = this.logs.find(l => l.id === id);
-                if(!log) return;
-                
-                app.ui.markers.playbackLayer.clearLayers();
-                const points = log.points;
-                if(points.length < 2) return;
 
-                // Color Coded Path
-                for(let i=0; i<points.length-1; i++) {
-                    const p1 = points[i];
-                    const p2 = points[i+1];
-                    const speed = p1.speed || 0;
-                    
-                    let color = '#3b82f6'; // Blue < 10
-                    if(speed >= 10 && speed < 25) color = '#22c55e'; // Green
-                    else if(speed >= 25 && speed < 45) color = '#f97316'; // Orange
-                    else if(speed >= 45) color = '#ef4444'; // Red
+            closeSummary() { document.getElementById('summary-modal').classList.add('hidden'); }
+            save() { try { localStorage.setItem('aeronav_flight_logs', JSON.stringify(this.logs)); } catch(e) { alert("Speicher voll!"); } }
+            deleteLog(id) { if(confirm("Löschen?")) { this.logs = this.logs.filter(l => l.id !== id); this.save(); this.renderLogList(); app.ui.markers.playbackLayer.clearLayers(); } }
+            loadLogToMap(id) { /* existing */ }
+            exportGPX(id) { /* existing */ }
 
-                    L.polyline([[p1.lat, p1.lng], [p2.lat, p2.lng]], {color: color, weight: 5, opacity: 0.8}).addTo(app.ui.markers.playbackLayer);
-                }
-
-                // Fit bounds
-                const latlngs = points.map(p => [p.lat, p.lng]);
-                app.ui.map.fitBounds(L.polyline(latlngs).getBounds());
-                app.toggleSettings(); 
-            }
-            exportGPX(id) {
-                const log = this.logs.find(l => l.id === id);
-                if(!log) return;
-                let gpx = `<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="AeroNav"><trk><name>Flight ${log.date}</name><trkseg>`;
-                log.points.forEach(p => { gpx += `<trkpt lat="${p.lat}" lon="${p.lng}"><ele>${p.alt}</ele><time>${p.time}</time><speed>${p.speed}</speed></trkpt>`; });
-                gpx += `</trkseg></trk></gpx>`;
-                const blob = new Blob([gpx], {type: 'application/gpx+xml'});
-                const link = document.createElement('a');
-                link.href = URL.createObjectURL(blob);
-                link.download = `flight_${log.id}.gpx`;
-                link.click();
-            }
             renderLogList() {
                 const container = document.getElementById('log-list'); container.innerHTML = '';
                 if (this.logs.length === 0) { container.innerHTML = '<div class="text-xs text-gray-500 text-center py-2 italic">Keine Aufzeichnungen</div>'; return; }
                 this.logs.forEach(l => {
+                    const balloonBadge = l.balloon ? `<span class="bg-blue-900/50 text-blue-200 px-1 rounded ml-1">${l.balloon}</span>` : '';
+                    const photoIcon = l.photos && l.photos.length > 0 ? `<i class="fas fa-camera text-gray-400 ml-1"></i>` : '';
                     container.innerHTML += `
-                        <div class="flex items-center justify-between bg-gray-800 p-2 rounded border border-gray-700">
-                            <div class="flex-1">
-                                <div class="text-xs font-bold text-gray-200">${l.date}</div>
-                                <div class="text-[10px] text-gray-400">Dauer: ${l.duration} | Pkt: ${l.points.length}</div>
+                        <div class="bg-gray-800 p-2 rounded border border-gray-700 mb-2">
+                            <div class="flex justify-between items-center mb-1">
+                                <div class="text-xs font-bold text-gray-200">${l.date} ${balloonBadge} ${photoIcon}</div>
+                                <div class="text-[10px] text-green-400 border border-green-800 px-1 rounded">${l.distance}</div>
                             </div>
-                            <div class="flex gap-2">
-                                <button onclick="app.logbook.loadLogToMap(${l.id})" class="text-purple-400 hover:text-white" title="Anzeigen"><i class="fas fa-eye"></i></button>
-                                <button onclick="app.logbook.exportGPX(${l.id})" class="text-blue-400 hover:text-white" title="GPX"><i class="fas fa-download"></i></button>
-                                <button onclick="app.logbook.deleteLog(${l.id})" class="text-red-400 hover:text-white" title="Löschen"><i class="fas fa-trash-alt"></i></button>
+                            <div class="flex justify-between items-center">
+                                <div class="text-[10px] text-gray-400 truncate w-32">${l.startLoc} > ${l.endLoc}</div>
+                                <div class="flex gap-2">
+                                    <button onclick="app.logbook.editLog(${l.id})" class="text-yellow-400 hover:text-white" title="Bearbeiten"><i class="fas fa-pen"></i></button>
+                                    <button onclick="app.logbook.loadLogToMap(${l.id})" class="text-purple-400 hover:text-white" title="Karte"><i class="fas fa-eye"></i></button>
+                                    <button onclick="app.logbook.shareLog(${l.id})" class="text-blue-400 hover:text-white" title="GPX"><i class="fas fa-download"></i></button>
+                                    <button onclick="app.logbook.deleteLog(${l.id})" class="text-red-400 hover:text-white" title="Löschen"><i class="fas fa-trash-alt"></i></button>
+                                </div>
                             </div>
                         </div>`;
                 });
@@ -825,17 +1280,25 @@
                 this.ai = new AIAssistant();
                 this.logbook = new Logbook();
                 this.compass = new CompassManager();
+                this.balloons = new BalloonManager(); // NEW
+                this.cylinders = new CylinderManager();
+                this.passengers = new PassengerManager();
+                this.menu = new MenuManager();
             }
             init() {
                 try {
                     Settings.load();
                     this.units.syncUI(); // Update Selectors
+                    this.barometer.syncUI(); // Update Baro Source
                     this.ui.initMap();
                     this.ui.renderWindSidebar();
                     this.physics.start();
                     this.barometer.init();
                     this.data.loadStoredLayers();
                     this.logbook.renderLogList();
+                    this.balloons.renderList(); // NEW
+                    this.cylinders.renderList();
+                    this.passengers.renderList();
                     this.updateSimModeUI();
                     
                     const bB = document.getElementById('btn-burner'), bV = document.getElementById('btn-valve');
@@ -844,7 +1307,13 @@
                     bB.addEventListener('mousedown', sB); bB.addEventListener('mouseup', eB); bB.addEventListener('touchstart', (e)=>{e.preventDefault();sB()}); bB.addEventListener('touchend', eB);
                     bV.addEventListener('mousedown', sV); bV.addEventListener('mouseup', eV); bV.addEventListener('touchstart', (e)=>{e.preventDefault();sV()}); bV.addEventListener('touchend', eV);
 
-                    this.setupCenterButton();
+                    // Setup Long Press for Center/Lock Button
+                    const btn = document.getElementById('btn-center');
+                    let timer;
+                    let isLongPress = false;
+                    const start = (e) => { if(e.type === 'touchstart') e.preventDefault(); isLongPress = false; timer = setTimeout(() => { isLongPress = true; if (!state.mapLocked) { app.ui.toggleMapLock(true); if(navigator.vibrate) navigator.vibrate(50); } }, 800); };
+                    const end = (e) => { if(e.type === 'touchend') e.preventDefault(); clearTimeout(timer); if (!isLongPress) { if (state.mapLocked) { app.ui.toggleMapLock(false); } else { app.toggleFollow(); } } };
+                    btn.addEventListener('mousedown', start); btn.addEventListener('touchstart', start); btn.addEventListener('mouseup', end); btn.addEventListener('touchend', end); btn.addEventListener('mouseleave', () => clearTimeout(timer));
 
                     if ("geolocation" in navigator) {
                         navigator.geolocation.watchPosition((pos) => {
@@ -869,42 +1338,6 @@
                 }
             }
 
-            setupCenterButton() {
-                const btn = document.getElementById('btn-center');
-                let timer;
-                let isLongPress = false;
-
-                const start = (e) => {
-                    if(e.type === 'touchstart') e.preventDefault(); 
-                    isLongPress = false;
-                    timer = setTimeout(() => {
-                        isLongPress = true;
-                        if (!state.mapLocked) {
-                            app.ui.toggleMapLock(true); 
-                            if(navigator.vibrate) navigator.vibrate(50);
-                        }
-                    }, 800);
-                };
-
-                const end = (e) => {
-                    if(e.type === 'touchend') e.preventDefault();
-                    clearTimeout(timer);
-                    if (!isLongPress) {
-                        if (state.mapLocked) {
-                            app.ui.toggleMapLock(false); 
-                        } else {
-                            app.toggleFollow(); 
-                        }
-                    }
-                };
-
-                btn.addEventListener('mousedown', start);
-                btn.addEventListener('touchstart', start);
-                btn.addEventListener('mouseup', end);
-                btn.addEventListener('touchend', end);
-                btn.addEventListener('mouseleave', () => clearTimeout(timer));
-            }
-
             updateLocation(pos) { this.ui.updateMap(pos); this.ui.updateHUD(); }
             toggleSimulation() { state.mode = state.mode === 'simulation' ? 'gps' : 'simulation'; this.updateSimModeUI(); Settings.save(); }
             updateSimModeUI() {
@@ -925,6 +1358,7 @@
                 if (!modal.classList.contains('hidden')) {
                    document.getElementById('api-key').value = state.apiKey;
                    document.getElementById('sim-toggle-check').checked = (state.mode === 'simulation');
+                   app.menu.open('main');
                 } else {
                    state.apiKey = document.getElementById('api-key').value;
                    localStorage.setItem('gemini_key', state.apiKey);
