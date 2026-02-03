@@ -90,11 +90,17 @@
         <button id="btn-burner" class="control-btn glass-panel w-20 h-20 rounded-full flex flex-col items-center justify-center border-green-500/50 hover:bg-green-900/40 text-green-300 active:bg-green-600 transition-all shadow-[0_0_20px_rgba(34,197,94,0.3)]"><i class="fas fa-fire text-2xl"></i><span class="text-xs font-bold mt-1">BRENNER</span></button>
     </div>
 
-    <!-- Left Toolbar -->
+    <!-- Left Toolbar (Reordered: Center button first) -->
     <div class="absolute bottom-6 left-4 z-30 flex flex-col gap-3">
-        <button id="btn-photo" onclick="app.logbook.takePhoto()" class="glass-panel p-3 rounded-full hover:bg-blue-900/50 w-12 h-12 flex items-center justify-center hidden" title="Foto machen"><i class="fas fa-camera text-blue-300"></i></button><input type="file" id="photo-input" accept="image/*" capture="environment" class="hidden" onchange="app.logbook.processPhoto(this.files[0])">
-        <button id="btn-record" onclick="app.logbook.toggleRecording()" class="glass-panel p-3 rounded-full hover:bg-red-900/50 w-12 h-12 flex items-center justify-center hidden" title="Track aufzeichnen"><i id="icon-record" class="fas fa-circle text-gray-400"></i></button>
+        <!-- Center/Lock Button - NOW FIRST -->
         <button id="btn-center" class="glass-panel p-3 rounded-full hover:bg-blue-900/50 w-12 h-12 flex items-center justify-center text-blue-400 select-none touch-none" title="Kurz: Zentrieren | Lang: Verriegeln"><i id="icon-center" class="fas fa-crosshairs"></i></button>
+        
+        <!-- Recording/Photo Controls -->
+        <button id="btn-photo" onclick="app.logbook.takePhoto()" class="glass-panel p-3 rounded-full hover:bg-blue-900/50 w-12 h-12 flex items-center justify-center hidden" title="Foto machen"><i class="fas fa-camera text-blue-300"></i></button>
+        <input type="file" id="photo-input" accept="image/*" capture="environment" class="hidden" onchange="app.logbook.processPhoto(this.files[0])">
+        <button id="btn-record" onclick="app.logbook.toggleRecording()" class="glass-panel p-3 rounded-full hover:bg-red-900/50 w-12 h-12 flex items-center justify-center hidden" title="Track aufzeichnen"><i id="icon-record" class="fas fa-circle text-gray-400"></i></button>
+        
+        <!-- Other Tools -->
         <button onclick="app.ui.cycleMapLayer()" class="glass-panel p-3 rounded-full hover:bg-gray-700 w-12 h-12 flex items-center justify-center" title="Kartenstil wechseln"><i class="fas fa-layer-group"></i></button>
         <button onclick="app.toggleSettings()" class="glass-panel p-3 rounded-full hover:bg-gray-700 w-12 h-12 flex items-center justify-center text-gray-200 shadow-lg" title="Menü / Setup"><i class="fas fa-bars"></i></button>
     </div>
@@ -136,7 +142,12 @@
     <!-- BAPTISM MODAL -->
     <div id="baptism-modal" class="hidden absolute inset-0 z-[60] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
         <div class="glass-panel w-full max-w-sm rounded-2xl p-6 flex flex-col text-center">
-            <i class="fas fa-water text-4xl text-blue-400 mb-4"></i><h2 class="text-xl font-bold text-white mb-2">Ballonfahrertaufe</h2><p id="bap-name" class="text-gray-300 mb-4"></p><div id="bap-result" class="bg-gray-800 p-4 rounded-lg text-yellow-300 font-serif italic mb-4 min-h-[100px] flex items-center justify-center">Drücke Generieren...</div><button onclick="app.passengers.generateTitle()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded mb-2"><i class="fas fa-magic mr-2"></i>Titel generieren</button><button onclick="document.getElementById('baptism-modal').classList.add('hidden')" class="text-gray-500 hover:text-white text-xs mt-2">Schließen</button>
+            <i class="fas fa-water text-4xl text-blue-400 mb-4"></i><h2 class="text-xl font-bold text-white mb-2">Ballonfahrertaufe</h2><p id="bap-name" class="text-gray-300 mb-4"></p><div id="bap-result" class="bg-gray-800 p-4 rounded-lg text-yellow-300 font-serif italic mb-4 min-h-[100px] flex items-center justify-center">Drücke Generieren...</div>
+            <div class="flex gap-2">
+                <button onclick="app.passengers.generateTitle()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2 rounded mb-2 text-xs"><i class="fas fa-magic mr-1"></i>Generieren</button>
+                <button onclick="app.passengers.saveTitle()" class="flex-1 bg-green-600 hover:bg-green-500 text-white py-2 rounded mb-2 text-xs"><i class="fas fa-check mr-1"></i>Übernehmen</button>
+            </div>
+            <button onclick="document.getElementById('baptism-modal').classList.add('hidden')" class="text-gray-500 hover:text-white text-xs mt-2">Schließen</button>
         </div>
     </div>
 
@@ -194,15 +205,25 @@
                         </div>
                         <div id="perf-editor-panel" class="hidden mt-3 bg-gray-800 p-3 rounded border border-gray-600"><div class="flex justify-between mb-2"><span class="text-xs font-bold text-blue-400" id="perf-title">Tragkraft (kg/m³)</span><button onclick="app.balloons.closePerf()" class="text-gray-400"><i class="fas fa-times"></i></button></div><div class="grid grid-cols-4 gap-1 text-[10px] text-gray-400 text-center mb-1"><div>Höhe</div><div>0°C</div><div>15°C</div><div>30°C</div></div><div id="perf-inputs" class="space-y-1 mb-3"></div><button onclick="app.balloons.savePerf()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-1 rounded text-xs">Speichern</button></div>
                     </div>
+                    <!-- Fleet W&B (Quick Check) - f-wb-... -->
+                    <div id="wb-calc-fleet" class="hidden mt-3 bg-gray-800 p-3 rounded border border-gray-600">
+                        <div class="flex justify-between mb-2"><span class="text-xs font-bold text-yellow-400" id="f-wb-title">W&B Check</span><button onclick="app.balloons.closeCalc()" class="text-gray-400"><i class="fas fa-times"></i></button></div>
+                        <div class="space-y-3">
+                            <button onclick="app.passengers.openSelectorInWB('fleet')" class="w-full bg-pink-900/50 text-pink-300 border border-pink-800 text-xs py-1 rounded flex justify-between px-3"><span><i class="fas fa-users mr-2"></i>Passagiere wählen</span><span id="f-wb-pax-count" class="font-bold">0</span></button><div id="f-wb-pax-names" class="text-[10px] text-gray-400 mt-1 px-1 truncate"></div>
+                            <div class="bg-gray-900/50 p-2 rounded border border-gray-700/50"><label class="text-[10px] text-gray-400 block mb-1">Flaschen</label><div id="f-wb-cyl-selection" class="space-y-1"></div></div>
+                            <div class="grid grid-cols-2 gap-2 text-xs"><div><label class="text-gray-400">Pilot (kg)</label><input type="number" id="f-wb-pilot" class="app-input w-full" value="80" oninput="app.balloons.calc()"></div><div><label class="text-gray-400">Gäste (kg)</label><input type="number" id="f-wb-pax" class="app-input w-full" value="0" oninput="app.balloons.calc()" readonly></div><div><label class="text-gray-400">Temp (°C)</label><input type="number" id="f-wb-temp" class="app-input w-full" value="15" oninput="app.balloons.calc()"></div><div><label class="text-gray-400">Zielhöhe (m)</label><input type="number" id="f-wb-h" class="app-input w-full" value="1000" oninput="app.balloons.calc()"></div></div>
+                        </div>
+                        <div class="space-y-1 mb-3 mt-3"><div class="flex justify-between text-xs border-b border-gray-700 pb-1"><span class="text-gray-400">Gesamt:</span><span id="f-wb-res-total" class="font-bold">--- kg</span></div><div class="flex justify-between text-xs border-b border-gray-700 pb-1"><span class="text-gray-400">MTOM:</span><span id="f-wb-res-mtom" class="font-bold text-gray-300">--- kg</span></div><div id="f-wb-final-status" class="text-center p-2 rounded border font-bold text-sm mt-2">---</div></div>
+                    </div>
                     <div><label class="block text-sm text-red-400 font-bold mb-2">Flaschen</label><div id="cyl-list" class="space-y-2 mb-3"></div><div class="bg-gray-800/50 p-2 rounded border border-gray-700/50 grid grid-cols-2 gap-2 text-xs"><input type="text" id="cyl-type" placeholder="Typ (z.B. VA50)" class="app-input"><input type="text" id="cyl-serial" placeholder="Seriennr." class="app-input"><input type="number" id="cyl-tara" placeholder="Tara" class="app-input"><input type="number" id="cyl-cap" placeholder="Füllung" class="app-input"><input type="date" id="cyl-check" class="app-input col-span-2"><button onclick="app.cylinders.add()" class="col-span-2 bg-red-800/50 hover:bg-red-700 text-white rounded py-1"><i class="fas fa-plus mr-1"></i> Flasche anlegen</button></div></div>
                     <div class="flex gap-2 mt-3"><button onclick="app.balloons.exportBalloons()" class="flex-1 bg-gray-700 hover:bg-gray-600 text-gray-300 py-2 rounded text-xs border border-gray-600">Export</button><label class="flex-1 bg-gray-700 hover:bg-gray-600 text-gray-300 py-2 rounded text-xs border border-gray-600 flex items-center justify-center cursor-pointer">Import<input type="file" accept=".json" class="hidden" onchange="app.balloons.importBalloons(this.files[0])"></label></div>
                 </div>
 
-                <div id="menu-passengers" class="hidden space-y-4"><div id="pax-list" class="space-y-2 mb-3"></div><div class="bg-gray-800/50 p-2 rounded border border-gray-700/50 grid grid-cols-2 gap-2 text-xs"><input type="text" id="pax-name" placeholder="Name" class="app-input"><input type="number" id="pax-weight" placeholder="Gewicht (kg)" class="app-input"><input type="text" id="pax-phone" placeholder="Telefon (Opt)" class="app-input"><select id="pax-gender" class="unit-select"><option value="m">Männlich</option><option value="f">Weiblich</option></select><button onclick="app.passengers.add()" class="col-span-2 bg-pink-700 hover:bg-pink-600 text-white rounded py-1"><i class="fas fa-plus mr-1"></i> Passagier anlegen</button></div></div>
+                <div id="menu-passengers" class="hidden space-y-4"><div id="pax-list" class="space-y-2 mb-3"></div><div class="bg-gray-800/50 p-2 rounded border border-gray-700/50 grid grid-cols-2 gap-2 text-xs"><input type="text" id="pax-name" placeholder="Name" class="app-input"><input type="number" id="pax-weight" placeholder="Gewicht (kg)" class="app-input"><input type="text" id="pax-phone" placeholder="Telefon (Opt)" class="app-input"><select id="pax-gender" class="unit-select"><option value="na" selected>n/a</option><option value="m">Männlich</option><option value="f">Weiblich</option><option value="d">Divers</option></select><button id="btn-add-pax" onclick="app.passengers.add()" class="col-span-2 bg-pink-700 hover:bg-pink-600 text-white rounded py-1"><i class="fas fa-plus mr-1"></i> Passagier anlegen</button></div></div>
                 <div id="menu-tracks" class="hidden space-y-4"><div id="layer-list" class="space-y-2 mb-3 max-h-80 overflow-y-auto pr-1 bg-gray-900/50 rounded-lg p-2 border border-gray-700/50"></div><label class="flex flex-col items-center justify-center w-full h-12 border border-gray-600 border-dashed rounded-lg cursor-pointer bg-gray-800/50 hover:bg-gray-700/50"><div class="flex items-center justify-center gap-2"><i class="fas fa-plus text-sm text-gray-400"></i><p class="text-xs text-gray-400">KML/GPX hinzufügen</p></div><input type="file" accept=".kml,.gpx,.xml" class="hidden" onchange="app.data.handleKML(this.files[0])" /></label></div>
-                <div id="menu-logbook" class="hidden space-y-4"><div id="log-list" class="space-y-2 mb-3 max-h-80 overflow-y-auto pr-1 bg-gray-900/50 rounded-lg p-2 border border-gray-700/50"></div><div class="flex gap-4 text-[10px] text-gray-400 justify-center"><div class="flex items-center"><span class="speed-legend-dot bg-blue-500"></span>&lt;<span id="leg-1">10</span></div><div class="flex items-center"><span class="speed-legend-dot bg-green-500"></span>10-25</div><div class="flex items-center"><span class="speed-legend-dot bg-orange-500"></span>25-45</div><div class="flex items-center"><span class="speed-legend-dot bg-red-500"></span>&gt;45 km/h</div></div></div>
-                <div id="menu-import" class="hidden space-y-4"><label class="flex flex-col items-center justify-center w-full h-12 border border-gray-600 border-dashed rounded-lg cursor-pointer bg-gray-800/50 hover:bg-gray-700/50"><div class="flex items-center justify-center gap-2"><i class="fas fa-file-import text-sm text-gray-400"></i><p class="text-xs text-gray-400">Daten Importieren</p></div><input type="file" accept=".kml,.gpx,.xml" class="hidden" onchange="app.data.handleKML(this.files[0])" /></label><button onclick="app.data.clearAllData()" class="w-full bg-red-900/30 hover:bg-red-900/50 border border-red-800 text-red-300 py-3 rounded-lg text-sm font-bold transition-colors mt-8">Alles zurücksetzen</button></div>
-                <div id="menu-settings" class="hidden space-y-4"><div class="grid grid-cols-3 gap-2 mb-2"><select id="sel-alt" class="unit-select w-full" onchange="app.units.setUnit('alt', this.value)"><option value="m">Meter</option><option value="ft">Fuß</option></select><select id="sel-spd" class="unit-select w-full" onchange="app.units.setUnit('spd', this.value)"><option value="kmh">km/h</option><option value="kt">Knoten</option></select><select id="sel-var" class="unit-select w-full" onchange="app.units.setUnit('var', this.value)"><option value="ms">m/s</option><option value="fts">ft/s</option></select></div><div class="bg-gray-800 p-2 rounded border border-gray-700 flex justify-between items-center"><select id="sel-vario-source" class="unit-select" onchange="app.barometer.setSource(this.value)"><option value="gps">GPS</option><option value="baro">Barometer</option></select><div id="baro-status-text" class="text-[9px] text-gray-500 font-mono">Init...</div></div><div class="flex justify-between items-center mt-2 bg-gray-800 p-2 rounded border border-gray-700"><label class="text-xs text-gray-400">Kartenstil (Start)</label><select id="sel-map-style" class="unit-select" onchange="app.ui.setLayer(this.value)"><option value="0">Dark</option><option value="1">Light</option><option value="2">Satellit</option></select></div><div class="flex justify-between items-center mt-4"><div><label class="block text-sm text-gray-200 font-bold">Kompass</label><p class="text-[10px] text-gray-500">Sichtkegel anzeigen</p></div><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="compass-toggle-check" class="sr-only peer" onchange="app.compass.toggle()"><div class="w-12 h-7 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div></label></div><div class="mt-4"><label class="block text-sm text-gray-400 mb-2">HUD Transparenz</label><input type="range" min="0.0" max="0.95" step="0.05" value="0.85" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer" oninput="app.ui.updateOpacity(this.value)"></div><div class="mt-4"><label class="block text-sm text-gray-400 mb-2">Eigenes Ballon Icon</label><label class="flex items-center justify-center h-10 bg-gray-800 text-gray-300 rounded border border-gray-600 cursor-pointer hover:bg-gray-700"><span class="text-xs">Bild wählen...</span><input type='file' class="hidden" accept="image/*" onchange="app.ui.loadCustomIcon(this.files[0])" /></label></div><div class="mt-4"><label class="block text-sm text-gray-400 mb-2">Gemini API Key</label><input type="password" id="api-key" placeholder="Key eingeben..." class="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white text-xs"></div><div class="mt-6 border-t border-gray-700 pt-4"><label class="block text-sm text-red-400 font-bold mb-2">Flaschen Daten</label><div class="flex gap-2"><button onclick="app.cylinders.exportData()" class="flex-1 bg-gray-700 hover:bg-gray-600 text-gray-300 py-2 rounded text-xs border border-gray-600">Export</button><label class="flex-1 bg-gray-700 hover:bg-gray-600 text-gray-300 py-2 rounded text-xs border border-gray-600 flex items-center justify-center cursor-pointer">Import<input type="file" accept=".json" class="hidden" onchange="app.cylinders.importData(this.files[0])"></label></div></div></div>
+                <div id="menu-logbook" class="hidden space-y-4"><div id="log-list" class="space-y-2 mb-3 max-h-80 overflow-y-auto pr-1 bg-gray-900/50 rounded-lg p-2 border border-gray-700/50"></div><div class="flex gap-4 text-[10px] text-gray-400 justify-center"><div class="flex items-center"><span class="speed-legend-dot bg-blue-500"></span>&lt;<span id="leg-1">10</span></div><div class="flex items-center"><span class="speed-legend-dot bg-green-500"></span>10-25</div><div class="flex items-center"><span class="speed-legend-dot bg-orange-500"></span>25-45</div><div class="flex items-center"><span class="speed-legend-dot bg-red-500"></span>&gt;<span id="leg-4">45</span> <span id="leg-u">km/h</span></div></div></div>
+                <div id="menu-import" class="hidden space-y-4"><label class="flex flex-col items-center justify-center w-full h-12 border border-gray-600 border-dashed rounded-lg cursor-pointer bg-gray-800/50 hover:bg-gray-700/50"><div class="flex items-center justify-center gap-2"><i class="fas fa-file-import text-sm text-gray-400"></i><p class="text-xs text-gray-400">Daten Importieren (Backup)</p></div><input type="file" accept=".json" class="hidden" onchange="app.data.importAllData(this.files[0])" /></label><button onclick="app.data.exportAllData()" class="w-full bg-blue-600/30 hover:bg-blue-600/50 border border-blue-500 text-blue-300 py-3 rounded-lg text-sm font-bold transition-colors mt-2 mb-8"><i class="fas fa-file-export mr-2"></i> Vollständiges Backup erstellen</button><button onclick="app.data.clearAllData()" class="w-full bg-red-900/30 hover:bg-red-900/50 border border-red-800 text-red-300 py-3 rounded-lg text-sm font-bold transition-colors"><i class="fas fa-trash-alt mr-2"></i> Alles zurücksetzen</button></div>
+                <div id="menu-settings" class="hidden space-y-4"><div class="grid grid-cols-3 gap-2 mb-2"><select id="sel-alt" class="unit-select w-full" onchange="app.units.setUnit('alt', this.value)"><option value="m">Meter</option><option value="ft">Fuß</option></select><select id="sel-spd" class="unit-select w-full" onchange="app.units.setUnit('spd', this.value)"><option value="kmh">km/h</option><option value="kt">Knoten</option></select><select id="sel-var" class="unit-select w-full" onchange="app.units.setUnit('var', this.value)"><option value="ms">m/s</option><option value="fts">ft/s</option></select></div><div class="bg-gray-800 p-2 rounded border border-gray-700 flex justify-between items-center"><select id="sel-vario-source" class="unit-select" onchange="app.barometer.setSource(this.value)"><option value="gps">GPS</option><option value="baro">Barometer</option></select><div id="baro-status-text" class="text-[9px] text-gray-500 font-mono">Init...</div></div><div class="flex justify-between items-center mt-2 bg-gray-800 p-2 rounded border border-gray-700"><label class="text-xs text-gray-400">Kartenstil (Start)</label><select id="sel-map-style" class="unit-select" onchange="app.ui.setLayer(this.value)"><option value="0">Dark</option><option value="1">Light</option><option value="2">Satellit</option></select></div><div class="flex justify-between items-center mt-4"><div><label class="block text-sm text-gray-200 font-bold">Kompass</label><p class="text-[10px] text-gray-500">Sichtkegel anzeigen</p></div><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="compass-toggle-check" class="sr-only peer" onchange="app.compass.toggle()"><div class="w-12 h-7 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div></label></div><div class="mt-4"><label class="block text-sm text-gray-400 mb-2">HUD Transparenz</label><input type="range" min="0.0" max="0.95" step="0.05" value="0.85" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer" oninput="app.ui.updateOpacity(this.value)"></div><div class="mt-4"><label class="block text-sm text-gray-400 mb-2">Eigenes Ballon Icon</label><label class="flex items-center justify-center h-10 bg-gray-800 text-gray-300 rounded border border-gray-600 cursor-pointer hover:bg-gray-700"><span class="text-xs">Bild wählen...</span><input type='file' class="hidden" accept="image/*" onchange="app.ui.loadCustomIcon(this.files[0])" /></label></div><div class="mt-4"><label class="block text-sm text-gray-400 mb-2">Gemini API Key</label><input type="password" id="api-key" placeholder="Key eingeben..." class="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white text-xs"></div></div>
             </div>
              <div class="h-6 md:hidden landscape:hidden"></div>
         </div>
@@ -261,6 +282,8 @@
             }
         };
 
+        // --- MANAGERS ---
+
         class MenuManager {
             constructor() { this.views = ['main', 'simulation', 'planning', 'fleet', 'tracks', 'logbook', 'import', 'settings', 'passengers']; }
             open(viewId) {
@@ -278,11 +301,84 @@
         }
 
         class PassengerManager {
-            constructor() { this.pax = JSON.parse(localStorage.getItem('aeronav_pax') || '[]'); this.selectionContext = null; this.baptizingId = null; }
+            constructor() { 
+                this.pax = JSON.parse(localStorage.getItem('aeronav_pax') || '[]'); 
+                this.selectionContext = null; 
+                this.baptizingId = null;
+                this.editingId = null; 
+            }
             save() { localStorage.setItem('aeronav_pax', JSON.stringify(this.pax)); }
-            add() { const n=document.getElementById('pax-name').value, w=parseInt(document.getElementById('pax-weight').value), p=document.getElementById('pax-phone').value, g=document.getElementById('pax-gender').value; if(n&&w){this.pax.push({id:Date.now(), name:n, weight:w, phone:p, gender:g, active:true}); this.save(); this.renderList(); document.getElementById('pax-name').value='';document.getElementById('pax-weight').value='';document.getElementById('pax-phone').value='';} }
+            
+            add() { 
+                const n=document.getElementById('pax-name').value;
+                const w=parseInt(document.getElementById('pax-weight').value);
+                const p=document.getElementById('pax-phone').value;
+                const g=document.getElementById('pax-gender').value; 
+                
+                if(n&&w){
+                    if(this.editingId) {
+                        const pax = this.pax.find(x => x.id === this.editingId);
+                        if(pax) {
+                            pax.name = n; pax.weight = w; pax.phone = p; pax.gender = g;
+                        }
+                        this.editingId = null;
+                        const btn = document.getElementById('btn-add-pax');
+                        btn.innerHTML = '<i class="fas fa-plus mr-1"></i> Passagier anlegen';
+                        btn.classList.replace('bg-yellow-600', 'bg-pink-700');
+                        btn.classList.replace('hover:bg-yellow-500', 'hover:bg-pink-600');
+                    } else {
+                        this.pax.push({id:Date.now(), name:n, weight:w, phone:p, gender:g, active:true});
+                    }
+                    this.save(); 
+                    this.renderList(); 
+                    this.clearInputs();
+                }
+            }
+
+            edit(id) {
+                const pax = this.pax.find(x => x.id === id);
+                if(!pax) return;
+                document.getElementById('pax-name').value = pax.name;
+                document.getElementById('pax-weight').value = pax.weight;
+                document.getElementById('pax-phone').value = pax.phone;
+                document.getElementById('pax-gender').value = pax.gender || 'na';
+                this.editingId = id;
+                const btn = document.getElementById('btn-add-pax');
+                btn.innerHTML = '<i class="fas fa-save mr-1"></i> Speichern';
+                btn.classList.replace('bg-pink-700', 'bg-yellow-600');
+                btn.classList.replace('hover:bg-pink-600', 'hover:bg-yellow-500');
+            }
+
+            clearInputs() {
+                document.getElementById('pax-name').value='';
+                document.getElementById('pax-weight').value='';
+                document.getElementById('pax-phone').value='';
+                document.getElementById('pax-gender').value='na';
+            }
+
             remove(id) { if(confirm("Löschen?")) { this.pax = this.pax.filter(p => p.id !== id); this.save(); this.renderList(); } }
-            renderList() { const c = document.getElementById('pax-list'); if(!c) return; c.innerHTML = ''; const active = this.pax.filter(p => p.active !== false); if(active.length === 0) { c.innerHTML = '<div class="text-xs text-gray-500 text-center italic">Keine aktiven Passagiere</div>'; return; } active.forEach(p => { const titleHtml = p.title ? `<div class="text-[9px] text-yellow-500 italic mt-1">${p.title}</div>` : ''; const starIcon = p.title ? '<i class="fas fa-star text-yellow-400 mr-1"></i>' : ''; c.innerHTML += `<div class="flex justify-between bg-gray-800 p-2 rounded mb-1 border border-gray-700"><div><div class="text-xs font-bold text-pink-300">${starIcon}${p.name}</div><div class="text-[10px] text-gray-400">${p.weight}kg | ${p.phone}</div>${titleHtml}</div><button onclick="app.passengers.remove(${p.id})" class="text-red-500"><i class="fas fa-trash-alt"></i></button></div>`; }); }
+            
+            renderList() { 
+                const c = document.getElementById('pax-list'); if(!c) return; c.innerHTML = ''; 
+                const active = this.pax.filter(p => p.active !== false); 
+                if(active.length === 0) { c.innerHTML = '<div class="text-xs text-gray-500 text-center italic">Keine aktiven Passagiere</div>'; return; } 
+                active.forEach(p => { 
+                    const titleHtml = p.title ? `<div class="text-[9px] text-yellow-500 italic mt-1">${p.title}</div>` : '';
+                    const starIcon = p.title ? '<i class="fas fa-star text-yellow-400 mr-1"></i>' : '';
+                    c.innerHTML += `
+                        <div class="flex justify-between bg-gray-800 p-2 rounded mb-1 border border-gray-700">
+                            <div>
+                                <div class="text-xs font-bold text-pink-300">${starIcon}${p.name}</div>
+                                <div class="text-[10px] text-gray-400">${p.weight}kg | ${p.phone || '-'}</div>
+                                ${titleHtml}
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="app.passengers.edit(${p.id})" class="text-yellow-400"><i class="fas fa-pen"></i></button>
+                                <button onclick="app.passengers.remove(${p.id})" class="text-red-500"><i class="fas fa-trash-alt"></i></button>
+                            </div>
+                        </div>`; 
+                }); 
+            }
             openSelectorInWB(ctx) { this.selectionContext = ctx || 'plan'; this.renderSelector(); document.getElementById('pax-selector-modal').classList.remove('hidden'); }
             openSelector() { this.selectionContext = 'log'; this.renderSelector(); document.getElementById('pax-selector-modal').classList.remove('hidden'); }
             renderSelector() { const c = document.getElementById('pax-select-list'); c.innerHTML = ''; this.pax.filter(p=>p.active !== false).forEach(p => { c.innerHTML += `<label class="flex items-center justify-between bg-gray-800 p-2 rounded mb-1"><span class="text-xs text-white">${p.name} (${p.weight}kg)</span><input type="checkbox" value="${p.id}" class="pax-chk rounded bg-gray-700 border-gray-500 text-pink-600 focus:ring-pink-600"></label>`; }); }
@@ -305,8 +401,12 @@
             async generateTitle() {
                 if (!state.apiKey) { alert("API Key fehlt!"); return; }
                 const p = this.pax.find(x => x.id === this.baptizingId); const start = document.getElementById('sum-start-loc').value || "unbekannt"; const end = document.getElementById('sum-end-loc').value || "unbekannt"; const time = new Date().getHours() < 12 ? "Morgen" : "Abend";
-                const fn = p.name.split(' ')[0]; const g = p.gender === 'f' ? 'weiblich' : 'männlich';
-                const prompt = `Erstelle einen lustigen, traditionellen Ballonfahrer-Adelstitel. Name: ${fn}, Geschlecht: ${g}. Fahrt von ${start} nach ${end} am ${time}. Format: "Adelstitel ${fn} ... von ... zu ..." Nur den Titel ausgeben.`;
+                const fn = p.name.split(' ')[0]; 
+                let genderTerm = 'Ballonfahrer'; 
+                if (p.gender === 'f') genderTerm = 'Ballonfahrerin';
+                else if (p.gender === 'd' || p.gender === 'na') genderTerm = 'Luftfahrende Person';
+                
+                const prompt = `Erstelle einen lustigen, traditionellen ${genderTerm}-Adelstitel. Name: ${fn}. Fahrt von ${start} nach ${end} am ${time}. Format: "Adelstitel ${fn} ... von ... zu ..." Nur den Titel ausgeben.`;
                 document.getElementById('bap-result').innerText = "Generiere...";
                 try { const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${state.apiKey}`; const res = await fetch(url, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) }); const data = await res.json(); document.getElementById('bap-result').innerText = data.candidates[0].content.parts[0].text; } catch(e) { document.getElementById('bap-result').innerText = "Fehler bei der Verbindung."; }
             }
@@ -483,7 +583,16 @@
                 this.renderPrepList('prep-list-settings'); this.renderPrepList('prep-list-modal');
             }
              
-             renderPrepList(eid) { const c=document.getElementById(eid); if(!c)return; c.innerHTML=''; if(this.preps.length===0) {c.innerHTML='<div class="text-xs text-gray-500 text-center italic">Keine Vorbereitungen</div>';return;} this.preps.forEach(p=>{ const cl=p.status==='ok'?'text-green-400':'text-red-400'; c.innerHTML+=`<div class="flex justify-between items-center bg-gray-700/50 p-2 rounded text-xs mb-1"><div class="cursor-pointer flex-1"><div class="font-bold text-gray-200">${p.name}</div><div class="text-[10px] text-gray-400">${p.balloonReg}|<span class="${cl}">${p.total}kg</span></div></div><div class="flex gap-2"><button onclick="app.balloons.openCalc('${p.balloonId}', 'plan', ${p.id})" class="text-yellow-400 hover:text-white" title="Bearbeiten"><i class="fas fa-pen"></i></button><button onclick="app.balloons.deletePrep(${p.id})" class="text-red-400 hover:text-white"><i class="fas fa-trash-alt"></i></button></div></div>`; }); }
+             renderPrepList(eid) { const c=document.getElementById(eid); if(!c)return; c.innerHTML=''; if(this.preps.length===0) {c.innerHTML='<div class="text-xs text-gray-500 text-center italic">Keine Vorbereitungen</div>';return;} this.preps.forEach(p=>{ const cl=p.status==='ok'?'text-green-400':'text-red-400'; 
+                 // Updated HTML for Prep List: Includes PLAY button for start modal
+                 let actionBtn = '';
+                 if(eid === 'prep-list-modal') {
+                     actionBtn = `<button onclick="app.logbook.startRecording(${p.id})" class="bg-green-600 hover:bg-green-500 text-white rounded-full w-8 h-8 flex items-center justify-center shadow-lg transform active:scale-95 transition-all" title="Starten"><i class="fas fa-play"></i></button>`;
+                 } else {
+                     actionBtn = `<div class="flex gap-2"><button onclick="app.balloons.openCalc('${p.balloonId}', 'plan', ${p.id})" class="text-yellow-400 hover:text-white" title="Bearbeiten"><i class="fas fa-pen"></i></button><button onclick="app.balloons.deletePrep(${p.id})" class="text-red-400 hover:text-white"><i class="fas fa-trash-alt"></i></button></div>`;
+                 }
+                 c.innerHTML+=`<div class="flex justify-between items-center bg-gray-700/50 p-2 rounded text-xs mb-1"><div class="flex-1"><div class="font-bold text-gray-200">${p.name}</div><div class="text-[10px] text-gray-400">${p.balloonReg}|<span class="${cl}">${p.total}kg</span></div></div>${actionBtn}</div>`; 
+             }); }
              
              deletePrep(id){ if(confirm("Vorbereitung löschen?")){ this.preps=this.preps.filter(p=>p.id!==id); this.savePrep(); this.renderList(); } }
              openPerf(id){ this.activePerfId=id; const b=this.balloons.find(x=>x.id===id); if(!b)return; if(!b.perf||!b.perf[0].t0) b.perf=this.perfHeights.map(h=>({h,t0:0.35-(h*3e-5),t15:0.32-(h*3e-5),t30:0.29-(h*3e-5)})); document.getElementById('perf-title').innerText=`Leistung: ${b.reg}`; const c=document.getElementById('perf-inputs'); c.innerHTML=''; b.perf.forEach((p,i)=>{ c.innerHTML+=`<div class="grid grid-cols-4 gap-1 text-xs items-center mb-1"><div class="text-right pr-2 font-bold text-gray-400">${p.h}m</div><input type="number" id="perf-row-${i}-t0" value="${p.t0.toFixed(3)}" step="0.001" class="perf-input"><input type="number" id="perf-row-${i}-t15" value="${p.t15.toFixed(3)}" step="0.001" class="perf-input"><input type="number" id="perf-row-${i}-t30" value="${p.t30.toFixed(3)}" step="0.001" class="perf-input"></div>`; }); document.getElementById('perf-editor-panel').classList.remove('hidden'); document.getElementById('wb-calc-panel').classList.add('hidden'); }
@@ -524,35 +633,38 @@
                 if(nameList) nameList.innerText = "";
                 if(countSpan) countSpan.innerText = "0";
 
-                // Show Panel
+                // Show Panel (Safety check)
                 const panel = document.getElementById(panelId);
                 if(panel) panel.classList.remove('hidden'); 
 
-                if(context === 'plan') {
-                    const fleetPanel = document.getElementById('wb-calc-fleet');
-                    if(fleetPanel) fleetPanel.classList.add('hidden');
-                } else {
-                    const planPanel = document.getElementById('wb-calc-plan');
-                    if(planPanel) planPanel.classList.add('hidden');
-                }
+                // Hide others safely
+                const fleetPanel = document.getElementById('wb-calc-fleet');
+                const planPanel = document.getElementById('wb-calc-plan');
+                
+                if(context === 'plan' && fleetPanel) fleetPanel.classList.add('hidden');
+                else if (planPanel) planPanel.classList.add('hidden');
                 
                 const cylContainer = document.getElementById(`${prefix}-cyl-selection`); 
-                cylContainer.innerHTML = ''; 
-                const cnt=b.stdCylCount||4; 
-                const av=app.cylinders.cylinders; 
-                
-                for(let i=0;i<cnt;i++){ 
-                    let h=`<select id="${prefix}-slot-${i}" class="unit-select w-full mb-1" onchange="app.balloons.calc()"><option value="std">Slot ${i+1}: Std (35kg)</option>`; 
-                    if(av.length>0){ h+=`<optgroup label="Inventar">`; av.forEach(c=>{ h+=`<option value="${c.id}">${c.type} (${c.serial}) - ${c.tara+c.cap}kg</option>`; }); h+=`</optgroup>`; } 
-                    h+=`</select>`; 
-                    cylContainer.innerHTML+=h; 
-                } 
+                if(cylContainer) {
+                    cylContainer.innerHTML = ''; 
+                    const cnt=b.stdCylCount||4; 
+                    const av=app.cylinders.cylinders; 
+                    
+                    for(let i=0;i<cnt;i++){ 
+                        let h=`<select id="${prefix}-slot-${i}" class="unit-select w-full mb-1" onchange="app.balloons.calc()"><option value="std">Slot ${i+1}: Std (35kg)</option>`; 
+                        if(av.length>0){ h+=`<optgroup label="Inventar">`; av.forEach(c=>{ h+=`<option value="${c.id}">${c.type} (${c.serial}) - ${c.tara+c.cap}kg</option>`; }); h+=`</optgroup>`; } 
+                        h+=`</select>`; 
+                        cylContainer.innerHTML+=h; 
+                    }
+                }
                 
                 // If loading existing prep data
                 if (prepId) {
                     const prep = this.preps.find(p => p.id === prepId);
                     if (prep) {
-                        document.getElementById('plan-name-input').value = prep.name;
+                        const nameInput = document.getElementById('plan-name-input');
+                        if(nameInput) nameInput.value = prep.name;
+                        
                         document.getElementById(`${prefix}-pilot`).value = prep.weights.pilot;
                         document.getElementById(`${prefix}-pax`).value = prep.weights.pax;
                         document.getElementById(`${prefix}-temp`).value = prep.env.temp0;
@@ -569,22 +681,13 @@
                         // Restore Pax List
                         if (prep.passengers) {
                             this.currentWBPax = prep.passengers;
-                            const nameList = document.getElementById(`${prefix}-pax-names`);
-                            const countSpan = document.getElementById(`${prefix}-pax-count`);
                             if(countSpan) countSpan.innerText = prep.passengers.length;
                             if(nameList) nameList.innerText = prep.passengers.map(p => p.name).join(', ');
                         }
                         
                         // Set dropdown to match
-                        document.getElementById('plan-balloon-select').value = id;
-                    }
-                } else {
-                    // Reset if new
-                    if (context === 'plan') {
-                        const nameList = document.getElementById(`${prefix}-pax-names`);
-                        const countSpan = document.getElementById(`${prefix}-pax-count`);
-                        if(nameList) nameList.innerText = "";
-                        if(countSpan) countSpan.innerText = "0";
+                        const dropdown = document.getElementById('plan-balloon-select');
+                        if(dropdown) dropdown.value = id;
                     }
                 }
 
@@ -592,11 +695,15 @@
              }
 
              closeCalc(){ 
-                 document.getElementById('wb-calc-plan').classList.add('hidden'); 
-                 document.getElementById('wb-calc-fleet').classList.add('hidden'); 
+                 const planPanel = document.getElementById('wb-calc-plan');
+                 const fleetPanel = document.getElementById('wb-calc-fleet');
+                 const dropdown = document.getElementById('plan-balloon-select');
+                 
+                 if(planPanel) planPanel.classList.add('hidden'); 
+                 if(fleetPanel) fleetPanel.classList.add('hidden'); 
                  this.activeCalcId=null; 
                  this.activePrepId=null;
-                 document.getElementById('plan-balloon-select').value=""; 
+                 if(dropdown) dropdown.value=""; 
              }
              
              setWBPax(paxList) { this.currentWBPax = paxList; }
@@ -606,18 +713,29 @@
                 const b=this.balloons.find(x=>x.id===this.activeCalcId); 
                 const prefix = this.calcContext === 'plan' ? 'p-wb' : 'f-wb';
                 
-                const pi=parseInt(document.getElementById(`${prefix}-pilot`).value)||0; 
-                const pa=parseInt(document.getElementById(`${prefix}-pax`).value)||0; 
+                const piInput = document.getElementById(`${prefix}-pilot`);
+                const paInput = document.getElementById(`${prefix}-pax`);
+                const tInput = document.getElementById(`${prefix}-temp`);
+                const hInput = document.getElementById(`${prefix}-h`);
+                
+                // Safety: If UI elements missing, stop
+                if(!piInput || !paInput || !tInput || !hInput) return;
+
+                const pi=parseInt(piInput.value)||0; 
+                const pa=parseInt(paInput.value)||0; 
                 let cw=0; let ucy=[]; const cnt=b.stdCylCount||4; 
                 
                 for(let i=0;i<cnt;i++){ 
-                    const v=document.getElementById(`${prefix}-slot-${i}`).value; 
-                    if(v==='std'){cw+=35;ucy.push({type:'Standard',weight:35});}
-                    else{const c=app.cylinders.cylinders.find(x=>x.id==v);if(c){const w=c.tara+c.cap;cw+=w;ucy.push({id:c.id,type:c.type,serial:c.serial,weight:w});}}
+                    const slot = document.getElementById(`${prefix}-slot-${i}`);
+                    if(slot) {
+                        const v=slot.value; 
+                        if(v==='std'){cw+=35;ucy.push({type:'Standard',weight:35});}
+                        else{const c=app.cylinders.cylinders.find(x=>x.id==v);if(c){const w=c.tara+c.cap;cw+=w;ucy.push({id:c.id,type:c.type,serial:c.serial,weight:w});}}
+                    }
                 } 
                 
-                const t0=parseFloat(document.getElementById(`${prefix}-temp`).value)||15; 
-                const alt=parseFloat(document.getElementById(`${prefix}-h`).value)||0; 
+                const t0=parseFloat(tInput.value)||15; 
+                const alt=parseFloat(hInput.value)||0; 
                 
                 const tm=b.weight+pi+pa+cw; 
                 const ta=t0-(0.0065*alt); 
@@ -641,6 +759,9 @@
              
              saveAsPrep(){ 
                  if(!this.activeCalcId)return; 
+                 // Ensure calculation is fresh
+                 if(!this.currentCalcData) this.calc();
+                 
                  const b=this.balloons.find(x=>x.id===this.activeCalcId); 
                  
                  // Get Name from input or prompt if fleet context
@@ -694,8 +815,9 @@
                  this.renderList(); 
                  this.closeCalc(); 
                  alert("Planung gespeichert."); 
-                 // Reset Name Input
-                 document.getElementById('plan-name-input').value = '';
+                 // Reset Name Input if existing
+                 const nameInput = document.getElementById('plan-name-input');
+                 if(nameInput) nameInput.value = '';
              }
         }
 
@@ -1361,15 +1483,15 @@
                 app.ui.markers.track.setLatLngs([]);
                 app.ui.markers.photoLayer.clearLayers();
                 if (prepId) {
-                    const prep = app.balloons.preps.find(p => p.id === prepId);
+                    // Fix: Use loose equality '==' to match string from HTML attr with number ID
+                    const prep = app.balloons.preps.find(p => p.id == prepId);
                     state.currentFlightPrep = prep;
                     // Optional: Set balloon icon from prep balloon
                     if(prep && prep.balloonId) {
                          app.balloons.setActive(prep.balloonId);
                     }
                     // Load passengers into Logbook logic
-                    if (prep.passengers) {
-                        // We store them in a temporary property to be used in showSummary
+                    if (prep && prep.passengers) {
                         this.prepPassengers = prep.passengers; 
                     } else {
                         this.prepPassengers = [];
