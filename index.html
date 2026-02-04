@@ -179,53 +179,44 @@
 
         /* Report Generator Styles */
         #report-stage {
-            /* Positioned fixed but visible for rendering, obscured by loading overlay */
+            background: #0f172a;
+            color: #f8fafc;
+            width: 800px;
+            padding: 30px;
             position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 5000; /* Below loading overlay (6000) */
-            visibility: hidden; /* Toggled to visible during generation */
-            border-radius: 12px;
-            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+            left: -9999px; 
+            top: 0;
+            z-index: 9999;
         }
 
         /* Status Bar (Right Edge) */
-        .status-bar {
-            position: fixed;
-            top: 20%;
-            right: 0;
+        .status-area {
+            position: absolute;
+            top: 10px;
+            right: 10px;
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 5px;
             align-items: flex-end;
             z-index: 2000;
         }
-        .status-bar-item {
+        .status-badge {
             background: rgba(15, 23, 42, 0.9);
-            border-left: 3px solid #ccc;
-            border-top-left-radius: 6px;
-            border-bottom-left-radius: 6px;
-            padding: 6px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 4px;
+            padding: 4px 8px;
             color: white;
             font-size: 0.7rem;
             font-weight: bold;
-            transform: translateX(calc(100% - 8px)); /* Show only border */
-            transition: transform 0.3s ease;
-            cursor: pointer;
-            white-space: nowrap;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
             display: flex;
             align-items: center;
-            gap: 8px;
-            box-shadow: -2px 2px 5px rgba(0,0,0,0.3);
+            gap: 6px;
         }
-        .status-bar-item:hover, .status-bar-item.active {
-            transform: translateX(0);
-        }
-        .status-bar-item.red { border-color: #ef4444; }
-        .status-bar-item.green { border-color: #22c55e; }
-        .status-bar-item.blue { border-color: #3b82f6; }
-        .status-bar-item.yellow { border-color: #eab308; }
+        .status-badge.red { background: rgba(220, 38, 38, 0.9); border-color: #f87171; }
+        .status-badge.green { background: rgba(22, 163, 74, 0.9); border-color: #4ade80; }
+        .status-badge.blue { background: rgba(37, 99, 235, 0.9); border-color: #60a5fa; }
+        .status-badge.yellow { background: rgba(202, 138, 4, 0.9); border-color: #facc15; color: #fff; }
 
         /* Form Controls */
         input, select, textarea { background: rgba(30, 41, 59, 0.5) !important; border: 1px solid rgba(255,255,255,0.1) !important; color: white !important; border-radius: 6px; padding: 8px 12px; width: 100%; }
@@ -280,6 +271,13 @@
         .toast-notification.error {
             background: rgba(239, 68, 68, 0.95);
         }
+        
+        /* Image Modal */
+        #photo-overlay {
+            position: fixed; inset: 0; z-index: 7000; background: rgba(0,0,0,0.9);
+            display: none; justify-content: center; align-items: center; padding: 20px;
+        }
+        #photo-overlay img { max-width: 95%; max-height: 95%; border-radius: 8px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
 
         /* --- MOBILE OPTIMIZATIONS --- */
         @media (max-width: 640px) {
@@ -293,6 +291,8 @@
             .sidebar-right-container { right: 5px; top: 75px; }
             .btn-round { width: 44px; height: 44px; font-size: 1rem; }
             .toast-notification { top: 70px; }
+            /* Mobile adjustment for status area to not overlap HUD too much if HUD is wide */
+            .status-area { top: 5px; right: 5px; }
         }
     </style>
 </head>
@@ -305,6 +305,11 @@
         <div class="loader mb-4" style="width: 40px; height: 40px; border-width: 4px;"></div>
         <div class="text-white font-bold text-lg">Erstelle Bericht...</div>
         <div class="text-slate-400 text-sm">Bitte warten, Karte wird gerendert</div>
+    </div>
+    
+    <!-- Photo View Overlay -->
+    <div id="photo-overlay" onclick="this.style.display='none'">
+        <img id="photo-overlay-img" src="">
     </div>
 
     <!-- Hidden Inputs -->
@@ -331,16 +336,16 @@
         </div>
     </div>
 
-    <!-- SIDEBAR STATUS (Right Edge) -->
-    <div class="status-bar">
-        <div id="sb-rec" class="status-item hidden red">
-            <i class="fas fa-circle text-xs"></i> REC
+    <!-- STATUS AREA (Right Edge, outside HUD) -->
+    <div class="status-area">
+        <div id="sb-rec" class="status-badge hidden red">
+            <i class="fas fa-circle text-[8px]"></i> REC
         </div>
-        <div id="sb-gps" class="status-item blue">
-            <i class="fas fa-satellite-dish text-xs"></i> <span id="sb-gps-text">NO GPS</span>
+        <div id="sb-gps" class="status-badge blue">
+            <i class="fas fa-satellite-dish text-[10px]"></i> <span id="sb-gps-text">NO GPS</span>
         </div>
-        <div id="sb-screen" class="status-item hidden yellow">
-            <i class="fas fa-sun text-xs"></i> SCREEN ON
+        <div id="sb-screen" class="status-badge hidden yellow">
+            <i class="fas fa-sun text-[10px]"></i> SCREEN ON
         </div>
     </div>
 
@@ -489,7 +494,8 @@
                 mapStyle: 'dark',
                 mode: 'sim', 
                 activeBalloonId: null,
-                windThreshold: 5
+                windThreshold: 5,
+                imageRetention: 30 // Days
             }
         };
 
@@ -510,9 +516,15 @@
         if(state.waypointLocked === undefined) state.waypointLocked = false;
         if(state.waypoints) delete state.waypoints; 
         if(state.settings.windThreshold === undefined) state.settings.windThreshold = 5;
+        if(state.settings.imageRetention === undefined) state.settings.imageRetention = 30;
 
         function saveState() {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            } catch (e) {
+                if (ui && ui.showToast) ui.showToast("Speicher voll! Daten nicht gespeichert.", "error");
+                console.error("Storage failed", e);
+            }
         }
 
         // --- MATH HELPERS ---
@@ -593,15 +605,23 @@
                 if (mode === 'gps') {
                     simPanel.classList.add('hidden'); 
                     badgeGPS.classList.remove('hidden');
+                    
+                    // Safe removal of color classes
+                    badgeGPS.classList.remove('blue', 'green'); 
+                    badgeGPS.classList.add('red');
+                    
                     // Reset text
                     document.getElementById('sb-gps-text').innerText = "NO GPS";
-                    badgeGPS.className = "status-item red";
                     this.startGPS();
                 } else {
                     simPanel.classList.remove('hidden');
                     badgeGPS.classList.remove('hidden');
                     document.getElementById('sb-gps-text').innerText = "SIMULATION";
-                    badgeGPS.className = "status-item blue";
+                    
+                    // Safe removal
+                    badgeGPS.classList.remove('red', 'green');
+                    badgeGPS.classList.add('blue');
+                    
                     this.stopGPS();
                 }
             },
@@ -613,9 +633,10 @@
                     if (this.gpsWatchId) navigator.geolocation.clearWatch(this.gpsWatchId);
                     this.gpsWatchId = navigator.geolocation.watchPosition(pos => {
                         document.getElementById('sb-gps-text').innerText = "GPS OK";
-                        badgeGPS.className = "status-item green";
-                        this.lat = c.latitude;
-                        this.lng = c.longitude;
+                        badgeGPS.classList.remove('red', 'blue');
+                        badgeGPS.classList.add('green');
+                        this.lat = pos.coords.latitude;
+                        this.lng = pos.coords.longitude;
                         const c = pos.coords;
                         if(c.altitude !== null) this.alt = c.altitude;
                         this.speed = (c.speed || 0) * 1.94384; 
@@ -624,11 +645,13 @@
                     }, err => {
                         console.warn("GPS Fehler:", err.message);
                         document.getElementById('sb-gps-text').innerText = "NO GPS";
-                        badgeGPS.className = "status-item red";
+                        badgeGPS.classList.remove('green', 'blue');
+                        badgeGPS.classList.add('red');
                     }, { enableHighAccuracy: true });
                 } else {
                     document.getElementById('sb-gps-text').innerText = "NO SUPP";
-                    badgeGPS.className = "status-item red";
+                    badgeGPS.classList.remove('green', 'blue');
+                    badgeGPS.classList.add('red');
                 }
             },
 
@@ -820,41 +843,39 @@
                 let pressTimer;
                 let longPressTriggered = false;
 
-                // Stop Logic (Long Press)
-                btn.addEventListener('mousedown', () => {
+                btn.addEventListener('click', (e) => {
+                    if (longPressTriggered) {
+                        longPressTriggered = false;
+                        return;
+                    }
+                    if (!this.recording) {
+                        ui.showStartDialog();
+                    } else {
+                        ui.showToast("Zum Stoppen 1.5 Sek. gedrückt halten", "error");
+                    }
+                });
+
+                const start = () => {
                     if (!this.recording) return;
                     longPressTriggered = false;
                     pressTimer = setTimeout(() => {
                         longPressTriggered = true;
                         this.stopRecording();
                         if (navigator.vibrate) navigator.vibrate(500);
-                    }, 1500); // 1.5s delay
-                });
+                    }, 1500); // 1.5 seconds
+                };
+
+                const cancel = () => { clearTimeout(pressTimer); };
+
+                btn.addEventListener('mousedown', start);
+                btn.addEventListener('touchstart', start, {passive: true});
                 
-                btn.addEventListener('touchstart', (e) => {
-                    if (!this.recording) return;
-                    e.preventDefault(); // Prevent click firing later
-                    longPressTriggered = false;
-                    pressTimer = setTimeout(() => {
-                        longPressTriggered = true;
-                        this.stopRecording();
-                        if (navigator.vibrate) navigator.vibrate(500);
-                    }, 1500);
-                });
+                btn.addEventListener('mouseup', cancel);
+                btn.addEventListener('mouseleave', cancel);
+                btn.addEventListener('touchend', cancel);
 
-                const clear = () => { clearTimeout(pressTimer); };
-                btn.addEventListener('mouseup', clear);
-                btn.addEventListener('mouseleave', clear);
-                btn.addEventListener('touchend', clear);
-
-                // Start Logic (Click)
-                btn.addEventListener('click', () => {
-                   if (!this.recording && !longPressTriggered) {
-                       ui.showStartDialog();
-                   } else if (this.recording && !longPressTriggered) {
-                       ui.showToast("Zum Stoppen 1.5 Sek. gedrückt halten", "error");
-                   }
-                });
+                // Auto-cleanup on init
+                this.cleanOldPhotos();
             },
             
             toggle() { },
@@ -863,17 +884,74 @@
 
             handlePhotoInput(input) {
                 if (input.files && input.files[0]) {
+                    const file = input.files[0];
                     const reader = new FileReader();
                     reader.onload = (e) => {
-                        this.currentPhotos.push({
-                            time: new Date().toISOString(),
-                            src: e.target.result,
-                            lat: simulation.lat,
-                            lng: simulation.lng
-                        });
-                        ui.showToast("Foto gespeichert!", "success");
+                        // Image Resizing Logic
+                        const img = new Image();
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            
+                            // Max dimensions
+                            const MAX_SIZE = 800; 
+                            let width = img.width;
+                            let height = img.height;
+                            
+                            if (width > height) {
+                                if (width > MAX_SIZE) {
+                                    height *= MAX_SIZE / width;
+                                    width = MAX_SIZE;
+                                }
+                            } else {
+                                if (height > MAX_SIZE) {
+                                    width *= MAX_SIZE / height;
+                                    height = MAX_SIZE;
+                                }
+                            }
+                            
+                            canvas.width = width;
+                            canvas.height = height;
+                            ctx.drawImage(img, 0, 0, width, height);
+                            
+                            // Compress to JPEG 60%
+                            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.6); 
+                            
+                            this.currentPhotos.push({
+                                time: new Date().toISOString(),
+                                src: compressedDataUrl,
+                                lat: simulation.lat,
+                                lng: simulation.lng
+                            });
+                            ui.showToast("Foto gespeichert (komprimiert)!", "success");
+                            
+                            // Try save to catch quota errors early
+                            saveState();
+                        };
+                        img.src = e.target.result;
                     };
-                    reader.readAsDataURL(input.files[0]);
+                    reader.readAsDataURL(file);
+                }
+            },
+            
+            cleanOldPhotos() {
+                const days = state.settings.imageRetention || 30;
+                const cutoff = new Date();
+                cutoff.setDate(cutoff.getDate() - days);
+                
+                let cleanedCount = 0;
+                state.logs.forEach(log => {
+                    if (log.photos && log.photos.length > 0) {
+                        const originalLen = log.photos.length;
+                        log.photos = log.photos.filter(p => new Date(p.time) > cutoff);
+                        cleanedCount += (originalLen - log.photos.length);
+                    }
+                });
+                
+                if(cleanedCount > 0) {
+                    saveState();
+                    console.log(`Cleaned ${cleanedCount} old photos.`);
+                    ui.showToast(`${cleanedCount} alte Fotos bereinigt`, 'success');
                 }
             },
 
@@ -1064,6 +1142,15 @@
             editWindSettings() { this.openModal(); this.switchTab('environment'); },
             openModal() { document.getElementById('main-modal').style.display = 'flex'; this.switchTab(this.tab); },
             closeModal() { document.getElementById('main-modal').style.display = 'none'; },
+            
+            // Photo Viewer
+            showPhoto(src) {
+                const overlay = document.getElementById('photo-overlay');
+                const img = document.getElementById('photo-overlay-img');
+                img.src = src;
+                overlay.style.display = 'flex';
+            },
+            
             switchTab(t) { this.tab = t; this.editingId = null; document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.onclick.toString().includes(`'${t}'`))); this.render(); },
             render() { const c = document.getElementById('tab-content'); c.innerHTML = ''; if (this.editingId) { this.renderForm(c); return; } switch(this.tab) { case 'planning': this.viewPlanning(c); break; case 'fleet': this.viewFleet(c); break; case 'cylinders': this.viewCylinders(c); break; case 'passengers': this.viewPassengers(c); break; case 'logbook': this.viewLogbook(c); break; case 'settings': this.viewSettings(c); break; case 'environment': this.viewEnvironment(c); break; } },
             
@@ -1072,7 +1159,7 @@
             viewPassengers(c) { c.innerHTML = `<div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold">Passagier-Datenbank</h3><button onclick="ui.edit('new')" class="bg-blue-600 px-4 py-2 rounded text-sm">+ Passagier hinzufügen</button></div>`; const activePax = state.passengers.filter(p => !p.flights || p.flights === 0); const archivedPax = state.passengers.filter(p => p.flights > 0); if (activePax.length > 0) { c.innerHTML += `<h4 class="text-xs uppercase text-slate-400 font-bold mb-2">Warteliste</h4>`; activePax.forEach(p => { c.innerHTML += `<div class="glass-panel p-4 mb-2 flex justify-between items-center"><div><div class="font-bold">${p.name}</div><div class="text-xs text-slate-400">${p.weight}kg | ${p.gender} | ${p.phone}</div></div><div class="flex gap-2"><button onclick="ui.taufe('${p.name}')" class="bg-amber-600/20 text-amber-500 px-2 py-1 rounded text-xs">Taufe</button><button onclick="ui.edit('${p.id}')" class="bg-slate-700 px-3 py-1 rounded text-xs">Edit</button><button onclick="ui.delete('passengers','${p.id}')" class="text-red-400 p-1"><i class="fas fa-trash"></i></button></div></div>`; }); } if (archivedPax.length > 0) { c.innerHTML += `<h4 class="text-xs uppercase text-slate-400 font-bold mb-2 mt-6">Gäste-Archiv (Bereits gefahren)</h4>`; archivedPax.forEach(p => { c.innerHTML += `<div class="glass-panel p-4 mb-2 flex justify-between items-center border-l-4 border-green-500/50 bg-slate-900/40"><div><div class="font-bold text-slate-300">${p.name}</div><div class="text-xs text-slate-500">${p.flights} Fahrten | Letzte: ${new Date(p.lastFlight).toLocaleDateString()}</div></div><div class="flex gap-2"><button onclick="ui.edit('${p.id}')" class="bg-slate-700 px-3 py-1 rounded text-xs text-slate-400">Edit</button><button onclick="ui.delete('passengers','${p.id}')" class="text-red-400 p-1"><i class="fas fa-trash"></i></button></div></div>`; }); } if (state.passengers.length === 0) { c.innerHTML += `<div class="text-center text-slate-500 italic py-8">Noch keine Passagiere angelegt</div>`; } },
             viewLogbook(c) { const logFlights = state.logs.length; const logDurationMs = state.logs.reduce((acc, log) => acc + (new Date(log.end) - new Date(log.start)), 0); const logHours = logDurationMs / 3600000; const totalFlights = (state.pilot.initialFlights || 0) + logFlights; const totalHoursDec = (state.pilot.initialHours || 0) + logHours; const tHrs = Math.floor(totalHoursDec); const tMins = Math.round((totalHoursDec - tHrs) * 60); const timeString = `${tHrs}h ${tMins.toString().padStart(2, '0')}m`; c.innerHTML = `<div class="flex justify-between items-center mb-4"><div><h3 class="text-xl font-bold">Fahrtenbuch</h3><div class="text-xs text-slate-400 mt-1">Gesamt: <span class="text-white font-bold">${totalFlights}</span> Fahrten | <span class="text-white font-bold">${timeString}</span></div></div><button onclick="ui.edit('new')" class="bg-blue-600 px-4 py-2 rounded text-sm">+ Manueller Eintrag</button></div>`; state.logs.sort((a,b)=>new Date(b.start)-new Date(a.start)).forEach(l => { c.innerHTML += `<div class="glass-panel p-4 mb-2 flex justify-between items-center"><div><div class="font-bold">${new Date(l.start).toLocaleDateString()} - ${l.balloon}</div><div class="text-xs text-slate-400">${l.start.split('T')[1].substring(0,5)} bis ${l.end.split('T')[1].substring(0,5)} | ${l.notes.substring(0,30)}...</div></div><div class="flex gap-2"><button onclick="ui.showSummary(${l.id})" class="text-blue-400 p-1"><i class="fas fa-eye"></i></button><button onclick="ui.delete('logs',${l.id})" class="text-red-400 p-1"><i class="fas fa-trash"></i></button></div></div>`; }); },
             viewPlanning(c) { if (!state.plannings) { state.plannings = []; saveState(); } if (!state.archive) { state.archive = []; saveState(); } const isArchive = this.planningMode === 'archive'; const listData = isArchive ? state.archive : state.plannings; const listTitle = isArchive ? 'Archiv / Vorlagen' : 'Aktive Planungen'; c.innerHTML = `<h3 class="text-xl font-bold mb-4">Weight & Balance Planung</h3><div class="mb-6 p-4 glass-panel border border-white/10"><div class="flex gap-4 border-b border-white/10 pb-2 mb-2 text-sm"><button onclick="ui.setPlanView('active')" class="${!isArchive ? 'text-blue-400 font-bold border-b-2 border-blue-400' : 'text-slate-500 hover:text-slate-300'} pb-1 transition">Aktive Planungen</button><button onclick="ui.setPlanView('archive')" class="${isArchive ? 'text-blue-400 font-bold border-b-2 border-blue-400' : 'text-slate-500 hover:text-slate-300'} pb-1 transition">Archiv</button></div><div class="flex justify-between items-center mb-2"><h4 class="text-xs uppercase text-slate-400 font-bold">${listTitle}</h4>${!isArchive ? '<button onclick="ui.clearPlanForm()" class="text-xs bg-slate-700 px-3 py-1 rounded hover:bg-slate-600 transition">+ Neue Planung</button>' : ''}</div><div class="max-h-32 overflow-y-auto space-y-1" id="saved-plans-list">${listData.length === 0 ? `<div class="text-xs text-slate-500 italic p-2">${isArchive ? 'Archiv ist leer' : 'Keine aktiven Planungen'}</div>` : listData.sort((a,b) => b.id - a.id).map(p => `<div class="flex justify-between items-center bg-slate-800 p-2 rounded text-xs group hover:bg-slate-700/50 transition"><div class="cursor-pointer flex-1" onclick="${isArchive ? `ui.loadTemplate('${p.id}')` : `ui.loadPlan('${p.id}')`}" title="${isArchive ? 'Als Vorlage laden' : 'Bearbeiten'}"><div class="font-bold text-white flex items-center gap-2">${isArchive ? '<i class="fas fa-history text-slate-500"></i>' : ''} ${p.name}</div><div class="text-slate-400 text-[10px]">${p.date} | ${p.balloonName}</div></div><div class="flex gap-1">${!isArchive ? `<button onclick="ui.archivePlan(${p.id})" class="text-blue-400 hover:text-blue-300 p-1 px-2 bg-slate-900/50 rounded" title="Ins Archiv verschieben"><i class="fas fa-box-archive"></i></button>` : `<button onclick="ui.unarchivePlan(${p.id})" class="text-green-400 hover:text-green-300 p-1 px-2 bg-slate-900/50 rounded" title="Wiederherstellen"><i class="fas fa-box-open"></i></button>`}<button onclick="ui.delete('${isArchive ? 'archive' : 'plannings'}', ${p.id})" class="text-red-400 hover:text-red-300 p-1 px-2 bg-slate-900/50 rounded"><i class="fas fa-trash"></i></button></div></div>`).join('')}</div></div><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div class="space-y-4"><div><label>Bezeichnung der Planung</label><input type="text" id="plan-name" placeholder="z.B. Morgenfahrt Alpen" class="bg-slate-800 border-slate-600 focus:border-blue-500"></div><div><label>Ballon wählen</label><select id="plan-balloon" onchange="ui.selectBalloon()"><option value="">-- Wählen --</option>${state.balloons.map(b => `<option value="${b.id}">${b.callsign}</option>`).join('')}</select></div><div><label>Gasflaschen für diese Fahrt</label><div class="glass-panel p-3 border border-white/5 bg-slate-900/40"><div id="plan-cyl-list" class="space-y-2 mb-3"><div class="text-xs text-slate-500 italic">Keine Flaschen ausgewählt</div></div><div class="flex gap-2 pt-2 border-t border-white/10"><select id="plan-cyl-add-select" class="text-xs bg-slate-800 border-none w-full"><option value="">+ Flasche wählen</option>${state.cylinders.map(c => `<option value="${c.id}">${c.label} (${c.type}) - ${c.gas+c.tare}kg</option>`).join('')}</select><button onclick="ui.addPlanCylinder()" class="bg-blue-600 px-3 rounded text-xs hover:bg-blue-500 shrink-0"><i class="fas fa-plus"></i></button></div></div></div><div><label>Passagiere wählen</label><div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 border border-white/5 rounded" id="plan-pax">${state.passengers.sort((a,b) => (a.flights||0) - (b.flights||0)).map(p => { const isFlown = p.flights > 0; const badge = isFlown ? `<span class="text-green-400 text-[9px] ml-1">✓ ${p.flights}</span>` : ''; return `<label class="flex items-center gap-2 bg-slate-800 p-2 rounded text-[10px] hover:bg-slate-700 cursor-pointer ${isFlown ? 'opacity-75' : ''}"><input type="checkbox" value="${p.id}" onchange="ui.recalcWB()" class="w-4 h-4 shrink-0"> <span class="flex-1 truncate">${p.name}${badge}</span> <span class="text-slate-400">${p.weight}kg</span></label>`; }).join('')}</div></div></div><div class="space-y-4"><div class="grid grid-cols-1 sm:grid-cols-2 gap-2"><div><label>Startort Temp (°C)</label><input type="number" id="plan-temp" value="15" onchange="ui.recalcWB()"></div><div><label>Zielhöhe (m)</label><input type="number" id="plan-alt" value="1000" onchange="ui.recalcWB()"></div></div><div id="wb-result" class="glass-panel p-6 border-blue-500/30 border min-h-[200px] flex flex-col justify-center text-center"><div class="text-slate-500 italic">Bitte Ballon und Zuladung wählen...</div></div><button onclick="ui.savePlan()" id="btn-save-plan" class="bg-green-600 hover:bg-green-500 w-full py-3 rounded font-bold shadow-lg shadow-green-900/20 mt-4 transition transform active:scale-95 flex items-center justify-center gap-2"><i class="fas fa-save"></i> Planung Speichern</button></div></div>`; },
-            viewSettings(c) { const initHrs = Math.floor(state.pilot.initialHours || 0); const initMins = Math.round(((state.pilot.initialHours || 0) - initHrs) * 60); const initTimeStr = `${initHrs}:${initMins.toString().padStart(2, '0')}`; c.innerHTML = `<h3 class="text-xl font-bold mb-4">Einstellungen</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-8"><section class="space-y-4"><h4 class="font-bold text-blue-400">Pilot & System</h4><div><label>Name des Piloten</label><input type="text" id="set-pilot-name" value="${state.pilot.name}" onchange="ui.saveSettings(true)"></div><div class="grid grid-cols-2 gap-2"><div><label>Gewicht (kg)</label><input type="number" id="set-pilot-weight" value="${state.pilot.weight}" onchange="ui.saveSettings(true)"></div><div><!-- Spacer --></div><div><label>Bisherige Fahrten</label><input type="number" id="set-pilot-flights" value="${state.pilot.initialFlights || 0}" placeholder="Anzahl" onchange="ui.saveSettings(true)"></div><div><label>Bisherige Stunden (hh:mm)</label><input type="text" id="set-pilot-hours" value="${initTimeStr}" placeholder="hh:mm" onchange="ui.saveSettings(true)"></div></div><div><label>Aktueller Ballon (für Karte)</label><select id="set-active-balloon" class="bg-slate-800 text-sm" onchange="ui.saveSettings(true)"><option value="">-- Standard (Emoji) --</option>${state.balloons.map(b => `<option value="${b.id}" ${state.settings.activeBalloonId === b.id ? 'selected' : ''}>${b.callsign}</option>`).join('')}</select></div><div class="pt-2"><label>Gemini API Key</label><input type="password" id="set-api-key" value="${state.settings.apiKey || ''}" placeholder="AI API Key..." onchange="ui.saveSettings(true)"></div><h4 class="font-bold text-blue-400 mt-2">Einheiten</h4><div class="grid grid-cols-1 sm:grid-cols-3 gap-2"><div><label>Höhe</label><select id="set-unit-alt" onchange="ui.saveSettings(true)"><option value="m" ${state.settings.unitAlt==='m'?'selected':''}>Meter (m)</option><option value="ft" ${state.settings.unitAlt==='ft'?'selected':''}>Fuß (ft)</option></select></div><div><label>Speed</label><select id="set-unit-speed" onchange="ui.saveSettings(true)"><option value="kmh" ${state.settings.unitSpeed==='kmh'?'selected':''}>km/h</option><option value="kt" ${state.settings.unitSpeed==='kt'?'selected':''}>Knoten (kt)</option></select></div><div><label>Vario</label><select id="set-unit-vario" onchange="ui.saveSettings(true)"><option value="ms" ${state.settings.unitVario==='ms'?'selected':''}>m/s</option><option value="fts" ${state.settings.unitVario==='fts'?'selected':''}>ft/s</option></select></div></div></section><section class="space-y-4"><h4 class="font-bold text-blue-400">Karte & Anzeige</h4><div><label class="mb-2 block">Betriebsmodus</label><div class="flex items-center justify-between bg-white/5 p-3 rounded border border-white/10"><div class="flex flex-col"><span class="text-sm font-bold text-white">GPS / Live-Tracking</span><span class="text-[10px] text-slate-400">Verwendet echte Standortdaten</span></div><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="set-mode-toggle" class="sr-only peer" ${state.settings.mode === 'gps' ? 'checked' : ''} onchange="ui.saveSettings(true)"><div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div></label></div><div class="text-[10px] text-slate-500 mt-1 text-right">${state.settings.mode === 'gps' ? 'Modus: GPS Aktiv' : 'Modus: Simulation (Training)'}</div></div><div><label>Kartenstil</label><select id="set-map-style" onchange="ui.saveSettings(true)"><option value="dark" ${state.settings.mapStyle==='dark'?'selected':''}>Dark Matter (Dunkel)</option><option value="light" ${state.settings.mapStyle==='light'?'selected':''}>OpenStreetMap (Hell)</option><option value="sat" ${state.settings.mapStyle==='sat'?'selected':''}>Satellit</option></select></div><div class="grid grid-cols-1 sm:grid-cols-2 gap-2"><div><label>Track Farbe</label><input type="color" id="set-track-color" value="${state.settings.trackColor}" onchange="ui.saveSettings(true)"></div><div><label>Track Stärke (px)</label><input type="number" id="set-track-width" value="${state.settings.trackWidth}" min="1" max="10" onchange="ui.saveSettings(true)"></div></div><h4 class="font-bold text-red-400 mt-4">Datenverwaltung</h4><div class="flex flex-col gap-2"><button onclick="system.exportData()" class="bg-slate-700 py-2 rounded text-sm">Backup Export (JSON)</button><button onclick="system.triggerImport()" class="bg-slate-600 py-2 rounded text-sm text-blue-200">Backup Importieren (Restore)</button><button onclick="system.resetData()" class="bg-red-900/40 text-red-300 py-2 rounded text-sm">Daten zurücksetzen</button></div></section><div class="col-span-2 mt-4"><button onclick="ui.saveSettings()" class="bg-blue-600 w-full py-3 rounded font-bold shadow-lg shadow-blue-900/20">Einstellungen Speichern</button></div></div>`; },
+            viewSettings(c) { const initHrs = Math.floor(state.pilot.initialHours || 0); const initMins = Math.round(((state.pilot.initialHours || 0) - initHrs) * 60); const initTimeStr = `${initHrs}:${initMins.toString().padStart(2, '0')}`; c.innerHTML = `<h3 class="text-xl font-bold mb-4">Einstellungen</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-8"><section class="space-y-4"><h4 class="font-bold text-blue-400">Pilot & System</h4><div><label>Name des Piloten</label><input type="text" id="set-pilot-name" value="${state.pilot.name}" onchange="ui.saveSettings(true)"></div><div class="grid grid-cols-2 gap-2"><div><label>Gewicht (kg)</label><input type="number" id="set-pilot-weight" value="${state.pilot.weight}" onchange="ui.saveSettings(true)"></div><div><!-- Spacer --></div><div><label>Bisherige Fahrten</label><input type="number" id="set-pilot-flights" value="${state.pilot.initialFlights || 0}" placeholder="Anzahl" onchange="ui.saveSettings(true)"></div><div><label>Bisherige Stunden (hh:mm)</label><input type="text" id="set-pilot-hours" value="${initTimeStr}" placeholder="hh:mm" onchange="ui.saveSettings(true)"></div></div><div><label>Aktueller Ballon (für Karte)</label><select id="set-active-balloon" class="bg-slate-800 text-sm" onchange="ui.saveSettings(true)"><option value="">-- Standard (Emoji) --</option>${state.balloons.map(b => `<option value="${b.id}" ${state.settings.activeBalloonId === b.id ? 'selected' : ''}>${b.callsign}</option>`).join('')}</select></div><div class="pt-2"><label>Gemini API Key</label><input type="password" id="set-api-key" value="${state.settings.apiKey || ''}" placeholder="AI API Key..." onchange="ui.saveSettings(true)"></div><h4 class="font-bold text-blue-400 mt-2">Einheiten</h4><div class="grid grid-cols-1 sm:grid-cols-3 gap-2"><div><label>Höhe</label><select id="set-unit-alt" onchange="ui.saveSettings(true)"><option value="m" ${state.settings.unitAlt==='m'?'selected':''}>Meter (m)</option><option value="ft" ${state.settings.unitAlt==='ft'?'selected':''}>Fuß (ft)</option></select></div><div><label>Speed</label><select id="set-unit-speed" onchange="ui.saveSettings(true)"><option value="kmh" ${state.settings.unitSpeed==='kmh'?'selected':''}>km/h</option><option value="kt" ${state.settings.unitSpeed==='kt'?'selected':''}>Knoten (kt)</option></select></div><div><label>Vario</label><select id="set-unit-vario" onchange="ui.saveSettings(true)"><option value="ms" ${state.settings.unitVario==='ms'?'selected':''}>m/s</option><option value="fts" ${state.settings.unitVario==='fts'?'selected':''}>ft/s</option></select></div></div></section><section class="space-y-4"><h4 class="font-bold text-blue-400">Karte & Anzeige</h4><div><label class="mb-2 block">Betriebsmodus</label><div class="flex items-center justify-between bg-white/5 p-3 rounded border border-white/10"><div class="flex flex-col"><span class="text-sm font-bold text-white">GPS / Live-Tracking</span><span class="text-[10px] text-slate-400">Verwendet echte Standortdaten</span></div><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="set-mode-toggle" class="sr-only peer" ${state.settings.mode === 'gps' ? 'checked' : ''} onchange="ui.saveSettings(true)"><div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div></label></div><div class="text-[10px] text-slate-500 mt-1 text-right">${state.settings.mode === 'gps' ? 'Modus: GPS Aktiv' : 'Modus: Simulation (Training)'}</div></div><div><label>Kartenstil</label><select id="set-map-style" onchange="ui.saveSettings(true)"><option value="dark" ${state.settings.mapStyle==='dark'?'selected':''}>Dark Matter (Dunkel)</option><option value="light" ${state.settings.mapStyle==='light'?'selected':''}>OpenStreetMap (Hell)</option><option value="sat" ${state.settings.mapStyle==='sat'?'selected':''}>Satellit</option></select></div><div class="grid grid-cols-1 sm:grid-cols-2 gap-2"><div><label>Track Farbe</label><input type="color" id="set-track-color" value="${state.settings.trackColor}" onchange="ui.saveSettings(true)"></div><div><label>Track Stärke (px)</label><input type="number" id="set-track-width" value="${state.settings.trackWidth}" min="1" max="10" onchange="ui.saveSettings(true)"></div></div><h4 class="font-bold text-red-400 mt-4">Datenverwaltung</h4><div class="flex flex-col gap-2"><button onclick="system.exportData()" class="bg-slate-700 py-2 rounded text-sm">Backup Export (JSON)</button><button onclick="system.triggerImport()" class="bg-slate-600 py-2 rounded text-sm text-blue-200">Backup Importieren (Restore)</button><button onclick="system.resetData()" class="bg-red-900/40 text-red-300 py-2 rounded text-sm">Daten zurücksetzen</button></div><div class="mt-4"><label class="text-xs uppercase text-slate-500 font-bold mb-1">Fotos löschen nach (Tagen)</label><input type="number" id="set-image-retention" value="${state.settings.imageRetention || 30}" onchange="ui.saveSettings(true)" class="bg-slate-800 border border-slate-600 rounded p-2 text-sm w-full"></div></section></div>`; },
             viewEnvironment(c) { c.innerHTML = `<h3 class="text-xl font-bold mb-4">Wetter & Wind Simulation</h3><div class="glass-panel p-6 border-white/10 border"><div class="flex justify-between items-start mb-4"><p class="text-sm text-slate-400">Hier definierst du die Windschichten für die Simulation. Der Ballon bewegt sich basierend auf der aktuellen Höhe und diesen Werten.</p><button onclick="weatherService.fetchLiveWind()" class="bg-green-600/20 text-green-400 border border-green-500/50 px-3 py-1 rounded text-xs whitespace-nowrap hover:bg-green-600 hover:text-white transition"><i class="fas fa-satellite-dish mr-1"></i> Live-Daten laden</button></div><div class="grid grid-cols-4 gap-2 text-xs uppercase text-slate-500 font-bold mb-2"><div>Höhe (m)</div><div>Richtung (°)</div><div>Speed (kt)</div><div></div></div><div id="wind-rows" class="space-y-2 mb-4">${state.windLayers.sort((a,b)=>a.alt-b.alt).map((w, idx) => `<div class="grid grid-cols-4 gap-2 items-center"><input type="number" class="wind-edit-alt" value="${w.alt}" placeholder="Höhe"><input type="number" class="wind-edit-dir" value="${w.dir}" placeholder="Dir"><input type="number" class="wind-edit-spd" value="${w.speed}" placeholder="Knots"><button onclick="ui.removeWindLayer(${idx})" class="text-red-400 hover:text-red-300"><i class="fas fa-trash"></i></button></div>`).join('')}</div><button onclick="ui.addWindLayer()" class="bg-slate-700 px-4 py-2 rounded text-xs mb-6">+ Schicht hinzufügen</button><button onclick="ui.saveEnvironment()" class="bg-blue-600 w-full py-3 rounded font-bold shadow-lg">Wetterdaten Speichern</button><div class="mt-4"><label class="text-xs uppercase text-slate-500 font-bold mb-1 block">Wind-Filter (Grad)</label><div class="flex items-center gap-2"><input type="number" id="set-wind-threshold" class="w-20 bg-slate-800 text-sm p-1 rounded" value="${state.settings.windThreshold || 5}"><span class="text-xs text-slate-400">Nur Änderungen > X° anzeigen</span></div></div><p class="text-[10px] text-slate-500 mt-2 text-center">Live-Daten bereitgestellt durch Open-Meteo.com (Kein Key erforderlich)</p></div>`; },
             
             // --- WIND FILTER LOGIC ---
@@ -1234,14 +1321,7 @@
             saveCylinder() { const data = { id: this.editingId === 'new' ? Date.now().toString() : this.editingId, label: document.getElementById('f-label').value, type: document.getElementById('f-type').value, sn: document.getElementById('f-sn').value, tare: parseFloat(document.getElementById('f-tare').value), gas: parseFloat(document.getElementById('f-gas').value), tuv: document.getElementById('f-tuv').value }; if (this.editingId === 'new') state.cylinders.push(data); else state.cylinders = state.cylinders.map(x => x.id === this.editingId ? data : x); saveState(); this.switchTab('cylinders'); },
             savePassenger() { const data = { id: this.editingId === 'new' ? Date.now().toString() : this.editingId, name: document.getElementById('f-name').value, weight: parseFloat(document.getElementById('f-p-weight').value), gender: document.getElementById('f-gender').value, phone: document.getElementById('f-phone').value }; if (this.editingId === 'new') state.passengers.push(data); else state.passengers = state.passengers.map(x => x.id === this.editingId ? data : x); saveState(); this.switchTab('passengers'); },
             saveLogManual() { const date = document.getElementById('f-l-date').value; state.logs.push({ id: Date.now(), start: date + "T" + document.getElementById('f-l-start').value, end: date + "T" + document.getElementById('f-l-end').value, balloon: document.getElementById('f-l-balloon').value, notes: document.getElementById('f-l-notes').value, track: [] }); saveState(); this.switchTab('logbook'); },
-            delete(collection, id) { 
-                if (confirm("Löschen?")) { 
-                    // Handle numeric vs string IDs safely
-                    state[collection] = state[collection].filter(x => x.id != id); 
-                    saveState(); 
-                    this.render(); 
-                } 
-            },
+            delete(collection, id) { if (confirm("Löschen?")) { state[collection] = state[collection].filter(x => x.id != id); saveState(); this.render(); } },
 
             saveSettings(silent = false) {
                 state.pilot.name = document.getElementById('set-pilot-name').value;
@@ -1264,6 +1344,7 @@
                 const modeToggle = document.getElementById('set-mode-toggle');
                 state.settings.mode = modeToggle.checked ? 'gps' : 'sim';
                 state.settings.windThreshold = parseFloat(document.getElementById('set-wind-threshold')?.value) || 5;
+                state.settings.imageRetention = parseInt(document.getElementById('set-image-retention')?.value) || 30;
                 
                 saveState();
                 mapManager.updateTrackStyle();
@@ -1677,7 +1758,7 @@
                                 <div class="mb-4">
                                     <h4 class="text-[10px] uppercase text-slate-400 mb-1">Fotos</h4>
                                     <div class="flex gap-2 overflow-x-auto pb-2">
-                                        ${log.photos.map(p => `<img src="${p.src}" class="h-14 w-14 object-cover rounded border border-white/20">`).join('')}
+                                        ${log.photos.map(p => `<img src="${p.src}" onclick="ui.showPhoto('${p.src}')" class="h-14 w-14 object-cover rounded border border-white/20 cursor-pointer hover:border-blue-400 transition">`).join('')}
                                     </div>
                                 </div>
                             ` : ''}
@@ -1823,6 +1904,7 @@
                 const endStr = new Date(log.end).toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'});
                 
                 const reportDiv = document.getElementById('report-stage');
+                reportDiv.style.visibility = 'visible'; // Make visible for render
                 reportDiv.innerHTML = `
                     <div class="bg-white text-slate-900 p-0 rounded-lg shadow-xl overflow-hidden" style="width: 800px;">
                          <!-- Reduced Header Height for Report -->
@@ -1891,22 +1973,41 @@
                 const mapTarget = document.getElementById('report-map-target');
                 // Use Light Map for Print/Export
                 const rMap = L.map(mapTarget, { zoomControl: false, attributionControl: false, fadeAnimation: false });
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { crossOrigin: 'anonymous' }).addTo(rMap);
+                
+                // Add event listener for tile load
+                const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { crossOrigin: 'anonymous' }).addTo(rMap);
                 
                 if (log.track && log.track.length > 0) {
                     const poly = L.polyline(log.track, { color: '#ef4444', weight: 6 }).addTo(rMap);
                     rMap.fitBounds(poly.getBounds(), { padding: [40, 40] });
                 } else { rMap.setView([51.1657, 10.4515], 6); }
                 
-                // Allow tiles to load - INCREASED WAIT
+                // Wait for map tiles to be ready
+                tileLayer.on('load', () => {
+                   // Small extra delay to ensure rendering
+                   setTimeout(() => {
+                        html2canvas(document.querySelector("#report-stage > div"), { useCORS: true, allowTaint: true, scale: 2 }).then(canvas => {
+                            const link = document.createElement('a'); link.download = `FlightReport_${dateStr}.png`; link.href = canvas.toDataURL(); link.click();
+                            rMap.remove(); 
+                            reportDiv.innerHTML = ''; 
+                            reportDiv.style.visibility = 'hidden';
+                            document.getElementById('loading-overlay').classList.add('hidden'); 
+                        });
+                   }, 500);
+                });
+
+                // Fallback if load event doesn't fire (e.g. cached)
                 setTimeout(() => {
-                    html2canvas(document.querySelector("#report-stage > div"), { useCORS: true, allowTaint: true, scale: 2 }).then(canvas => {
-                        const link = document.createElement('a'); link.download = `FlightReport_${dateStr}.png`; link.href = canvas.toDataURL(); link.click();
-                        rMap.remove(); 
-                        reportDiv.innerHTML = ''; 
-                        document.getElementById('loading-overlay').classList.add('hidden'); // Hide Loading
-                    });
-                }, 3000); // 3 Seconds wait
+                    if(!document.getElementById('loading-overlay').classList.contains('hidden')) {
+                        html2canvas(document.querySelector("#report-stage > div"), { useCORS: true, allowTaint: true, scale: 2 }).then(canvas => {
+                            const link = document.createElement('a'); link.download = `FlightReport_${dateStr}.png`; link.href = canvas.toDataURL(); link.click();
+                            rMap.remove(); 
+                            reportDiv.innerHTML = '';
+                            reportDiv.style.visibility = 'hidden';
+                            document.getElementById('loading-overlay').classList.add('hidden'); 
+                        });
+                    }
+                }, 5000); // 5s timeout
             },
 
             render() {
@@ -1935,7 +2036,6 @@
             simulation.init();
             flightManager.init();
             ui.init();
-            // Default setup if empty
             if (state.balloons.length === 0) {
                 state.balloons.push({ id: 'def', callsign: 'D-OAAA', volume: 3000, weight: 420, mtom: 1100, defaultCylinders: [], matrix: [[0.320, 0.280, 0.240],[0.280, 0.240, 0.200],[0.240, 0.200, 0.160],[0.200, 0.160, 0.120]], image: null });
                 saveState();
