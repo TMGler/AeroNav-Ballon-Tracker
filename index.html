@@ -243,6 +243,7 @@
             background: rgba(239, 68, 68, 0.95);
         }
 
+        /* --- MOBILE OPTIMIZATIONS --- */
         @media (max-width: 640px) {
             .hud-top { width: 98%; top: 5px; padding: 6px 4px; gap: 2px; }
             .hud-num { font-size: 1.1rem; }
@@ -253,7 +254,7 @@
             .sidebar-left { left: 5px; bottom: 20px; gap: 8px; }
             .sidebar-right-container { right: 5px; top: 75px; }
             .btn-round { width: 44px; height: 44px; font-size: 1rem; }
-            #status-badges { right: 60px; top: 75px; }
+            #status-badges { right: 0px !important; top: 5px !important; }
             .toast-notification { top: 70px; }
         }
     </style>
@@ -261,9 +262,17 @@
 <body>
 
     <div id="map"></div>
+    
+    <!-- Fullscreen Loading Overlay for Report Gen -->
+    <div id="loading-overlay" class="fixed inset-0 z-[6000] bg-slate-900/90 flex flex-col items-center justify-center hidden backdrop-blur-sm">
+        <div class="loader mb-4" style="width: 40px; height: 40px; border-width: 4px;"></div>
+        <div class="text-white font-bold text-lg">Erstelle Bericht...</div>
+        <div class="text-slate-400 text-sm">Bitte warten, Karte wird geladen</div>
+    </div>
 
-    <!-- Hidden Input for Photo Capture -->
+    <!-- Hidden Inputs -->
     <input type="file" id="cam-input" accept="image/*" capture="environment" class="hidden" onchange="flightManager.handlePhotoInput(this)">
+    <input type="file" id="import-input" accept=".json" class="hidden" onchange="system.importData(this)">
 
     <!-- HUD TOP -->
     <div class="hud-top glass-panel" id="hud">
@@ -284,11 +293,11 @@
             <div class="hud-num"><span id="hud-course">360</span>°</div>
         </div>
 
-        <!-- STATUS BADGES -->
-        <div id="status-badges" class="absolute -bottom-3 left-1/2 -translate-x-1/2 z-[1001] flex gap-2 pointer-events-none">
-            <div id="badge-gps" class="hidden px-2 py-0.5 rounded font-bold text-[10px] text-white bg-blue-600/90 backdrop-blur-sm shadow-md border border-white/20">SIMULATION</div>
-            <div id="badge-rec" class="hidden px-2 py-0.5 rounded font-bold text-[10px] text-white bg-red-600/90 backdrop-blur-sm shadow-md border border-white/20 animate-pulse">REC</div>
-            <div id="badge-screen" class="hidden px-2 py-0.5 rounded font-bold text-[10px] text-yellow-100 bg-yellow-600/80 backdrop-blur-sm shadow-md border border-white/20"><i class="fas fa-sun mr-1"></i>SCREEN ON</div>
+        <!-- STATUS BADGES - UPDATED POSITION -->
+        <div id="status-badges" class="absolute top-0 right-0 z-[1001] flex flex-col gap-0.5 pointer-events-none items-end p-1">
+            <div id="badge-gps" class="hidden px-1.5 py-0.5 rounded-l font-bold text-[9px] text-white bg-blue-600/90 backdrop-blur-sm shadow-md">SIMULATION</div>
+            <div id="badge-rec" class="hidden px-1.5 py-0.5 rounded-l font-bold text-[9px] text-white bg-red-600/90 backdrop-blur-sm shadow-md animate-pulse">REC</div>
+            <div id="badge-screen" class="hidden px-1.5 py-0.5 rounded-l font-bold text-[9px] text-yellow-100 bg-yellow-600/80 backdrop-blur-sm shadow-md"><i class="fas fa-sun mr-1"></i>SCREEN ON</div>
         </div>
     </div>
 
@@ -326,7 +335,11 @@
             <i class="fas fa-circle"></i>
         </button>
         
-        <!-- UPDATED WAYPOINT LOCK BUTTON -->
+        <!-- NEW PHOTO BUTTON (Moved here) -->
+        <button id="btn-take-photo" class="hidden btn-round glass-panel text-white bg-blue-600 hover:bg-blue-500" title="Foto machen" onclick="flightManager.takePhoto()">
+            <i class="fas fa-camera"></i>
+        </button>
+        
         <button id="btn-waypoint-lock" class="btn-round glass-panel text-slate-400" title="Wegpunkt sperren" onclick="ui.toggleWaypointLock()">
             <i class="fas fa-lock-open" id="icon-wp-lock"></i>
         </button>
@@ -341,13 +354,8 @@
         </div>
     </div>
 
-    <!-- SIDEBAR RIGHT (Wind & Photo) -->
+    <!-- SIDEBAR RIGHT (Wind) -->
     <div class="sidebar-right-container">
-        <!-- New Photo Button (Visible only during REC) -->
-        <button id="btn-take-photo" class="hidden btn-small-toggle glass-panel text-white bg-blue-600 hover:bg-blue-500 border-none shadow-lg mb-2" title="Foto machen" onclick="flightManager.takePhoto()">
-            <i class="fas fa-camera"></i>
-        </button>
-
         <button id="btn-wind-toggle" class="btn-small-toggle glass-panel text-blue-400" title="Windanzeige umschalten">
             <i class="fas fa-wind"></i>
         </button>
@@ -437,7 +445,8 @@
                 trackWidth: 4,
                 mapStyle: 'dark',
                 mode: 'sim', 
-                activeBalloonId: null 
+                activeBalloonId: null,
+                windThreshold: 5
             }
         };
 
@@ -457,6 +466,7 @@
         if(state.targetWaypoint === undefined) state.targetWaypoint = null;
         if(state.waypointLocked === undefined) state.waypointLocked = false;
         if(state.waypoints) delete state.waypoints; 
+        if(state.settings.windThreshold === undefined) state.settings.windThreshold = 5;
 
         function saveState() {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -465,21 +475,17 @@
         // --- MATH HELPERS ---
         function toRad(deg) { return deg * Math.PI / 180; }
         function toDeg(rad) { return rad * 180 / Math.PI; }
-        
         function getDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371; // km
+            const R = 6371; 
             const dLat = toRad(lat2 - lat1);
             const dLon = toRad(lon2 - lon1);
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2) * Math.sin(dLon/2);
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2) * Math.sin(dLon/2);
             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
             return R * c;
         }
-
         function getBearing(lat1, lon1, lat2, lon2) {
             const y = Math.sin(toRad(lon2 - lon1)) * Math.cos(toRad(lat2));
-            const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
-                      Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(toRad(lon2 - lon1));
+            const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) - Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(toRad(lon2 - lon1));
             const brg = toDeg(Math.atan2(y, x));
             return (brg + 360) % 360;
         }
@@ -494,11 +500,13 @@
                 if (!this.isSupported()) return;
                 try {
                     this.wakeLock = await navigator.wakeLock.request('screen');
-                    document.getElementById('badge-screen').classList.remove('hidden'); // Show badge
+                    document.getElementById('badge-screen').classList.remove('hidden'); 
                     this.wakeLock.addEventListener('release', () => {
-                        document.getElementById('badge-screen').classList.add('hidden'); // Hide badge
+                        document.getElementById('badge-screen').classList.add('hidden'); 
                     });
-                } catch (err) { console.error(`${err.name}, ${err.message}`); }
+                } catch (err) { 
+                    console.warn(`Screen Wake Lock ignored: ${err.name}, ${err.message}`);
+                }
             },
             release() {
                 if (this.wakeLock !== null) {
@@ -543,13 +551,13 @@
                     simPanel.classList.add('hidden'); 
                     gpsBadge.classList.remove('hidden');
                     gpsBadge.innerText = "NO GPS";
-                    gpsBadge.className = "px-2 py-0.5 rounded font-bold text-[10px] text-white bg-red-500/80 backdrop-blur-sm shadow-md border border-white/20";
+                    gpsBadge.className = "px-1.5 py-0.5 rounded font-bold text-[9px] text-white bg-red-500/80 backdrop-blur-sm shadow-md border border-white/20";
                     this.startGPS();
                 } else {
                     simPanel.classList.remove('hidden');
                     gpsBadge.classList.remove('hidden');
                     gpsBadge.innerText = "SIMULATION";
-                    gpsBadge.className = "px-2 py-0.5 rounded font-bold text-[10px] text-white bg-blue-600/90 backdrop-blur-sm shadow-md border border-white/20";
+                    gpsBadge.className = "px-1.5 py-0.5 rounded font-bold text-[9px] text-white bg-blue-600/90 backdrop-blur-sm shadow-md border border-white/20";
                     this.stopGPS();
                 }
             },
@@ -562,7 +570,7 @@
                     this.gpsWatchId = navigator.geolocation.watchPosition(pos => {
                         const c = pos.coords;
                         gpsBadge.innerText = "GPS OK";
-                        gpsBadge.className = "px-2 py-0.5 rounded font-bold text-[10px] text-white bg-green-600/80 backdrop-blur-sm shadow-md border border-white/20";
+                        gpsBadge.className = "px-1.5 py-0.5 rounded font-bold text-[9px] text-white bg-green-600/80 backdrop-blur-sm shadow-md border border-white/20";
                         this.lat = c.latitude;
                         this.lng = c.longitude;
                         if(c.altitude !== null) this.alt = c.altitude;
@@ -572,11 +580,11 @@
                     }, err => {
                         console.warn("GPS Fehler:", err.message);
                         gpsBadge.innerText = "NO GPS";
-                        gpsBadge.className = "px-2 py-0.5 rounded font-bold text-[10px] text-white bg-red-500/80 backdrop-blur-sm shadow-md border border-white/20";
+                        gpsBadge.className = "px-1.5 py-0.5 rounded font-bold text-[9px] text-white bg-red-500/80 backdrop-blur-sm shadow-md border border-white/20";
                     }, { enableHighAccuracy: true });
                 } else {
                     gpsBadge.innerText = "NO GPS SUPP";
-                    gpsBadge.className = "px-2 py-0.5 rounded font-bold text-[10px] text-white bg-red-500/80 backdrop-blur-sm shadow-md border border-white/20";
+                    gpsBadge.className = "px-1.5 py-0.5 rounded font-bold text-[9px] text-white bg-red-500/80 backdrop-blur-sm shadow-md border border-white/20";
                 }
             },
 
@@ -762,6 +770,7 @@
 
         const flightManager = {
             recording: false, points: [], start: null, currentActivePlan: null, currentPhotos: [],
+            maxSpeed: 0, maxAlt: 0,
             init() { 
                 const btn = document.getElementById('btn-record');
                 let pressTimer;
@@ -829,6 +838,8 @@
                 
                 this.currentActivePlan = plan;
                 this.currentPhotos = []; 
+                this.maxSpeed = 0;
+                this.maxAlt = 0;
                 
                 state.measuredWindLayers = [];
                 ui.renderWind(); 
@@ -901,7 +912,9 @@
                     planId: this.currentActivePlan ? this.currentActivePlan.id : null,
                     pax: currentPaxIds,
                     cylinders: this.currentActivePlan ? this.currentActivePlan.cylinders : [],
-                    photos: this.currentPhotos 
+                    photos: this.currentPhotos,
+                    maxSpeed: this.maxSpeed,
+                    maxAlt: this.maxAlt
                 };
                 
                 state.logs.push(newLog);
@@ -947,6 +960,12 @@
                     const newLayer = { alt: bucketAlt, dir: data.course, speed: data.speed, isMeasured: true };
                     if (existingIdx >= 0) { state.measuredWindLayers[existingIdx] = newLayer; } else { state.measuredWindLayers.push(newLayer); }
                     ui.renderWind();
+
+                    // Update Max Stats
+                    if (data.alt > this.maxAlt) this.maxAlt = data.alt;
+                    // Internal speed is kt. 
+                    let currentSpeedKmh = data.speed * 1.852;
+                    if (currentSpeedKmh > this.maxSpeed) this.maxSpeed = currentSpeedKmh;
                 }
 
                 if (state.targetWaypoint) {
@@ -1000,15 +1019,69 @@
             closeModal() { document.getElementById('main-modal').style.display = 'none'; },
             switchTab(t) { this.tab = t; this.editingId = null; document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.onclick.toString().includes(`'${t}'`))); this.render(); },
             render() { const c = document.getElementById('tab-content'); c.innerHTML = ''; if (this.editingId) { this.renderForm(c); return; } switch(this.tab) { case 'planning': this.viewPlanning(c); break; case 'fleet': this.viewFleet(c); break; case 'cylinders': this.viewCylinders(c); break; case 'passengers': this.viewPassengers(c); break; case 'logbook': this.viewLogbook(c); break; case 'settings': this.viewSettings(c); break; case 'environment': this.viewEnvironment(c); break; } },
-            // ... (View Functions: viewFleet, viewCylinders, viewPassengers, viewLogbook, viewPlanning, viewSettings, viewEnvironment - included in full file) ...
+            
             viewFleet(c) { c.innerHTML = `<div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold">Ballon-Flotte</h3><button onclick="ui.edit('new')" class="bg-blue-600 px-4 py-2 rounded text-sm">+ Ballon hinzufügen</button></div>`; state.balloons.forEach(b => { const defaultCount = b.defaultCylinders ? b.defaultCylinders.length : 0; c.innerHTML += `<div class="glass-panel p-4 mb-2 flex justify-between items-center"><div><div class="font-bold text-lg">${b.callsign}</div><div class="text-xs text-slate-400">${b.volume}m³ | Std-Flaschen: ${defaultCount} | MTOM: ${b.mtom}kg</div></div><div class="flex gap-2"><button onclick="ui.edit('${b.id}')" class="bg-slate-700 px-3 py-1 rounded">Edit</button><button onclick="ui.delete('balloons','${b.id}')" class="text-red-400 p-1"><i class="fas fa-trash"></i></button></div></div>`; }); },
             viewCylinders(c) { c.innerHTML = `<div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold">Gasflaschen-Inventar</h3><button onclick="ui.edit('new')" class="bg-blue-600 px-4 py-2 rounded text-sm">+ Flasche hinzufügen</button></div>`; state.cylinders.forEach(cyl => { const isTuvExpired = new Date(cyl.tuv) < new Date(); c.innerHTML += `<div class="glass-panel p-4 mb-2 flex justify-between items-center ${isTuvExpired ? 'border-red-500/50 border' : ''}"><div><div class="font-bold">${cyl.label} (${cyl.type})</div><div class="text-xs text-slate-400">SN: ${cyl.sn} | Tara: ${cyl.tare}kg | Gas: ${cyl.gas}kg | TÜV: <span class="${isTuvExpired ? 'text-red-400 font-bold' : ''}">${cyl.tuv}</span></div></div><div class="flex gap-2"><button onclick="ui.edit('${cyl.id}')" class="bg-slate-700 px-3 py-1 rounded">Edit</button><button onclick="ui.delete('cylinders','${cyl.id}')" class="text-red-400 p-1"><i class="fas fa-trash"></i></button></div></div>`; }); },
             viewPassengers(c) { c.innerHTML = `<div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold">Passagier-Datenbank</h3><button onclick="ui.edit('new')" class="bg-blue-600 px-4 py-2 rounded text-sm">+ Passagier hinzufügen</button></div>`; const activePax = state.passengers.filter(p => !p.flights || p.flights === 0); const archivedPax = state.passengers.filter(p => p.flights > 0); if (activePax.length > 0) { c.innerHTML += `<h4 class="text-xs uppercase text-slate-400 font-bold mb-2">Warteliste</h4>`; activePax.forEach(p => { c.innerHTML += `<div class="glass-panel p-4 mb-2 flex justify-between items-center"><div><div class="font-bold">${p.name}</div><div class="text-xs text-slate-400">${p.weight}kg | ${p.gender} | ${p.phone}</div></div><div class="flex gap-2"><button onclick="ui.taufe('${p.name}')" class="bg-amber-600/20 text-amber-500 px-2 py-1 rounded text-xs">Taufe</button><button onclick="ui.edit('${p.id}')" class="bg-slate-700 px-3 py-1 rounded text-xs">Edit</button><button onclick="ui.delete('passengers','${p.id}')" class="text-red-400 p-1"><i class="fas fa-trash"></i></button></div></div>`; }); } if (archivedPax.length > 0) { c.innerHTML += `<h4 class="text-xs uppercase text-slate-400 font-bold mb-2 mt-6">Gäste-Archiv (Bereits gefahren)</h4>`; archivedPax.forEach(p => { c.innerHTML += `<div class="glass-panel p-4 mb-2 flex justify-between items-center border-l-4 border-green-500/50 bg-slate-900/40"><div><div class="font-bold text-slate-300">${p.name}</div><div class="text-xs text-slate-500">${p.flights} Fahrten | Letzte: ${new Date(p.lastFlight).toLocaleDateString()}</div></div><div class="flex gap-2"><button onclick="ui.edit('${p.id}')" class="bg-slate-700 px-3 py-1 rounded text-xs text-slate-400">Edit</button><button onclick="ui.delete('passengers','${p.id}')" class="text-red-400 p-1"><i class="fas fa-trash"></i></button></div></div>`; }); } if (state.passengers.length === 0) { c.innerHTML += `<div class="text-center text-slate-500 italic py-8">Noch keine Passagiere angelegt</div>`; } },
             viewLogbook(c) { const logFlights = state.logs.length; const logDurationMs = state.logs.reduce((acc, log) => acc + (new Date(log.end) - new Date(log.start)), 0); const logHours = logDurationMs / 3600000; const totalFlights = (state.pilot.initialFlights || 0) + logFlights; const totalHoursDec = (state.pilot.initialHours || 0) + logHours; const tHrs = Math.floor(totalHoursDec); const tMins = Math.round((totalHoursDec - tHrs) * 60); const timeString = `${tHrs}h ${tMins.toString().padStart(2, '0')}m`; c.innerHTML = `<div class="flex justify-between items-center mb-4"><div><h3 class="text-xl font-bold">Fahrtenbuch</h3><div class="text-xs text-slate-400 mt-1">Gesamt: <span class="text-white font-bold">${totalFlights}</span> Fahrten | <span class="text-white font-bold">${timeString}</span></div></div><button onclick="ui.edit('new')" class="bg-blue-600 px-4 py-2 rounded text-sm">+ Manueller Eintrag</button></div>`; state.logs.sort((a,b)=>new Date(b.start)-new Date(a.start)).forEach(l => { c.innerHTML += `<div class="glass-panel p-4 mb-2 flex justify-between items-center"><div><div class="font-bold">${new Date(l.start).toLocaleDateString()} - ${l.balloon}</div><div class="text-xs text-slate-400">${l.start.split('T')[1].substring(0,5)} bis ${l.end.split('T')[1].substring(0,5)} | ${l.notes.substring(0,30)}...</div></div><div class="flex gap-2"><button onclick="ui.showSummary(${l.id})" class="text-blue-400 p-1"><i class="fas fa-eye"></i></button><button onclick="ui.delete('logs','${l.id}')" class="text-red-400 p-1"><i class="fas fa-trash"></i></button></div></div>`; }); },
             viewPlanning(c) { if (!state.plannings) { state.plannings = []; saveState(); } if (!state.archive) { state.archive = []; saveState(); } const isArchive = this.planningMode === 'archive'; const listData = isArchive ? state.archive : state.plannings; const listTitle = isArchive ? 'Archiv / Vorlagen' : 'Aktive Planungen'; c.innerHTML = `<h3 class="text-xl font-bold mb-4">Weight & Balance Planung</h3><div class="mb-6 p-4 glass-panel border border-white/10"><div class="flex gap-4 border-b border-white/10 pb-2 mb-2 text-sm"><button onclick="ui.setPlanView('active')" class="${!isArchive ? 'text-blue-400 font-bold border-b-2 border-blue-400' : 'text-slate-500 hover:text-slate-300'} pb-1 transition">Aktive Planungen</button><button onclick="ui.setPlanView('archive')" class="${isArchive ? 'text-blue-400 font-bold border-b-2 border-blue-400' : 'text-slate-500 hover:text-slate-300'} pb-1 transition">Archiv</button></div><div class="flex justify-between items-center mb-2"><h4 class="text-xs uppercase text-slate-400 font-bold">${listTitle}</h4>${!isArchive ? '<button onclick="ui.clearPlanForm()" class="text-xs bg-slate-700 px-3 py-1 rounded hover:bg-slate-600 transition">+ Neue Planung</button>' : ''}</div><div class="max-h-32 overflow-y-auto space-y-1" id="saved-plans-list">${listData.length === 0 ? `<div class="text-xs text-slate-500 italic p-2">${isArchive ? 'Archiv ist leer' : 'Keine aktiven Planungen'}</div>` : listData.sort((a,b) => b.id - a.id).map(p => `<div class="flex justify-between items-center bg-slate-800 p-2 rounded text-xs group hover:bg-slate-700/50 transition"><div class="cursor-pointer flex-1" onclick="${isArchive ? `ui.loadTemplate('${p.id}')` : `ui.loadPlan('${p.id}')`}" title="${isArchive ? 'Als Vorlage laden' : 'Bearbeiten'}"><div class="font-bold text-white flex items-center gap-2">${isArchive ? '<i class="fas fa-history text-slate-500"></i>' : ''} ${p.name}</div><div class="text-slate-400 text-[10px]">${p.date} | ${p.balloonName}</div></div><div class="flex gap-1">${!isArchive ? `<button onclick="ui.archivePlan(${p.id})" class="text-blue-400 hover:text-blue-300 p-1 px-2 bg-slate-900/50 rounded" title="Ins Archiv verschieben"><i class="fas fa-box-archive"></i></button>` : `<button onclick="ui.unarchivePlan(${p.id})" class="text-green-400 hover:text-green-300 p-1 px-2 bg-slate-900/50 rounded" title="Wiederherstellen"><i class="fas fa-box-open"></i></button>`}<button onclick="ui.delete('${isArchive ? 'archive' : 'plannings'}', ${p.id})" class="text-red-400 hover:text-red-300 p-1 px-2 bg-slate-900/50 rounded"><i class="fas fa-trash"></i></button></div></div>`).join('')}</div></div><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div class="space-y-4"><div><label>Bezeichnung der Planung</label><input type="text" id="plan-name" placeholder="z.B. Morgenfahrt Alpen" class="bg-slate-800 border-slate-600 focus:border-blue-500"></div><div><label>Ballon wählen</label><select id="plan-balloon" onchange="ui.selectBalloon()"><option value="">-- Wählen --</option>${state.balloons.map(b => `<option value="${b.id}">${b.callsign}</option>`).join('')}</select></div><div><label>Gasflaschen für diese Fahrt</label><div class="glass-panel p-3 border border-white/5 bg-slate-900/40"><div id="plan-cyl-list" class="space-y-2 mb-3"><div class="text-xs text-slate-500 italic">Keine Flaschen ausgewählt</div></div><div class="flex gap-2 pt-2 border-t border-white/10"><select id="plan-cyl-add-select" class="text-xs bg-slate-800 border-none w-full"><option value="">+ Flasche wählen</option>${state.cylinders.map(c => `<option value="${c.id}">${c.label} (${c.type}) - ${c.gas+c.tare}kg</option>`).join('')}</select><button onclick="ui.addPlanCylinder()" class="bg-blue-600 px-3 rounded text-xs hover:bg-blue-500 shrink-0"><i class="fas fa-plus"></i></button></div></div></div><div><label>Passagiere wählen</label><div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 border border-white/5 rounded" id="plan-pax">${state.passengers.sort((a,b) => (a.flights||0) - (b.flights||0)).map(p => { const isFlown = p.flights > 0; const badge = isFlown ? `<span class="text-green-400 text-[9px] ml-1">✓ ${p.flights}</span>` : ''; return `<label class="flex items-center gap-2 bg-slate-800 p-2 rounded text-[10px] hover:bg-slate-700 cursor-pointer ${isFlown ? 'opacity-75' : ''}"><input type="checkbox" value="${p.id}" onchange="ui.recalcWB()" class="w-4 h-4 shrink-0"> <span class="flex-1 truncate">${p.name}${badge}</span> <span class="text-slate-400">${p.weight}kg</span></label>`; }).join('')}</div></div></div><div class="space-y-4"><div class="grid grid-cols-1 sm:grid-cols-2 gap-2"><div><label>Startort Temp (°C)</label><input type="number" id="plan-temp" value="15" onchange="ui.recalcWB()"></div><div><label>Zielhöhe (m)</label><input type="number" id="plan-alt" value="1000" onchange="ui.recalcWB()"></div></div><div id="wb-result" class="glass-panel p-6 border-blue-500/30 border min-h-[200px] flex flex-col justify-center text-center"><div class="text-slate-500 italic">Bitte Ballon und Zuladung wählen...</div></div><button onclick="ui.savePlan()" id="btn-save-plan" class="bg-green-600 hover:bg-green-500 w-full py-3 rounded font-bold shadow-lg shadow-green-900/20 mt-4 transition transform active:scale-95 flex items-center justify-center gap-2"><i class="fas fa-save"></i> Planung Speichern</button></div></div>`; },
-            viewSettings(c) { const initHrs = Math.floor(state.pilot.initialHours || 0); const initMins = Math.round(((state.pilot.initialHours || 0) - initHrs) * 60); const initTimeStr = `${initHrs}:${initMins.toString().padStart(2, '0')}`; c.innerHTML = `<h3 class="text-xl font-bold mb-4">Einstellungen</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-8"><section class="space-y-4"><h4 class="font-bold text-blue-400">Pilot & System</h4><div><label>Name des Piloten</label><input type="text" id="set-pilot-name" value="${state.pilot.name}"></div><div class="grid grid-cols-2 gap-2"><div><label>Gewicht (kg)</label><input type="number" id="set-pilot-weight" value="${state.pilot.weight}"></div><div><!-- Spacer --></div><div><label>Bisherige Fahrten</label><input type="number" id="set-pilot-flights" value="${state.pilot.initialFlights || 0}" placeholder="Anzahl"></div><div><label>Bisherige Stunden (hh:mm)</label><input type="text" id="set-pilot-hours" value="${initTimeStr}" placeholder="hh:mm"></div></div><div><label>Aktueller Ballon (für Karte)</label><select id="set-active-balloon" class="bg-slate-800 text-sm"><option value="">-- Standard (Emoji) --</option>${state.balloons.map(b => `<option value="${b.id}" ${state.settings.activeBalloonId === b.id ? 'selected' : ''}>${b.callsign}</option>`).join('')}</select></div><div class="pt-2"><label>Gemini API Key</label><input type="password" id="set-api-key" value="${state.settings.apiKey || ''}" placeholder="AI API Key..."></div><h4 class="font-bold text-blue-400 mt-2">Einheiten</h4><div class="grid grid-cols-1 sm:grid-cols-3 gap-2"><div><label>Höhe</label><select id="set-unit-alt"><option value="m" ${state.settings.unitAlt==='m'?'selected':''}>Meter (m)</option><option value="ft" ${state.settings.unitAlt==='ft'?'selected':''}>Fuß (ft)</option></select></div><div><label>Speed</label><select id="set-unit-speed"><option value="kmh" ${state.settings.unitSpeed==='kmh'?'selected':''}>km/h</option><option value="kt" ${state.settings.unitSpeed==='kt'?'selected':''}>Knoten (kt)</option></select></div><div><label>Vario</label><select id="set-unit-vario"><option value="ms" ${state.settings.unitVario==='ms'?'selected':''}>m/s</option><option value="fts" ${state.settings.unitVario==='fts'?'selected':''}>ft/s</option></select></div></div></section><section class="space-y-4"><h4 class="font-bold text-blue-400">Karte & Anzeige</h4><div><label class="mb-2 block">Betriebsmodus</label><div class="flex items-center justify-between bg-white/5 p-3 rounded border border-white/10"><div class="flex flex-col"><span class="text-sm font-bold text-white">GPS / Live-Tracking</span><span class="text-[10px] text-slate-400">Verwendet echte Standortdaten</span></div><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="set-mode-toggle" class="sr-only peer" ${state.settings.mode === 'gps' ? 'checked' : ''}><div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div></label></div><div class="text-[10px] text-slate-500 mt-1 text-right">${state.settings.mode === 'gps' ? 'Modus: GPS Aktiv' : 'Modus: Simulation (Training)'}</div></div><div><label>Kartenstil</label><select id="set-map-style"><option value="dark" ${state.settings.mapStyle==='dark'?'selected':''}>Dark Matter (Dunkel)</option><option value="light" ${state.settings.mapStyle==='light'?'selected':''}>OpenStreetMap (Hell)</option><option value="sat" ${state.settings.mapStyle==='sat'?'selected':''}>Satellit</option></select></div><div class="grid grid-cols-1 sm:grid-cols-2 gap-2"><div><label>Track Farbe</label><input type="color" id="set-track-color" value="${state.settings.trackColor}"></div><div><label>Track Stärke (px)</label><input type="number" id="set-track-width" value="${state.settings.trackWidth}" min="1" max="10"></div></div><h4 class="font-bold text-red-400 mt-4">Datenverwaltung</h4><div class="flex flex-col gap-2"><button onclick="system.exportData()" class="bg-slate-700 py-2 rounded text-sm">Backup Export (JSON)</button><button onclick="system.resetData()" class="bg-red-900/40 text-red-300 py-2 rounded text-sm">Daten zurücksetzen</button></div></section><div class="col-span-2 mt-4"><button onclick="ui.saveSettings()" class="bg-blue-600 w-full py-3 rounded font-bold shadow-lg shadow-blue-900/20">Einstellungen Speichern</button></div></div>`; },
-            viewEnvironment(c) { c.innerHTML = `<h3 class="text-xl font-bold mb-4">Wetter & Wind Simulation</h3><div class="glass-panel p-6 border-white/10 border"><div class="flex justify-between items-start mb-4"><p class="text-sm text-slate-400">Hier definierst du die Windschichten für die Simulation. Der Ballon bewegt sich basierend auf der aktuellen Höhe und diesen Werten.</p><button onclick="weatherService.fetchLiveWind()" class="bg-green-600/20 text-green-400 border border-green-500/50 px-3 py-1 rounded text-xs whitespace-nowrap hover:bg-green-600 hover:text-white transition"><i class="fas fa-satellite-dish mr-1"></i> Live-Daten laden</button></div><div class="grid grid-cols-4 gap-2 text-xs uppercase text-slate-500 font-bold mb-2"><div>Höhe (m)</div><div>Richtung (°)</div><div>Speed (kt)</div><div></div></div><div id="wind-rows" class="space-y-2 mb-4">${state.windLayers.sort((a,b)=>a.alt-b.alt).map((w, idx) => `<div class="grid grid-cols-4 gap-2 items-center"><input type="number" class="wind-edit-alt" value="${w.alt}" placeholder="Höhe"><input type="number" class="wind-edit-dir" value="${w.dir}" placeholder="Dir"><input type="number" class="wind-edit-spd" value="${w.speed}" placeholder="Knots"><button onclick="ui.removeWindLayer(${idx})" class="text-red-400 hover:text-red-300"><i class="fas fa-trash"></i></button></div>`).join('')}</div><button onclick="ui.addWindLayer()" class="bg-slate-700 px-4 py-2 rounded text-xs mb-6">+ Schicht hinzufügen</button><button onclick="ui.saveEnvironment()" class="bg-blue-600 w-full py-3 rounded font-bold shadow-lg">Wetterdaten Speichern</button><p class="text-[10px] text-slate-500 mt-2 text-center">Live-Daten bereitgestellt durch Open-Meteo.com (Kein Key erforderlich)</p></div>`; },
+            viewSettings(c) { const initHrs = Math.floor(state.pilot.initialHours || 0); const initMins = Math.round(((state.pilot.initialHours || 0) - initHrs) * 60); const initTimeStr = `${initHrs}:${initMins.toString().padStart(2, '0')}`; c.innerHTML = `<h3 class="text-xl font-bold mb-4">Einstellungen</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-8"><section class="space-y-4"><h4 class="font-bold text-blue-400">Pilot & System</h4><div><label>Name des Piloten</label><input type="text" id="set-pilot-name" value="${state.pilot.name}" onchange="ui.saveSettings(true)"></div><div class="grid grid-cols-2 gap-2"><div><label>Gewicht (kg)</label><input type="number" id="set-pilot-weight" value="${state.pilot.weight}" onchange="ui.saveSettings(true)"></div><div><!-- Spacer --></div><div><label>Bisherige Fahrten</label><input type="number" id="set-pilot-flights" value="${state.pilot.initialFlights || 0}" placeholder="Anzahl" onchange="ui.saveSettings(true)"></div><div><label>Bisherige Stunden (hh:mm)</label><input type="text" id="set-pilot-hours" value="${initTimeStr}" placeholder="hh:mm" onchange="ui.saveSettings(true)"></div></div><div><label>Aktueller Ballon (für Karte)</label><select id="set-active-balloon" class="bg-slate-800 text-sm" onchange="ui.saveSettings(true)"><option value="">-- Standard (Emoji) --</option>${state.balloons.map(b => `<option value="${b.id}" ${state.settings.activeBalloonId === b.id ? 'selected' : ''}>${b.callsign}</option>`).join('')}</select></div><div class="pt-2"><label>Gemini API Key</label><input type="password" id="set-api-key" value="${state.settings.apiKey || ''}" placeholder="AI API Key..." onchange="ui.saveSettings(true)"></div><h4 class="font-bold text-blue-400 mt-2">Einheiten</h4><div class="grid grid-cols-1 sm:grid-cols-3 gap-2"><div><label>Höhe</label><select id="set-unit-alt" onchange="ui.saveSettings(true)"><option value="m" ${state.settings.unitAlt==='m'?'selected':''}>Meter (m)</option><option value="ft" ${state.settings.unitAlt==='ft'?'selected':''}>Fuß (ft)</option></select></div><div><label>Speed</label><select id="set-unit-speed" onchange="ui.saveSettings(true)"><option value="kmh" ${state.settings.unitSpeed==='kmh'?'selected':''}>km/h</option><option value="kt" ${state.settings.unitSpeed==='kt'?'selected':''}>Knoten (kt)</option></select></div><div><label>Vario</label><select id="set-unit-vario" onchange="ui.saveSettings(true)"><option value="ms" ${state.settings.unitVario==='ms'?'selected':''}>m/s</option><option value="fts" ${state.settings.unitVario==='fts'?'selected':''}>ft/s</option></select></div></div></section><section class="space-y-4"><h4 class="font-bold text-blue-400">Karte & Anzeige</h4><div><label class="mb-2 block">Betriebsmodus</label><div class="flex items-center justify-between bg-white/5 p-3 rounded border border-white/10"><div class="flex flex-col"><span class="text-sm font-bold text-white">GPS / Live-Tracking</span><span class="text-[10px] text-slate-400">Verwendet echte Standortdaten</span></div><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="set-mode-toggle" class="sr-only peer" ${state.settings.mode === 'gps' ? 'checked' : ''} onchange="ui.saveSettings(true)"><div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div></label></div><div class="text-[10px] text-slate-500 mt-1 text-right">${state.settings.mode === 'gps' ? 'Modus: GPS Aktiv' : 'Modus: Simulation (Training)'}</div></div><div><label>Kartenstil</label><select id="set-map-style" onchange="ui.saveSettings(true)"><option value="dark" ${state.settings.mapStyle==='dark'?'selected':''}>Dark Matter (Dunkel)</option><option value="light" ${state.settings.mapStyle==='light'?'selected':''}>OpenStreetMap (Hell)</option><option value="sat" ${state.settings.mapStyle==='sat'?'selected':''}>Satellit</option></select></div><div class="grid grid-cols-1 sm:grid-cols-2 gap-2"><div><label>Track Farbe</label><input type="color" id="set-track-color" value="${state.settings.trackColor}" onchange="ui.saveSettings(true)"></div><div><label>Track Stärke (px)</label><input type="number" id="set-track-width" value="${state.settings.trackWidth}" min="1" max="10" onchange="ui.saveSettings(true)"></div></div><h4 class="font-bold text-red-400 mt-4">Datenverwaltung</h4><div class="flex flex-col gap-2"><button onclick="system.exportData()" class="bg-slate-700 py-2 rounded text-sm">Backup Export (JSON)</button><button onclick="system.triggerImport()" class="bg-slate-600 py-2 rounded text-sm text-blue-200">Backup Importieren (Restore)</button><button onclick="system.resetData()" class="bg-red-900/40 text-red-300 py-2 rounded text-sm">Daten zurücksetzen</button></div></section><div class="col-span-2 mt-4"><button onclick="ui.saveSettings()" class="bg-blue-600 w-full py-3 rounded font-bold shadow-lg shadow-blue-900/20">Einstellungen Speichern</button></div></div>`; },
+            viewEnvironment(c) { c.innerHTML = `<h3 class="text-xl font-bold mb-4">Wetter & Wind Simulation</h3><div class="glass-panel p-6 border-white/10 border"><div class="flex justify-between items-start mb-4"><p class="text-sm text-slate-400">Hier definierst du die Windschichten für die Simulation. Der Ballon bewegt sich basierend auf der aktuellen Höhe und diesen Werten.</p><button onclick="weatherService.fetchLiveWind()" class="bg-green-600/20 text-green-400 border border-green-500/50 px-3 py-1 rounded text-xs whitespace-nowrap hover:bg-green-600 hover:text-white transition"><i class="fas fa-satellite-dish mr-1"></i> Live-Daten laden</button></div><div class="grid grid-cols-4 gap-2 text-xs uppercase text-slate-500 font-bold mb-2"><div>Höhe (m)</div><div>Richtung (°)</div><div>Speed (kt)</div><div></div></div><div id="wind-rows" class="space-y-2 mb-4">${state.windLayers.sort((a,b)=>a.alt-b.alt).map((w, idx) => `<div class="grid grid-cols-4 gap-2 items-center"><input type="number" class="wind-edit-alt" value="${w.alt}" placeholder="Höhe"><input type="number" class="wind-edit-dir" value="${w.dir}" placeholder="Dir"><input type="number" class="wind-edit-spd" value="${w.speed}" placeholder="Knots"><button onclick="ui.removeWindLayer(${idx})" class="text-red-400 hover:text-red-300"><i class="fas fa-trash"></i></button></div>`).join('')}</div><button onclick="ui.addWindLayer()" class="bg-slate-700 px-4 py-2 rounded text-xs mb-6">+ Schicht hinzufügen</button><button onclick="ui.saveEnvironment()" class="bg-blue-600 w-full py-3 rounded font-bold shadow-lg">Wetterdaten Speichern</button><div class="mt-4"><label class="text-xs uppercase text-slate-500 font-bold mb-1 block">Wind-Filter (Grad)</label><div class="flex items-center gap-2"><input type="number" id="set-wind-threshold" class="w-20 bg-slate-800 text-sm p-1 rounded" value="${state.settings.windThreshold || 5}"><span class="text-xs text-slate-400">Nur Änderungen > X° anzeigen</span></div></div><p class="text-[10px] text-slate-500 mt-2 text-center">Live-Daten bereitgestellt durch Open-Meteo.com (Kein Key erforderlich)</p></div>`; },
             
+            // --- WIND FILTER LOGIC ---
+            renderWind() { 
+                const container = document.getElementById('wind-layers-container'); 
+                container.innerHTML = ''; 
+                
+                const isKmh = state.settings.unitSpeed === 'kmh';
+                const unitLabel = isKmh ? 'km/h' : 'kt';
+                const threshold = state.settings.windThreshold || 5;
+
+                const layerMap = new Map();
+                
+                state.windLayers.forEach(l => layerMap.set(l.alt, { ...l, isMeasured: false }));
+                
+                if (state.measuredWindLayers) {
+                    state.measuredWindLayers.forEach(l => layerMap.set(l.alt, { ...l, isMeasured: true }));
+                }
+
+                const sortedLayers = Array.from(layerMap.values()).sort((a, b) => b.alt - a.alt);
+
+                let lastKeptDir = null;
+                
+                sortedLayers.forEach((layer, index) => {
+                    let keep = false;
+                    
+                    if (index === 0) keep = true;
+                    else if (layer.isMeasured) keep = true;
+                    else {
+                        if (lastKeptDir === null) {
+                            keep = true;
+                        } else {
+                            let diff = Math.abs(layer.dir - lastKeptDir);
+                            if (diff > 180) diff = 360 - diff;
+                            if (diff >= threshold) keep = true;
+                        }
+                    }
+
+                    if (keep) {
+                        let speed = layer.speed;
+                        if (isKmh) speed *= 1.852; 
+
+                        const colorClass = layer.isMeasured ? 'text-green-400 font-bold' : 'text-blue-300';
+                        const labelClass = layer.isMeasured ? 'text-green-400' : '';
+                        const arrowClass = layer.isMeasured ? 'compass-arrow arrow-green' : 'compass-arrow';
+
+                        const div = document.createElement('div'); 
+                        div.className = 'wind-layer'; 
+                        div.innerHTML = `<div class="${colorClass}">${layer.alt}m</div><div class="${arrowClass}" style="transform: rotate(${layer.dir}deg)"></div><div class="${labelClass}">${speed.toFixed(1)}${unitLabel}</div>`; 
+                        container.appendChild(div);
+                        
+                        lastKeptDir = layer.dir;
+                    }
+                });
+            },
+
             // --- FORM RENDERING & HELPERS ---
             edit(id) { this.editingId = id; this.render(); },
             renderForm(c) {
@@ -1116,7 +1189,7 @@
             saveLogManual() { const date = document.getElementById('f-l-date').value; state.logs.push({ id: Date.now(), start: date + "T" + document.getElementById('f-l-start').value, end: date + "T" + document.getElementById('f-l-end').value, balloon: document.getElementById('f-l-balloon').value, notes: document.getElementById('f-l-notes').value, track: [] }); saveState(); this.switchTab('logbook'); },
             delete(collection, id) { if (confirm("Löschen?")) { state[collection] = state[collection].filter(x => x.id != id); saveState(); this.render(); } },
 
-            saveSettings() {
+            saveSettings(silent = false) {
                 state.pilot.name = document.getElementById('set-pilot-name').value;
                 state.pilot.weight = parseFloat(document.getElementById('set-pilot-weight').value);
                 state.pilot.initialFlights = parseInt(document.getElementById('set-pilot-flights').value) || 0;
@@ -1136,6 +1209,7 @@
                 state.settings.activeBalloonId = document.getElementById('set-active-balloon').value || null;
                 const modeToggle = document.getElementById('set-mode-toggle');
                 state.settings.mode = modeToggle.checked ? 'gps' : 'sim';
+                state.settings.windThreshold = parseFloat(document.getElementById('set-wind-threshold')?.value) || 5;
                 
                 saveState();
                 mapManager.updateTrackStyle();
@@ -1143,7 +1217,8 @@
                 mapManager.updateIcon(); 
                 simulation.applyMode();
                 this.renderWind();
-                ui.showToast("Einstellungen gespeichert!", "success");
+                
+                if (!silent) ui.showToast("Einstellungen gespeichert!", "success");
             },
             
             // --- WIND ENVIRONMENT EDITING ---
@@ -1211,23 +1286,51 @@
                 
                 const isKmh = state.settings.unitSpeed === 'kmh';
                 const unitLabel = isKmh ? 'km/h' : 'kt';
+                const threshold = state.settings.windThreshold || 5;
 
-                const allLayers = [...state.windLayers, ...(state.measuredWindLayers || [])];
+                const layerMap = new Map();
+                
+                state.windLayers.forEach(l => layerMap.set(l.alt, { ...l, isMeasured: false }));
+                
+                if (state.measuredWindLayers) {
+                    state.measuredWindLayers.forEach(l => layerMap.set(l.alt, { ...l, isMeasured: true }));
+                }
 
-                allLayers.sort((a,b) => b.alt - a.alt).forEach(layer => { 
-                    let speed = layer.speed;
-                    if (isKmh) speed *= 1.852; 
+                const sortedLayers = Array.from(layerMap.values()).sort((a, b) => b.alt - a.alt);
 
-                    const isMeasured = layer.isMeasured;
-                    const colorClass = isMeasured ? 'text-green-400 font-bold' : 'text-blue-300';
-                    const labelClass = isMeasured ? 'text-green-400' : '';
-                    const arrowClass = isMeasured ? 'compass-arrow arrow-green' : 'compass-arrow';
+                let lastKeptDir = null;
+                
+                sortedLayers.forEach((layer, index) => {
+                    let keep = false;
+                    
+                    if (index === 0) keep = true;
+                    else if (layer.isMeasured) keep = true;
+                    else {
+                        if (lastKeptDir === null) {
+                            keep = true;
+                        } else {
+                            let diff = Math.abs(layer.dir - lastKeptDir);
+                            if (diff > 180) diff = 360 - diff;
+                            if (diff >= threshold) keep = true;
+                        }
+                    }
 
-                    const div = document.createElement('div'); 
-                    div.className = 'wind-layer'; 
-                    div.innerHTML = `<div class="${colorClass}">${layer.alt}m</div><div class="${arrowClass}" style="transform: rotate(${layer.dir}deg)"></div><div class="${labelClass}">${speed.toFixed(1)}${unitLabel}</div>`; 
-                    container.appendChild(div); 
-                }); 
+                    if (keep) {
+                        let speed = layer.speed;
+                        if (isKmh) speed *= 1.852; 
+
+                        const colorClass = layer.isMeasured ? 'text-green-400 font-bold' : 'text-blue-300';
+                        const labelClass = layer.isMeasured ? 'text-green-400' : '';
+                        const arrowClass = layer.isMeasured ? 'compass-arrow arrow-green' : 'compass-arrow';
+
+                        const div = document.createElement('div'); 
+                        div.className = 'wind-layer'; 
+                        div.innerHTML = `<div class="${colorClass}">${layer.alt}m</div><div class="${arrowClass}" style="transform: rotate(${layer.dir}deg)"></div><div class="${labelClass}">${speed.toFixed(1)}${unitLabel}</div>`; 
+                        container.appendChild(div);
+                        
+                        lastKeptDir = layer.dir;
+                    }
+                });
             },
 
             capture() { html2canvas(document.body).then(canvas => { const link = document.createElement('a'); link.download = `AeroNav-Screenshot-${Date.now()}.png`; link.href = canvas.toDataURL(); link.click(); }); },
@@ -1544,8 +1647,15 @@
                     const el = document.getElementById('summary-map-container');
                     if(el) {
                         el.innerHTML = ''; 
+                        // Use Configured Map Style for Summary
+                        const style = state.settings.mapStyle || 'dark';
+                        let tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+                        if (style === 'light') tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+                        if (style === 'sat') tileUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+
                         const smap = L.map(el, { zoomControl: false, attributionControl: false });
-                        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(smap);
+                        L.tileLayer(tileUrl).addTo(smap);
+                        
                         if (log.track && log.track.length > 0) {
                             const poly = L.polyline(log.track, { color: '#ef4444', weight: 4 }).addTo(smap);
                             smap.fitBounds(poly.getBounds(), { padding: [20, 20] });
@@ -1643,6 +1753,9 @@
                 const log = state.logs.find(l => l.id == logId);
                 if(!log) return;
                 
+                // Show Loading
+                document.getElementById('loading-overlay').classList.remove('hidden');
+
                 const balloonObj = state.balloons.find(b => b.callsign === log.balloon);
                 const balloonImg = balloonObj ? balloonObj.image : null;
 
@@ -1657,15 +1770,18 @@
                 reportDiv.innerHTML = `
                     <div class="bg-white text-slate-900 p-0 rounded-lg shadow-xl overflow-hidden" style="width: 800px;">
                          <!-- Reduced Header Height for Report -->
-                         <div class="relative h-28 bg-slate-800">
+                         <div class="relative h-40 bg-slate-800">
                              ${balloonImg ? 
                                 `<div class="absolute inset-0 opacity-60 bg-center bg-cover" style="background-image: url('${balloonImg}')"></div>` 
                                 : '<div class="absolute inset-0 opacity-20 bg-gradient-to-r from-blue-600 to-purple-600"></div>'
                              }
                              <div class="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent"></div>
-                             <div class="absolute bottom-4 left-8">
-                                 <h1 class="text-3xl font-bold text-white mb-0">Flight Report</h1>
-                                 <p class="text-slate-300 text-base">${dateStr} | ${log.balloon}</p>
+                             <div class="absolute bottom-6 left-8 flex items-center gap-4">
+                                  ${balloonImg ? `<img src="${balloonImg}" class="w-24 h-24 rounded-full border-4 border-white shadow-lg object-cover bg-slate-800">` : ''}
+                                  <div>
+                                     <h1 class="text-4xl font-bold text-white mb-0">Flight Report</h1>
+                                     <p class="text-slate-300 text-base">${dateStr} | ${log.balloon}</p>
+                                  </div>
                              </div>
                              <div class="absolute top-6 right-8 text-right text-white">
                                  <div class="text-sm uppercase tracking-wider opacity-80">AeroNav Pilot</div>
@@ -1689,6 +1805,16 @@
                                     <div>
                                         <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Flugdauer</div>
                                         <div class="text-3xl font-bold text-blue-600">${hrs}h ${mins}m</div>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-2 pt-4 border-t border-slate-100">
+                                        <div>
+                                            <div class="text-[10px] font-bold text-slate-400 uppercase">Max Höhe</div>
+                                            <div class="text-lg font-bold text-slate-700">${Math.round(log.maxAlt||0)}m</div>
+                                        </div>
+                                        <div>
+                                            <div class="text-[10px] font-bold text-slate-400 uppercase">Max Speed</div>
+                                            <div class="text-lg font-bold text-slate-700">${(log.maxSpeed||0).toFixed(1)} km/h</div>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="w-2/3 h-96 bg-slate-100 rounded-xl relative overflow-hidden border-2 border-slate-100 shadow-inner" id="report-map-target"></div>
@@ -1716,13 +1842,15 @@
                     rMap.fitBounds(poly.getBounds(), { padding: [40, 40] });
                 } else { rMap.setView([51.1657, 10.4515], 6); }
                 
-                // Allow tiles to load
+                // Allow tiles to load - INCREASED WAIT
                 setTimeout(() => {
                     html2canvas(document.querySelector("#report-stage > div"), { useCORS: true, allowTaint: true, scale: 2 }).then(canvas => {
                         const link = document.createElement('a'); link.download = `FlightReport_${dateStr}.png`; link.href = canvas.toDataURL(); link.click();
-                        rMap.remove(); reportDiv.innerHTML = ''; 
+                        rMap.remove(); 
+                        reportDiv.innerHTML = ''; 
+                        document.getElementById('loading-overlay').classList.add('hidden'); // Hide Loading
                     });
-                }, 1500);
+                }, 3000); // 3 Seconds wait
             },
 
             render() {
@@ -1739,267 +1867,9 @@
                     case 'environment': this.viewEnvironment(c); break;
                 }
             },
-
-            // --- VIEWS ---
-            viewFleet(c) {
-                c.innerHTML = `<div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold">Ballon-Flotte</h3><button onclick="ui.edit('new')" class="bg-blue-600 px-4 py-2 rounded text-sm">+ Ballon hinzufügen</button></div>`;
-                state.balloons.forEach(b => {
-                    const defaultCount = b.defaultCylinders ? b.defaultCylinders.length : 0;
-                    c.innerHTML += `<div class="glass-panel p-4 mb-2 flex justify-between items-center"><div><div class="font-bold text-lg">${b.callsign}</div><div class="text-xs text-slate-400">${b.volume}m³ | Std-Flaschen: ${defaultCount} | MTOM: ${b.mtom}kg</div></div><div class="flex gap-2"><button onclick="ui.edit('${b.id}')" class="bg-slate-700 px-3 py-1 rounded">Edit</button><button onclick="ui.delete('balloons','${b.id}')" class="text-red-400 p-1"><i class="fas fa-trash"></i></button></div></div>`;
-                });
-            },
-            viewCylinders(c) {
-                c.innerHTML = `<div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold">Gasflaschen-Inventar</h3><button onclick="ui.edit('new')" class="bg-blue-600 px-4 py-2 rounded text-sm">+ Flasche hinzufügen</button></div>`;
-                state.cylinders.forEach(cyl => {
-                    const isTuvExpired = new Date(cyl.tuv) < new Date();
-                    c.innerHTML += `<div class="glass-panel p-4 mb-2 flex justify-between items-center ${isTuvExpired ? 'border-red-500/50 border' : ''}"><div><div class="font-bold">${cyl.label} (${cyl.type})</div><div class="text-xs text-slate-400">SN: ${cyl.sn} | Tara: ${cyl.tare}kg | Gas: ${cyl.gas}kg | TÜV: <span class="${isTuvExpired ? 'text-red-400 font-bold' : ''}">${cyl.tuv}</span></div></div><div class="flex gap-2"><button onclick="ui.edit('${cyl.id}')" class="bg-slate-700 px-3 py-1 rounded">Edit</button><button onclick="ui.delete('cylinders','${cyl.id}')" class="text-red-400 p-1"><i class="fas fa-trash"></i></button></div></div>`;
-                });
-            },
-            viewPassengers(c) {
-                c.innerHTML = `<div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold">Passagier-Datenbank</h3><button onclick="ui.edit('new')" class="bg-blue-600 px-4 py-2 rounded text-sm">+ Passagier hinzufügen</button></div>`;
-                
-                // --- Split List ---
-                const activePax = state.passengers.filter(p => !p.flights || p.flights === 0);
-                const archivedPax = state.passengers.filter(p => p.flights > 0);
-
-                if (activePax.length > 0) {
-                    c.innerHTML += `<h4 class="text-xs uppercase text-slate-400 font-bold mb-2">Warteliste</h4>`;
-                    activePax.forEach(p => {
-                        c.innerHTML += `<div class="glass-panel p-4 mb-2 flex justify-between items-center"><div><div class="font-bold">${p.name}</div><div class="text-xs text-slate-400">${p.weight}kg | ${p.gender} | ${p.phone}</div></div><div class="flex gap-2"><button onclick="ui.taufe('${p.name}')" class="bg-amber-600/20 text-amber-500 px-2 py-1 rounded text-xs">Taufe</button><button onclick="ui.edit('${p.id}')" class="bg-slate-700 px-3 py-1 rounded text-xs">Edit</button><button onclick="ui.delete('passengers','${p.id}')" class="text-red-400 p-1"><i class="fas fa-trash"></i></button></div></div>`;
-                    });
-                }
-
-                if (archivedPax.length > 0) {
-                    c.innerHTML += `<h4 class="text-xs uppercase text-slate-400 font-bold mb-2 mt-6">Gäste-Archiv (Bereits gefahren)</h4>`;
-                    archivedPax.forEach(p => {
-                        c.innerHTML += `<div class="glass-panel p-4 mb-2 flex justify-between items-center border-l-4 border-green-500/50 bg-slate-900/40"><div><div class="font-bold text-slate-300">${p.name}</div><div class="text-xs text-slate-500">${p.flights} Fahrten | Letzte: ${new Date(p.lastFlight).toLocaleDateString()}</div></div><div class="flex gap-2"><button onclick="ui.edit('${p.id}')" class="bg-slate-700 px-3 py-1 rounded text-xs text-slate-400">Edit</button><button onclick="ui.delete('passengers','${p.id}')" class="text-red-400 p-1"><i class="fas fa-trash"></i></button></div></div>`;
-                    });
-                }
-                
-                if (state.passengers.length === 0) {
-                    c.innerHTML += `<div class="text-center text-slate-500 italic py-8">Noch keine Passagiere angelegt</div>`;
-                }
-            },
-            viewLogbook(c) {
-                // Calculate Stats
-                const logFlights = state.logs.length;
-                const logDurationMs = state.logs.reduce((acc, log) => acc + (new Date(log.end) - new Date(log.start)), 0);
-                const logHours = logDurationMs / 3600000;
-
-                const totalFlights = (state.pilot.initialFlights || 0) + logFlights;
-                const totalHoursDec = (state.pilot.initialHours || 0) + logHours;
-                
-                const tHrs = Math.floor(totalHoursDec);
-                const tMins = Math.round((totalHoursDec - tHrs) * 60);
-
-                // Adjust formatting for display
-                const timeString = `${tHrs}h ${tMins.toString().padStart(2, '0')}m`;
-
-                c.innerHTML = `<div class="flex justify-between items-center mb-4">
-                    <div>
-                        <h3 class="text-xl font-bold">Fahrtenbuch</h3>
-                        <div class="text-xs text-slate-400 mt-1">Gesamt: <span class="text-white font-bold">${totalFlights}</span> Fahrten | <span class="text-white font-bold">${timeString}</span></div>
-                    </div>
-                    <button onclick="ui.edit('new')" class="bg-blue-600 px-4 py-2 rounded text-sm">+ Manueller Eintrag</button>
-                </div>`;
-                
-                state.logs.sort((a,b)=>new Date(b.start)-new Date(a.start)).forEach(l => {
-                    c.innerHTML += `<div class="glass-panel p-4 mb-2 flex justify-between items-center"><div><div class="font-bold">${new Date(l.start).toLocaleDateString()} - ${l.balloon}</div><div class="text-xs text-slate-400">${l.start.split('T')[1].substring(0,5)} bis ${l.end.split('T')[1].substring(0,5)} | ${l.notes.substring(0,30)}...</div></div><div class="flex gap-2"><button onclick="ui.showSummary(${l.id})" class="text-blue-400 p-1"><i class="fas fa-eye"></i></button><button onclick="ui.delete('logs','${l.id}')" class="text-red-400 p-1"><i class="fas fa-trash"></i></button></div></div>`;
-                });
-            },
-            viewPlanning(c) {
-                // Initial plannings/archive array check
-                if (!state.plannings) { state.plannings = []; saveState(); }
-                if (!state.archive) { state.archive = []; saveState(); }
-
-                const isArchive = this.planningMode === 'archive';
-                const listData = isArchive ? state.archive : state.plannings;
-                const listTitle = isArchive ? 'Archiv / Vorlagen' : 'Aktive Planungen';
-
-                c.innerHTML = `
-                    <h3 class="text-xl font-bold mb-4">Weight & Balance Planung</h3>
-                    
-                    <!-- Saved Plans List / Archive Switch -->
-                    <div class="mb-6 p-4 glass-panel border border-white/10">
-                        <div class="flex gap-4 border-b border-white/10 pb-2 mb-2 text-sm">
-                            <button onclick="ui.setPlanView('active')" class="${!isArchive ? 'text-blue-400 font-bold border-b-2 border-blue-400' : 'text-slate-500 hover:text-slate-300'} pb-1 transition">Aktive Planungen</button>
-                            <button onclick="ui.setPlanView('archive')" class="${isArchive ? 'text-blue-400 font-bold border-b-2 border-blue-400' : 'text-slate-500 hover:text-slate-300'} pb-1 transition">Archiv</button>
-                        </div>
-
-                        <div class="flex justify-between items-center mb-2">
-                            <h4 class="text-xs uppercase text-slate-400 font-bold">${listTitle}</h4>
-                            ${!isArchive ? '<button onclick="ui.clearPlanForm()" class="text-xs bg-slate-700 px-3 py-1 rounded hover:bg-slate-600 transition">+ Neue Planung</button>' : ''}
-                        </div>
-
-                        <div class="max-h-32 overflow-y-auto space-y-1" id="saved-plans-list">
-                            ${listData.length === 0 ? `<div class="text-xs text-slate-500 italic p-2">${isArchive ? 'Archiv ist leer' : 'Keine aktiven Planungen'}</div>` : 
-                                listData.sort((a,b) => b.id - a.id).map(p => `
-                                    <div class="flex justify-between items-center bg-slate-800 p-2 rounded text-xs group hover:bg-slate-700/50 transition">
-                                        <div class="cursor-pointer flex-1" onclick="${isArchive ? `ui.loadTemplate('${p.id}')` : `ui.loadPlan('${p.id}')`}" title="${isArchive ? 'Als Vorlage laden' : 'Bearbeiten'}">
-                                            <div class="font-bold text-white flex items-center gap-2">
-                                                ${isArchive ? '<i class="fas fa-history text-slate-500"></i>' : ''} 
-                                                ${p.name}
-                                            </div>
-                                            <div class="text-slate-400 text-[10px]">${p.date} | ${p.balloonName}</div>
-                                        </div>
-                                        <div class="flex gap-1">
-                                            ${!isArchive ? 
-                                                `<button onclick="ui.archivePlan(${p.id})" class="text-blue-400 hover:text-blue-300 p-1 px-2 bg-slate-900/50 rounded" title="Ins Archiv verschieben"><i class="fas fa-box-archive"></i></button>` : 
-                                                `<button onclick="ui.unarchivePlan(${p.id})" class="text-green-400 hover:text-green-300 p-1 px-2 bg-slate-900/50 rounded" title="Wiederherstellen"><i class="fas fa-box-open"></i></button>`
-                                            }
-                                            <button onclick="ui.delete('${isArchive ? 'archive' : 'plannings'}', ${p.id})" class="text-red-400 hover:text-red-300 p-1 px-2 bg-slate-900/50 rounded"><i class="fas fa-trash"></i></button>
-                                        </div>
-                                    </div>
-                                `).join('')
-                            }
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div class="space-y-4">
-                            <div>
-                                <label>Bezeichnung der Planung</label>
-                                <input type="text" id="plan-name" placeholder="z.B. Morgenfahrt Alpen" class="bg-slate-800 border-slate-600 focus:border-blue-500">
-                            </div>
-                            <div>
-                                <label>Ballon wählen</label>
-                                <select id="plan-balloon" onchange="ui.selectBalloon()">
-                                    <option value="">-- Wählen --</option>
-                                    ${state.balloons.map(b => `<option value="${b.id}">${b.callsign}</option>`).join('')}
-                                </select>
-                            </div>
-                            
-                            <!-- Cylinder List -->
-                            <div>
-                                <label>Gasflaschen für diese Fahrt</label>
-                                <div class="glass-panel p-3 border border-white/5 bg-slate-900/40">
-                                    <div id="plan-cyl-list" class="space-y-2 mb-3"><div class="text-xs text-slate-500 italic">Keine Flaschen ausgewählt</div></div>
-                                    <div class="flex gap-2 pt-2 border-t border-white/10">
-                                        <select id="plan-cyl-add-select" class="text-xs bg-slate-800 border-none w-full"><option value="">+ Flasche wählen</option>${state.cylinders.map(c => `<option value="${c.id}">${c.label} (${c.type}) - ${c.gas+c.tare}kg</option>`).join('')}</select>
-                                        <button onclick="ui.addPlanCylinder()" class="bg-blue-600 px-3 rounded text-xs hover:bg-blue-500 shrink-0"><i class="fas fa-plus"></i></button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label>Passagiere wählen</label>
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 border border-white/5 rounded" id="plan-pax">
-                                    ${state.passengers.sort((a,b) => (a.flights||0) - (b.flights||0)).map(p => {
-                                        const isFlown = p.flights > 0;
-                                        const badge = isFlown ? `<span class="text-green-400 text-[9px] ml-1">✓ ${p.flights}</span>` : '';
-                                        return `<label class="flex items-center gap-2 bg-slate-800 p-2 rounded text-[10px] hover:bg-slate-700 cursor-pointer ${isFlown ? 'opacity-75' : ''}"><input type="checkbox" value="${p.id}" onchange="ui.recalcWB()" class="w-4 h-4 shrink-0"> <span class="flex-1 truncate">${p.name}${badge}</span> <span class="text-slate-400">${p.weight}kg</span></label>`;
-                                    }).join('')}
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="space-y-4">
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                <div><label>Startort Temp (°C)</label><input type="number" id="plan-temp" value="15" onchange="ui.recalcWB()"></div>
-                                <div><label>Zielhöhe (m)</label><input type="number" id="plan-alt" value="1000" onchange="ui.recalcWB()"></div>
-                            </div>
-                            
-                            <div id="wb-result" class="glass-panel p-6 border-blue-500/30 border min-h-[200px] flex flex-col justify-center text-center">
-                                <div class="text-slate-500 italic">Bitte Ballon und Zuladung wählen...</div>
-                            </div>
-                            
-                            <button onclick="ui.savePlan()" id="btn-save-plan" class="bg-green-600 hover:bg-green-500 w-full py-3 rounded font-bold shadow-lg shadow-green-900/20 mt-4 transition transform active:scale-95 flex items-center justify-center gap-2">
-                                <i class="fas fa-save"></i> Planung Speichern
-                            </button>
-                        </div>
-                    </div>
-                `;
-            },
-
-            viewSettings(c) {
-                // Convert stored decimal hours to hh:mm string for input
-                const initHrs = Math.floor(state.pilot.initialHours || 0);
-                const initMins = Math.round(((state.pilot.initialHours || 0) - initHrs) * 60);
-                const initTimeStr = `${initHrs}:${initMins.toString().padStart(2, '0')}`;
-
-                c.innerHTML = `
-                    <h3 class="text-xl font-bold mb-4">Einstellungen</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <section class="space-y-4">
-                            <h4 class="font-bold text-blue-400">Pilot & System</h4>
-                            <div><label>Name des Piloten</label><input type="text" id="set-pilot-name" value="${state.pilot.name}"></div>
-                            <div class="grid grid-cols-2 gap-2">
-                                <div><label>Gewicht (kg)</label><input type="number" id="set-pilot-weight" value="${state.pilot.weight}"></div>
-                                <div><!-- Spacer --></div>
-                                <div><label>Bisherige Fahrten</label><input type="number" id="set-pilot-flights" value="${state.pilot.initialFlights || 0}" placeholder="Anzahl"></div>
-                                <div><label>Bisherige Stunden (hh:mm)</label><input type="text" id="set-pilot-hours" value="${initTimeStr}" placeholder="hh:mm"></div>
-                            </div>
-                            
-                            <div>
-                                <label>Aktueller Ballon (für Karte)</label>
-                                <select id="set-active-balloon" class="bg-slate-800 text-sm">
-                                    <option value="">-- Standard (Emoji) --</option>
-                                    ${state.balloons.map(b => `<option value="${b.id}" ${state.settings.activeBalloonId === b.id ? 'selected' : ''}>${b.callsign}</option>`).join('')}
-                                </select>
-                            </div>
-                            <div class="pt-2"><label>Gemini API Key</label><input type="password" id="set-api-key" value="${state.settings.apiKey || ''}" placeholder="AI API Key..."></div>
-                            
-                            <h4 class="font-bold text-blue-400 mt-2">Einheiten</h4>
-                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                <div><label>Höhe</label><select id="set-unit-alt"><option value="m" ${state.settings.unitAlt==='m'?'selected':''}>Meter (m)</option><option value="ft" ${state.settings.unitAlt==='ft'?'selected':''}>Fuß (ft)</option></select></div>
-                                <div><label>Speed</label><select id="set-unit-speed"><option value="kmh" ${state.settings.unitSpeed==='kmh'?'selected':''}>km/h</option><option value="kt" ${state.settings.unitSpeed==='kt'?'selected':''}>Knoten (kt)</option></select></div>
-                                <div><label>Vario</label><select id="set-unit-vario"><option value="ms" ${state.settings.unitVario==='ms'?'selected':''}>m/s</option><option value="fts" ${state.settings.unitVario==='fts'?'selected':''}>ft/s</option></select></div>
-                            </div>
-                        </section>
-                        
-                        <section class="space-y-4">
-                            <h4 class="font-bold text-blue-400">Karte & Anzeige</h4>
-                            
-                            <div>
-                                <label class="mb-2 block">Betriebsmodus</label>
-                                <div class="flex items-center justify-between bg-white/5 p-3 rounded border border-white/10">
-                                    <div class="flex flex-col">
-                                        <span class="text-sm font-bold text-white">GPS / Live-Tracking</span>
-                                        <span class="text-[10px] text-slate-400">Verwendet echte Standortdaten</span>
-                                    </div>
-                                    <label class="relative inline-flex items-center cursor-pointer">
-                                        <input type="checkbox" id="set-mode-toggle" class="sr-only peer" ${state.settings.mode === 'gps' ? 'checked' : ''}>
-                                        <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
-                                    </label>
-                                </div>
-                                <div class="text-[10px] text-slate-500 mt-1 text-right">
-                                    ${state.settings.mode === 'gps' ? 'Modus: GPS Aktiv' : 'Modus: Simulation (Training)'}
-                                </div>
-                            </div>
-
-                            <div>
-                                <label>Kartenstil</label>
-                                <select id="set-map-style">
-                                    <option value="dark" ${state.settings.mapStyle==='dark'?'selected':''}>Dark Matter (Dunkel)</option>
-                                    <option value="light" ${state.settings.mapStyle==='light'?'selected':''}>OpenStreetMap (Hell)</option>
-                                    <option value="sat" ${state.settings.mapStyle==='sat'?'selected':''}>Satellit</option>
-                                </select>
-                            </div>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                <div><label>Track Farbe</label><input type="color" id="set-track-color" value="${state.settings.trackColor}"></div>
-                                <div><label>Track Stärke (px)</label><input type="number" id="set-track-width" value="${state.settings.trackWidth}" min="1" max="10"></div>
-                            </div>
-
-                            <h4 class="font-bold text-red-400 mt-4">Datenverwaltung</h4>
-                            <div class="flex flex-col gap-2">
-                                <button onclick="system.exportData()" class="bg-slate-700 py-2 rounded text-sm">Backup Export (JSON)</button>
-                                <button onclick="system.resetData()" class="bg-red-900/40 text-red-300 py-2 rounded text-sm">Daten zurücksetzen</button>
-                            </div>
-                        </section>
-                        
-                        <div class="col-span-2 mt-4">
-                            <button onclick="ui.saveSettings()" class="bg-blue-600 w-full py-3 rounded font-bold shadow-lg shadow-blue-900/20">Einstellungen Speichern</button>
-                        </div>
-                    </div>
-                `;
-            },
-            
-            // --- WIND ENVIRONMENT EDITING ---
-            addWindLayer() { const container = document.getElementById('wind-rows'); const div = document.createElement('div'); div.className = "grid grid-cols-4 gap-2 items-center"; div.innerHTML = `<input type="number" class="wind-edit-alt" value="0" placeholder="Höhe"><input type="number" class="wind-edit-dir" value="0" placeholder="Dir"><input type="number" class="wind-edit-spd" value="0" placeholder="Knots"><button onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-300"><i class="fas fa-trash"></i></button>`; container.appendChild(div); },
-            removeWindLayer(idx) { state.windLayers.splice(idx, 1); this.render(); },
-            saveEnvironment() { const newLayers = []; const rows = document.querySelectorAll('#wind-rows > div'); rows.forEach(row => { const alt = parseFloat(row.querySelector('.wind-edit-alt').value); const dir = parseFloat(row.querySelector('.wind-edit-dir').value); const spd = parseFloat(row.querySelector('.wind-edit-spd').value); if (!isNaN(alt)) { newLayers.push({ alt, dir, speed: spd }); } }); state.windLayers = newLayers; saveState(); this.renderWind(); ui.showToast("Wetterdaten gespeichert!", "success"); },
+            // ... (rest of view functions included above) ...
         };
-        // End of ui
+        // End of ui (Merged)
 
         /**
          * INITIALIZATION
@@ -2009,7 +1879,6 @@
             simulation.init();
             flightManager.init();
             ui.init();
-            // Default setup if empty
             if (state.balloons.length === 0) {
                 state.balloons.push({ id: 'def', callsign: 'D-OAAA', volume: 3000, weight: 420, mtom: 1100, defaultCylinders: [], matrix: [[0.320, 0.280, 0.240],[0.280, 0.240, 0.200],[0.240, 0.200, 0.160],[0.200, 0.160, 0.120]], image: null });
                 saveState();
