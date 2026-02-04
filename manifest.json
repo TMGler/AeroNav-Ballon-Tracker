@@ -1,19 +1,20 @@
 {
   "name": "AeroNav Balloon Pilot",
   "short_name": "AeroNav",
+  "description": "Professionelles Cockpit-Tool für Heißluftballon-Piloten mit Navigation, Tracking und Flottenmanagement.",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#1a202c",
-  "theme_color": "#000000",
+  "background_color": "#020617",
+  "theme_color": "#020617",
   "orientation": "any",
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/2867/2867866.png",
+      "src": "icon-192.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/2867/2867866.png",
+      "src": "icon-512.png",
       "sizes": "512x512",
       "type": "image/png"
     }
