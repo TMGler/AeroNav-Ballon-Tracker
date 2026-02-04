@@ -82,7 +82,7 @@
             width: 90%;
             max-width: 600px;
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-columns: repeat(3, 1fr); 
             gap: 8px;
             padding: 8px;
             border-color: var(--accent-yellow);
@@ -116,19 +116,32 @@
             gap: 5px;
         }
 
-        .sidebar-right-content {
-            width: 80px;
+        /* Updated Wind Panel Styles */
+        #wind-panel {
+            width: 80px; /* Fixed width */
             transition: all 0.3s ease;
             overflow: hidden;
-            max-height: calc(100vh - 280px); 
+            display: flex;
+            flex-direction: column;
+        }
+        
+        #wind-content-wrapper {
+            transition: max-height 0.3s ease, opacity 0.3s ease;
+            overflow: hidden;
+            max-height: 400px; /* Max expanded height */
             opacity: 1;
         }
         
-        .sidebar-right-content.collapsed {
+        #wind-content-wrapper.collapsed {
             max-height: 0;
             opacity: 0;
-            padding: 0;
-            border: none;
+        }
+        
+        #wind-chevron {
+            transition: transform 0.3s ease;
+        }
+        #wind-chevron.collapsed {
+            transform: rotate(180deg);
         }
 
         .btn-round { width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; transition: all 0.2s; cursor: pointer; }
@@ -264,67 +277,21 @@
         input[type="color"] { padding: 0; height: 40px; }
         input:focus { border-color: var(--accent-blue) !important; outline: none; }
         label { font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px; display: block; }
-
+        
         .perf-grid input { padding: 4px; text-align: center; font-size: 0.8rem; }
-        
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
-        
-        .loader {
-            border: 2px solid rgba(255,255,255,0.1);
-            border-left-color: var(--accent-blue);
-            border-radius: 50%;
-            width: 16px;
-            height: 16px;
-            animation: spin 1s linear infinite;
-            display: inline-block;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-        /* Toast Notifications */
-        .toast-notification {
-            position: fixed;
-            top: 90px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(16, 185, 129, 0.95);
-            color: white;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            z-index: 5000;
-            opacity: 0;
-            transition: opacity 0.5s ease-in-out, transform 0.5s ease;
-            pointer-events: none;
-            backdrop-filter: blur(4px);
-            border: 1px solid rgba(255,255,255,0.2);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .toast-notification.visible {
-            opacity: 1;
-            transform: translateX(-50%) translateY(10px);
-        }
-        .toast-notification.error {
-            background: rgba(239, 68, 68, 0.95);
-        }
 
         /* --- MOBILE OPTIMIZATIONS --- */
         @media (max-width: 640px) {
             .hud-top { width: 98%; top: 5px; padding: 6px 4px; gap: 2px; }
-            .hud-num { font-size: 1.1rem; }
-            .hud-label { font-size: 0.55rem; }
-            .hud-nav { top: 60px; width: 98%; grid-template-columns: 1fr 1fr 1fr; gap: 4px; padding: 6px; }
-            .hud-nav .hud-num { font-size: 0.9rem; }
+            .hud-num { font-size: 1.4rem; }
+            .hud-label { font-size: 0.7rem; }
+            .hud-nav { top: 75px; width: 98%; gap: 4px; padding: 6px; }
+            .hud-nav .hud-num { font-size: 1.2rem; }
             .modal-content { width: 100%; height: 100%; min-height: 100vh; border-radius: 0; border: none; margin: 0; padding: 15px; }
             .sidebar-left { left: 5px; bottom: 20px; gap: 8px; }
-            .sidebar-right-container { right: 5px; top: 75px; }
+            .status-area { top: 5px; right: 0; }
+            .sidebar-right-container { top: 170px; right: 5px; }
             .btn-round { width: 44px; height: 44px; font-size: 1rem; }
-            #status-badges { right: 60px; top: 75px; }
             .toast-notification { top: 70px; }
         }
     </style>
@@ -332,8 +299,20 @@
 <body>
 
     <div id="map"></div>
+    
+    <!-- Fullscreen Loading Overlay for Report Gen -->
+    <div id="loading-overlay" class="fixed inset-0 z-[6000] bg-slate-900/95 flex flex-col items-center justify-center hidden backdrop-blur-sm">
+        <div class="loader mb-4" style="width: 40px; height: 40px; border-width: 4px;"></div>
+        <div class="text-white font-bold text-lg">Erstelle Bericht...</div>
+        <div class="text-slate-400 text-sm">Bitte warten, Karte wird gerendert</div>
+    </div>
+    
+    <!-- Photo View Overlay -->
+    <div id="photo-overlay" onclick="this.style.display='none'">
+        <img id="photo-overlay-img" src="">
+    </div>
 
-    <!-- Hidden Input for Photo Capture -->
+    <!-- Hidden Inputs -->
     <input type="file" id="cam-input" accept="image/*" capture="environment" class="hidden" onchange="flightManager.handlePhotoInput(this)">
     <input type="file" id="import-input" accept=".json" class="hidden" onchange="system.importData(this)">
 
@@ -359,7 +338,7 @@
 
     <!-- STATUS AREA (Right Edge) -->
     <div class="status-area">
-        <div id="sb-rec" class="status-badge hidden red" onclick="this.classList.toggle('active')">
+        <div id="sb-rec" class="status-badge red hidden" onclick="this.classList.toggle('active')">
              <i class="fas fa-circle text-[8px]"></i> <span>REC</span>
         </div>
         <div id="sb-gps" class="status-badge blue" onclick="this.classList.toggle('active')">
@@ -385,7 +364,23 @@
             <div class="hud-num" id="nav-ete">--:--</div>
         </div>
         
+        <!-- Collapse Button -->
+        <button onclick="document.getElementById('hud-nav').classList.toggle('opacity-50')" class="absolute -left-3 top-1/2 -translate-y-1/2 bg-slate-800 text-slate-400 hover:text-white rounded-full w-6 h-6 flex items-center justify-center text-xs shadow border border-white/20" title="Dimmen"><i class="fas fa-adjust"></i></button>
+
+        <button onclick="aiService.getNavigationAdvice()" id="btn-ai-nav" class="absolute -right-2 top-8 bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-xs shadow border border-white/20" title="KI Ratschlag"><i class="fas fa-magic"></i></button>
         <button onclick="ui.clearTarget()" class="absolute -right-2 -top-2 bg-slate-800 text-slate-400 hover:text-white rounded-full w-6 h-6 flex items-center justify-center text-xs shadow border border-white/20"><i class="fas fa-times"></i></button>
+    </div>
+
+    <!-- AI NAV ADVICE OVERLAY -->
+    <div id="ai-nav-overlay">
+        <div class="flex justify-between items-start mb-2">
+            <h4 class="text-blue-400 font-bold text-xs uppercase flex items-center gap-2"><i class="fas fa-robot"></i> AeroNav AI</h4>
+            <button onclick="document.getElementById('ai-nav-overlay').style.display='none'" class="text-slate-400 hover:text-white"><i class="fas fa-times"></i></button>
+        </div>
+        <div id="ai-nav-content" class="text-sm text-white font-mono leading-relaxed">
+            Berechne Route...
+        </div>
+        <div class="text-[10px] text-slate-500 mt-2 text-right" id="ai-nav-time"></div>
     </div>
 
     <!-- TOAST CONTAINER -->
@@ -421,31 +416,24 @@
 
     <!-- SIDEBAR RIGHT (Wind) -->
     <div class="sidebar-right-container">
-        <button id="btn-wind-toggle" class="btn-small-toggle glass-panel text-blue-400" title="Windanzeige umschalten">
-            <i class="fas fa-wind"></i>
-        </button>
-        <div id="wind-panel" class="sidebar-right-content glass-panel p-2 flex flex-col gap-1 overflow-y-auto">
-            <div class="flex justify-between items-center border-b border-white/10 mb-1 pb-1">
-                <span class="text-[0.6rem] uppercase text-slate-400">Wind</span>
-                <div class="flex gap-1">
-                    <button onclick="weatherService.fetchLiveWind()" class="text-[0.6rem] text-green-400 hover:text-white" title="Live-Daten laden"><i class="fas fa-sync-alt"></i></button>
-                    <button onclick="ui.editWindSettings()" class="text-[0.6rem] text-blue-400 hover:text-white" title="Wind bearbeiten"><i class="fas fa-pen"></i></button>
+        <!-- Unified Wind Panel -->
+        <div id="wind-panel" class="glass-panel">
+            <!-- Header with integrated Toggle -->
+            <div class="flex justify-between items-center p-2 cursor-pointer border-b border-white/10" onclick="ui.toggleWindPanel()">
+                <i class="fas fa-wind text-blue-400 text-lg"></i>
+                <i class="fas fa-chevron-up text-[10px] text-slate-500 transition-transform duration-300" id="wind-chevron"></i>
+            </div>
+            
+            <!-- Collapsible Content -->
+            <div id="wind-content-wrapper" class="overflow-hidden transition-all duration-300" style="max-height: 400px;">
+                <div class="p-1 border-b border-white/5 flex justify-around bg-slate-800/30">
+                     <button onclick="event.stopPropagation(); weatherService.fetchLiveWind()" class="text-[0.65rem] text-green-400 hover:text-white flex flex-col items-center"><i class="fas fa-sync-alt mb-0.5"></i>Live</button>
+                     <button onclick="event.stopPropagation(); ui.editWindSettings()" class="text-[0.65rem] text-blue-400 hover:text-white flex flex-col items-center"><i class="fas fa-pen mb-0.5"></i>Edit</button>
+                </div>
+                <div id="wind-layers-container" class="p-2 flex flex-col gap-1 max-h-60 overflow-y-auto">
+                    <!-- Layers will be injected here -->
                 </div>
             </div>
-            <div id="wind-layers-container"></div>
-        </div>
-    </div>
-
-    <!-- SIMULATION PANEL -->
-    <div id="sim-panel" class="absolute bottom-8 left-1/2 -translate-x-1/2 z-[1000] hidden glass-panel px-6 py-3 flex items-center gap-4 border border-white/10 shadow-2xl">
-        <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider border-r border-white/10 pr-3">Sim Control</div>
-        <div class="flex gap-3">
-            <button onclick="simulation.adjustAltitude(-50)" class="bg-red-600/90 hover:bg-red-500 text-white px-4 py-2 rounded-lg font-bold shadow-lg transition transform active:scale-95 text-sm flex items-center gap-2">
-                <i class="fas fa-arrow-down"></i> 50m
-            </button>
-            <button onclick="simulation.adjustAltitude(50)" class="bg-blue-600/90 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-bold shadow-lg transition transform active:scale-95 text-sm flex items-center gap-2">
-                <i class="fas fa-arrow-up"></i> 50m
-            </button>
         </div>
     </div>
 
@@ -453,13 +441,9 @@
     <div id="main-modal" class="overlay">
         <div class="modal-content glass-panel p-6">
             <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold flex items-center gap-2">
-                    <i class="fas fa-parachute-box text-blue-400"></i> AeroNav Control
-                </h2>
+                <h2 class="text-2xl font-bold flex items-center gap-2">AeroNav Control</h2>
                 <button onclick="ui.closeModal()" class="text-3xl opacity-50 hover:opacity-100">&times;</button>
             </div>
-
-            <!-- Tabs -->
             <div class="flex border-b border-white/10 mb-6 overflow-x-auto whitespace-nowrap scrollbar-hide">
                 <button class="tab-btn active" onclick="ui.switchTab('planning')">Planung</button>
                 <button class="tab-btn" onclick="ui.switchTab('fleet')">Flotte</button>
@@ -469,8 +453,6 @@
                 <button class="tab-btn" onclick="ui.switchTab('environment')">Wetter/Wind</button>
                 <button class="tab-btn" onclick="ui.switchTab('settings')">Einstellungen</button>
             </div>
-
-            <!-- Tab Content -->
             <div id="tab-content" class="flex-grow overflow-y-auto pr-2"></div>
         </div>
     </div>
@@ -512,11 +494,30 @@
                 mode: 'sim', 
                 activeBalloonId: null,
                 windThreshold: 5,
-                imageRetention: 30
+                imageRetention: 30,
+                useUTC: false
             }
         };
 
-        if(!state.settings.imageRetention) state.settings.imageRetention = 30;
+        // Migration logic
+        if(!state.settings.unitVario) state.settings.unitVario = 'ms';
+        if(!state.settings.trackColor) state.settings.trackColor = '#3b82f6';
+        if(!state.settings.trackWidth) state.settings.trackWidth = 4;
+        if(!state.settings.mapStyle) state.settings.mapStyle = 'dark';
+        if(!state.settings.mode) state.settings.mode = 'sim';
+        if(!state.measuredWindLayers) state.measuredWindLayers = [];
+        if(state.settings.activeBalloonId === undefined) state.settings.activeBalloonId = null;
+        if(!state.plannings) state.plannings = [];
+        if(!state.archive) state.archive = [];
+        if(state.pilot.initialFlights === undefined) state.pilot.initialFlights = 0;
+        if(state.pilot.initialHours === undefined) state.pilot.initialHours = 0;
+        if(state.activeWaypointId) delete state.activeWaypointId;
+        if(state.targetWaypoint === undefined) state.targetWaypoint = null;
+        if(state.waypointLocked === undefined) state.waypointLocked = false;
+        if(state.waypoints) delete state.waypoints; 
+        if(state.settings.windThreshold === undefined) state.settings.windThreshold = 5;
+        if(state.settings.imageRetention === undefined) state.settings.imageRetention = 30;
+        if(state.settings.useUTC === undefined) state.settings.useUTC = false;
 
         function saveState() {
             try {
@@ -578,30 +579,63 @@
          */
         const aiService = {
             async getNavigationAdvice() {
-                if (!state.settings.apiKey) { ui.showToast("Kein API Key!", "error"); return; }
-                if (!state.targetWaypoint) { ui.showToast("Kein Ziel!", "error"); return; }
+                if (!state.settings.apiKey) { ui.showToast("Kein API Key in Einstellungen!", "error"); return; }
+                if (!state.targetWaypoint) { ui.showToast("Kein Ziel gesetzt!", "error"); return; }
+
                 const overlay = document.getElementById('ai-nav-overlay');
                 const content = document.getElementById('ai-nav-content');
                 const time = document.getElementById('ai-nav-time');
                 
                 overlay.style.display = 'block';
-                content.innerHTML = '<div class="loader"></div> Berechne...';
-                
-                const winds = [...state.windLayers, ...state.measuredWindLayers].sort((a,b)=>a.alt-b.alt);
+                content.innerHTML = '<div class="loader"></div> Berechne Wind-Vektoren...';
+
+                // Construct Prompt Data
                 const currentPos = { lat: simulation.lat, lng: simulation.lng, alt: simulation.alt };
-                const brg = getBearing(currentPos.lat, currentPos.lng, state.targetWaypoint.lat, state.targetWaypoint.lng);
+                const target = state.targetWaypoint;
+                const bearingToTarget = getBearing(currentPos.lat, currentPos.lng, target.lat, target.lng);
+                const distanceToTarget = getDistance(currentPos.lat, currentPos.lng, target.lat, target.lng);
                 
-                const prompt = `Du bist Ballon-CoPilot. Zielkurs: ${Math.round(brg)}°. Windschichten: ${winds.map(w=>w.alt+'m:'+w.dir+'°').join(', ')}. Aktuelle Höhe: ${Math.round(currentPos.alt)}m. Gib extrem kurze Anweisung (max 12 Wörter), auf welche Höhe man steigen/sinken sollte.`;
+                // Prioritize Measured Winds
+                const winds = [...state.windLayers];
+                state.measuredWindLayers.forEach(m => {
+                    const idx = winds.findIndex(w => Math.abs(w.alt - m.alt) < 25);
+                    if (idx >= 0) winds[idx] = m; else winds.push(m);
+                });
+                
+                const promptText = `
+                    Du bist Co-Pilot in einem Heißluftballon. Gib eine kurze, präzise Anweisung an den Piloten.
+                    
+                    Aktuelle Lage:
+                    - Position: ${currentPos.lat.toFixed(4)}, ${currentPos.lng.toFixed(4)}
+                    - Höhe: ${Math.round(currentPos.alt)}m
+                    - Ziel-Peilung (Soll-Kurs): ${Math.round(bearingToTarget)}°
+                    - Distanz zum Ziel: ${distanceToTarget.toFixed(1)} km
+                    
+                    Verfügbare Windschichten (Höhe -> Richtung):
+                    ${winds.sort((a,b)=>a.alt-b.alt).map(w => `- ${w.alt}m: ${w.dir}°`).join('\n')}
+                    
+                    Aufgabe:
+                    Welche Höhe ist am besten, um dem Zielkurs (${Math.round(bearingToTarget)}°) am nächsten zu kommen?
+                    Antworte extrem kurz (max 15 Wörter) im Format: "Steige/Sinke auf X m (Wind Y°)." oder "Bleibe auf aktueller Höhe."
+                `;
 
                 try {
-                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${state.settings.apiKey}`, {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${state.settings.apiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
                     });
-                    const data = await res.json();
-                    content.innerText = data.candidates?.[0]?.content?.parts?.[0]?.text || "Keine Antwort.";
+                    
+                    const result = await response.json();
+                    const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "Keine Antwort.";
+                    
+                    content.innerHTML = text;
                     time.innerText = "Stand: " + new Date().toLocaleTimeString();
-                } catch (e) { content.innerText = "Fehler."; }
+
+                } catch (e) {
+                    content.innerText = "Fehler bei AI Anfrage.";
+                    console.error(e);
+                }
             }
         };
 
@@ -633,27 +667,22 @@
                 const mode = state.settings.mode;
                 const simPanel = document.getElementById('sim-panel');
                 const badgeGPS = document.getElementById('sb-gps');
-                const badgeGPStext = document.getElementById('sb-gps-text');
 
-                if (!simPanel || !badgeGPS || !badgeGPStext) return;
+                if (!simPanel || !badgeGPS) return; // Prevent null error if DOM not ready
 
                 if (mode === 'gps') {
                     simPanel.classList.add('hidden'); 
                     badgeGPS.classList.remove('hidden');
-                    
                     badgeGPS.classList.remove('blue', 'green'); 
                     badgeGPS.classList.add('red');
-                    
-                    badgeGPStext.innerText = "NO GPS";
+                    document.getElementById('sb-gps-text').innerText = "NO GPS";
                     this.startGPS();
                 } else {
                     simPanel.classList.remove('hidden');
                     badgeGPS.classList.remove('hidden');
-                    badgeGPStext.innerText = "SIMULATION";
-                    
+                    document.getElementById('sb-gps-text').innerText = "SIMULATION";
                     badgeGPS.classList.remove('red', 'green');
                     badgeGPS.classList.add('blue');
-                    
                     this.stopGPS();
                 }
             },
@@ -1143,6 +1172,8 @@
                     const distKm = getDistance(simulation.lat, simulation.lng, wp.lat, wp.lng);
                     const bearing = getBearing(simulation.lat, simulation.lng, wp.lat, wp.lng);
                     document.getElementById('hud-nav').classList.remove('hidden');
+                    // Removed target name as requested
+                    // document.getElementById('nav-target-name').innerText = 'Ziel'; 
                     document.getElementById('nav-brg').innerText = Math.round(bearing);
                     if (state.settings.unitAlt === 'ft') { 
                         const distNm = distKm * 0.539957;
@@ -1173,16 +1204,34 @@
 
         const ui = {
             tab: 'planning', editingId: null, editingPlanId: null, planningMode: 'active', toastTimeout: null,
-            init() { document.getElementById('btn-settings').onclick = () => this.openModal(); document.getElementById('btn-wind-toggle').onclick = () => this.toggleWindPanel(); this.renderWind(); this.updateLockBtn(); },
+            init() { document.getElementById('btn-settings').onclick = () => this.openModal(); this.renderWind(); this.updateLockBtn(); },
+            
+            formatTime(isoString) {
+                const date = new Date(isoString);
+                if (state.settings.useUTC) {
+                    const h = date.getUTCHours().toString().padStart(2, '0');
+                    const m = date.getUTCMinutes().toString().padStart(2, '0');
+                    return `${h}:${m} (UTC)`;
+                }
+                return date.toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'});
+            },
+
             showToast(msg, type = 'success') {
                 let t = document.getElementById('toast-msg'); if(!t) { const container = document.getElementById('toast-container'); t = document.createElement('div'); t.id = 'toast-msg'; t.className = 'toast-notification'; container.appendChild(t); }
                 let icon = type === 'error' ? '<i class="fas fa-exclamation-circle"></i>' : '<i class="fas fa-check-circle"></i>'; t.innerHTML = `${icon} <span>${msg}</span>`; t.className = 'toast-notification visible ' + (type === 'error' ? 'error' : ''); if(this.toastTimeout) clearTimeout(this.toastTimeout); this.toastTimeout = setTimeout(() => { t.classList.remove('visible'); }, 3000);
             },
+            
+            toggleWindPanel() {
+                const wrapper = document.getElementById('wind-content-wrapper');
+                const chevron = document.getElementById('wind-chevron');
+                wrapper.classList.toggle('collapsed');
+                chevron.classList.toggle('collapsed');
+            },
+            
             toggleWaypointLock() { state.waypointLocked = !state.waypointLocked; saveState(); this.updateLockBtn(); this.showToast(state.waypointLocked ? "Wegpunkt gesperrt" : "Wegpunkt entsperrt"); },
             updateLockBtn() { const btn = document.getElementById('btn-waypoint-lock'); const icon = document.getElementById('icon-wp-lock'); if (state.waypointLocked) { btn.classList.add('locked'); icon.className = 'fas fa-lock'; } else { btn.classList.remove('locked'); icon.className = 'fas fa-lock-open'; } },
             setTarget(latlng) { if (state.waypointLocked) { this.showToast("Wegpunkt ist gesperrt!", "error"); return; } state.targetWaypoint = { lat: latlng.lat, lng: latlng.lng }; saveState(); mapManager.renderTarget(); this.showToast("Ziel gesetzt", "success"); flightManager.updateHUD(simulation.getCurrentState()); },
             clearTarget() { if (state.waypointLocked) { this.showToast("Wegpunkt ist gesperrt!", "error"); return; } state.targetWaypoint = null; saveState(); mapManager.renderTarget(); document.getElementById('hud-nav').classList.add('hidden'); this.showToast("Navigation beendet"); },
-            toggleWindPanel() { document.getElementById('wind-panel').classList.toggle('collapsed'); },
             editWindSettings() { this.openModal(); this.switchTab('environment'); },
             openModal() { document.getElementById('main-modal').style.display = 'flex'; this.switchTab(this.tab); },
             closeModal() { document.getElementById('main-modal').style.display = 'none'; },
@@ -1370,7 +1419,14 @@
             saveCylinder() { const data = { id: this.editingId === 'new' ? Date.now().toString() : this.editingId, label: document.getElementById('f-label').value, type: document.getElementById('f-type').value, sn: document.getElementById('f-sn').value, tare: parseFloat(document.getElementById('f-tare').value), gas: parseFloat(document.getElementById('f-gas').value), tuv: document.getElementById('f-tuv').value }; if (this.editingId === 'new') state.cylinders.push(data); else state.cylinders = state.cylinders.map(x => x.id === this.editingId ? data : x); saveState(); this.switchTab('cylinders'); },
             savePassenger() { const data = { id: this.editingId === 'new' ? Date.now().toString() : this.editingId, name: document.getElementById('f-name').value, weight: parseFloat(document.getElementById('f-p-weight').value), gender: document.getElementById('f-gender').value, phone: document.getElementById('f-phone').value }; if (this.editingId === 'new') state.passengers.push(data); else state.passengers = state.passengers.map(x => x.id === this.editingId ? data : x); saveState(); this.switchTab('passengers'); },
             saveLogManual() { const date = document.getElementById('f-l-date').value; state.logs.push({ id: Date.now(), start: date + "T" + document.getElementById('f-l-start').value, end: date + "T" + document.getElementById('f-l-end').value, balloon: document.getElementById('f-l-balloon').value, notes: document.getElementById('f-l-notes').value, track: [] }); saveState(); this.switchTab('logbook'); },
-            delete(collection, id) { if (confirm("Löschen?")) { state[collection] = state[collection].filter(x => x.id != id); saveState(); this.render(); } },
+            delete(collection, id) { 
+                if (confirm("Löschen?")) { 
+                    // Handle numeric vs string IDs safely
+                    state[collection] = state[collection].filter(x => x.id != id); 
+                    saveState(); 
+                    this.render(); 
+                } 
+            },
 
             saveSettings(silent = false) {
                 state.pilot.name = document.getElementById('set-pilot-name').value;
@@ -1394,6 +1450,7 @@
                 state.settings.mode = modeToggle.checked ? 'gps' : 'sim';
                 state.settings.windThreshold = parseFloat(document.getElementById('set-wind-threshold')?.value) || 5;
                 state.settings.imageRetention = parseInt(document.getElementById('set-image-retention')?.value) || 30;
+                state.settings.useUTC = document.getElementById('set-use-utc').checked;
                 
                 saveState();
                 mapManager.updateTrackStyle();
@@ -1506,7 +1563,10 @@
                         const colorClass = layer.isMeasured ? 'text-green-400 font-bold' : 'text-blue-300';
                         const labelClass = layer.isMeasured ? 'text-green-400' : '';
                         const arrowClass = layer.isMeasured ? 'compass-arrow arrow-green' : 'compass-arrow';
-                        const activeClass = (Math.abs(layer.alt - simulation.alt) < 25) ? 'active-altitude' : '';
+
+                        // HIGHLIGHT CURRENT ALTITUDE
+                        const isCurrentAlt = Math.abs(layer.alt - simulation.alt) < 25;
+                        const activeClass = isCurrentAlt ? 'active-altitude' : '';
 
                         const div = document.createElement('div'); 
                         div.className = `wind-layer ${activeClass}`; 
@@ -1747,6 +1807,10 @@
                     const addBtn = editMode ? `<button onclick="ui.addLogCylinder(${log.id})" class="text-[10px] bg-slate-700 px-1.5 py-0.5 rounded text-blue-300 hover:text-white">+</button>` : '';
                     return (list || (log.cylinders.length === 0 ? '<span class="text-xs text-slate-600 italic">Keine Flaschen</span>' : '')) + addBtn;
                 };
+                
+                // Add times
+                const startStr = ui.formatTime(log.start);
+                const endStr = ui.formatTime(log.end);
 
                 c.innerHTML = `
                     <div id="flight-summary-view" class="max-w-2xl mx-auto bg-slate-900 p-0 rounded-xl border border-white/10 overflow-hidden relative">
@@ -1769,6 +1833,11 @@
                              <div class="absolute top-3 right-4 text-right">
                                  <div class="text-[10px] text-slate-300 uppercase tracking-wider">Dauer</div>
                                  <div class="font-mono text-lg font-bold">${hrs}h ${mins}m</div>
+                             </div>
+                             
+                             <!-- Start/End Time Display -->
+                             <div class="absolute bottom-3 right-4 text-right text-[10px] text-slate-300 bg-slate-900/50 px-2 py-1 rounded">
+                                 ${startStr} - ${endStr}
                              </div>
                         </div>
 
@@ -1832,24 +1901,25 @@
                 setTimeout(() => {
                     const el = document.getElementById('summary-map-container');
                     if(el) {
-                        el.innerHTML = ''; 
+                        el.innerHTML = '<div id="summary-map-inner" style="width:100%;height:100%;"></div>'; 
                         // Use Configured Map Style for Summary
                         const style = state.settings.mapStyle || 'dark';
                         let tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
                         if (style === 'light') tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
                         if (style === 'sat') tileUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 
-                        const smap = L.map(el, { zoomControl: false, attributionControl: false });
+                        const smap = L.map('summary-map-inner', { zoomControl: false, attributionControl: false });
                         L.tileLayer(tileUrl).addTo(smap);
                         
                         if (log.track && log.track.length > 0) {
                             const poly = L.polyline(log.track, { color: '#ef4444', weight: 4 }).addTo(smap);
+                            smap.invalidateSize();
                             smap.fitBounds(poly.getBounds(), { padding: [20, 20] });
                         } else {
                             smap.setView([51.1657, 10.4515], 6);
                         }
                     }
-                }, 100);
+                }, 200);
             },
 
             // --- Logbook Editing Helpers ---
@@ -1951,8 +2021,8 @@
                 const hrs = Math.floor(durMs / 3600000);
                 const mins = Math.floor((durMs % 3600000) / 60000);
                 const dateStr = new Date(log.start).toLocaleDateString('de-DE');
-                const startStr = new Date(log.start).toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'});
-                const endStr = new Date(log.end).toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'});
+                const startStr = ui.formatTime(log.start);
+                const endStr = ui.formatTime(log.end);
                 
                 const reportDiv = document.getElementById('report-stage');
                 reportDiv.style.visibility = 'visible'; // Make visible for render
@@ -2082,17 +2152,22 @@
         const system = {
             exportData() {
                 const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
-                const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'aeronav_backup.json'; a.click();
+                const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `aeronav_backup_${new Date().toISOString().slice(0,10)}.json`; 
+                document.body.appendChild(a); a.click(); document.body.removeChild(a);
             },
-            triggerImport() { document.getElementById('import-input').click(); },
+            triggerImport() { const el = document.getElementById('import-input'); el.value = null; el.click(); },
             importData(input) {
                 if (input.files && input.files[0]) {
                     const reader = new FileReader();
                     reader.onload = e => {
                         try {
                             const data = JSON.parse(e.target.result);
-                            if (data.pilot) { state = data; saveState(); alert("Import erfolgreich!"); location.reload(); }
-                        } catch (err) { alert("Format-Fehler!"); }
+                            if (data.pilot) { 
+                                localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); 
+                                alert("Daten erfolgreich importiert! App wird neu geladen."); 
+                                location.reload(); 
+                            } else { alert("Ungültiges Backup-Format."); }
+                        } catch (err) { alert("Fehler beim Lesen der Datei: " + err.message); }
                     };
                     reader.readAsText(input.files[0]);
                 }
