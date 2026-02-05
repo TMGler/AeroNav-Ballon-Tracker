@@ -105,7 +105,7 @@
             position: absolute; 
         }
 
-        /* Toggle Button Wrapper - Always absolute inside container */
+        /* Toggle Button Wrapper */
         #btn-top-toggle-wrapper {
             position: absolute;
             left: 0;
@@ -168,14 +168,12 @@
         }
 
         /* --- TOGGLE ICONS ROTATION --- */
-        /* Applies to all toggle icons: Top, Nav, Wind */
         #icon-top-hud-toggle, 
         #icon-nav-hud-toggle, 
         #icon-wind-toggle {
             transition: transform 0.3s ease;
         }
         
-        /* Rotated state for all icons */
         #icon-top-hud-toggle.collapsed, 
         #icon-nav-hud-toggle.collapsed, 
         #icon-wind-toggle.collapsed {
@@ -879,12 +877,19 @@
                 this.vario = diff * 0.08;
                 this.alt += this.vario;
                 const wind = this.getWindAtAlt(this.alt);
-                this.course = wind.dir;
+                
+                // Wind blows TO direction (From + 180)
+                this.course = (wind.dir + 180) % 360;
                 this.speed = wind.speed; 
+                
                 const moveScale = this.speed * 0.000005;
-                const rad = (this.course - 90) * (Math.PI / 180);
-                this.lat += Math.sin(rad) * moveScale;
-                this.lng += Math.cos(rad) * moveScale;
+                
+                // Standard Compass to Trig: 
+                // 0 deg (N) -> dy+, dx0. cos(0)=1, sin(0)=0.
+                // 90 deg (E) -> dy0, dx+. cos(90)=0, sin(90)=1.
+                this.lat += Math.cos(toRad(this.course)) * moveScale;
+                this.lng += Math.sin(toRad(this.course)) * moveScale;
+
                 flightManager.updateHUD(this.getCurrentState());
             },
 
@@ -1373,7 +1378,7 @@
         };
 
         const ui = {
-            tab: 'planning', editingId: null, editingPlanId: null, planningMode: 'active', toastTimeout: null,
+            tab: 'planning', editingId: null, editingPlanId: null, planningMode: 'active', passengerMode: 'active', toastTimeout: null,
             init() { document.getElementById('btn-settings').onclick = () => this.openModal(); this.renderWind(); this.updateLockBtn(); },
             
             formatTime(isoString) {
@@ -1393,8 +1398,7 @@
             
             toggleWindPanel() {
                 const wrapper = document.getElementById('wind-content-wrapper');
-                const chevron = document.getElementById('icon-wind-toggle'); // Corrected ID
-                // const container = document.getElementById('sidebar-right-container'); // Not used currently
+                const chevron = document.getElementById('icon-wind-toggle'); 
                 if (wrapper) wrapper.classList.toggle('collapsed');
                 if (chevron) chevron.classList.toggle('collapsed');
             },
@@ -1407,7 +1411,6 @@
                 hud.classList.toggle('minimized');
                 container.classList.toggle('docked');
                 
-                // Rotation logic handled via CSS class 'collapsed'
                 btnIcon.classList.toggle('collapsed', hud.classList.contains('minimized'));
             },
 
@@ -1419,7 +1422,6 @@
                 nav.classList.toggle('minimized'); 
                 container.classList.toggle('docked');
                 
-                // Rotation logic handled via CSS class 'collapsed'
                 btnIcon.classList.toggle('collapsed', nav.classList.contains('minimized'));
             },
             
@@ -1440,17 +1442,344 @@
             },
             
             switchTab(t) { this.tab = t; this.editingId = null; document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.onclick.toString().includes(`'${t}'`))); this.render(); },
-            render() { const c = document.getElementById('tab-content'); c.innerHTML = ''; if (this.editingId) { this.renderForm(c); return; } switch(this.tab) { case 'planning': this.viewPlanning(c); break; case 'fleet': this.viewFleet(c); break; case 'cylinders': this.viewCylinders(c); break; case 'passengers': this.viewPassengers(c); break; case 'logbook': this.viewLogbook(c); break; case 'settings': this.viewSettings(c); break; case 'environment': this.viewEnvironment(c); break; } },
             
-            // ... existing view functions (viewFleet, viewCylinders etc) remain same ...
+            render() { 
+                const c = document.getElementById('tab-content'); 
+                c.innerHTML = ''; 
+                if (this.editingId) { 
+                    this.renderForm(c); 
+                    return; 
+                } 
+                switch(this.tab) { 
+                    case 'planning': this.viewPlanning(c); break; 
+                    case 'fleet': this.viewFleet(c); break; 
+                    case 'cylinders': this.viewCylinders(c); break; 
+                    case 'passengers': this.viewPassengers(c); break; 
+                    case 'logbook': this.viewLogbook(c); break; 
+                    case 'settings': this.viewSettings(c); break; 
+                    case 'environment': this.viewEnvironment(c); break; 
+                } 
+            },
+            
+            renderWind() { 
+                const container = document.getElementById('wind-layers-container'); 
+                if(!container) return;
+                container.innerHTML = ''; 
+                
+                const isKmh = state.settings.unitSpeed === 'kmh';
+                const unitLabel = isKmh ? 'km/h' : 'kt';
+                const threshold = state.settings.windThreshold || 5;
+
+                const layerMap = new Map();
+                
+                state.windLayers.forEach(l => layerMap.set(l.alt, { ...l, isMeasured: false }));
+                
+                if (state.measuredWindLayers) {
+                    state.measuredWindLayers.forEach(l => layerMap.set(l.alt, { ...l, isMeasured: true }));
+                }
+
+                const sortedLayers = Array.from(layerMap.values()).sort((a, b) => b.alt - a.alt);
+
+                let lastKeptDir = null;
+                
+                sortedLayers.forEach((layer, index) => {
+                    let keep = false;
+                    
+                    if (index === 0) keep = true;
+                    else if (layer.isMeasured) keep = true;
+                    else {
+                        if (lastKeptDir === null) {
+                            keep = true;
+                        } else {
+                            let diff = Math.abs(layer.dir - lastKeptDir);
+                            if (diff > 180) diff = 360 - diff;
+                            if (diff >= threshold) keep = true;
+                        }
+                    }
+
+                    if (keep) {
+                        let speed = layer.speed;
+                        if (isKmh) speed *= 1.852; 
+
+                        const colorClass = layer.isMeasured ? 'text-green-400 font-bold' : 'text-blue-300';
+                        const labelClass = layer.isMeasured ? 'text-green-400' : '';
+                        const arrowClass = layer.isMeasured ? 'compass-arrow arrow-green' : 'compass-arrow';
+
+                        const isCurrentAlt = Math.abs(layer.alt - simulation.alt) < 25;
+                        const activeClass = isCurrentAlt ? 'active-altitude' : '';
+
+                        const div = document.createElement('div'); 
+                        div.className = `wind-layer ${activeClass}`; 
+                        div.dataset.alt = layer.alt; 
+                        div.innerHTML = `<div class="${colorClass}">${layer.alt}m</div><div class="${arrowClass}" style="transform: rotate(${layer.dir}deg)"></div><div class="${labelClass}">${speed.toFixed(1)}${unitLabel}</div>`; 
+                        container.appendChild(div);
+                        
+                        lastKeptDir = layer.dir;
+                    }
+                });
+            },
+
+            // --- FORM RENDERING & HELPERS ---
+            edit(id) { this.editingId = id; this.render(); },
+            renderForm(c) {
+                if (this.tab === 'fleet') this.formBalloon(c);
+                if (this.tab === 'cylinders') this.formCylinder(c);
+                if (this.tab === 'passengers') this.formPassenger(c);
+                if (this.tab === 'logbook') this.formLogManual(c);
+            },
+            
+            formBalloon(c) {
+                const b = state.balloons.find(x => x.id === this.editingId) || { callsign: "", volume: 3000, weight: 400, mtom: 1100, defaultCylinders: [], matrix: [[0.320, 0.280, 0.240],[0.280, 0.240, 0.200],[0.240, 0.200, 0.160],[0.200, 0.160, 0.120]], image: null };
+                const defCyls = b.defaultCylinders || [];
+                // Helper to render default cylinder list items
+                const renderDefaultList = () => defCyls.map(id => { 
+                    const cyl = state.cylinders.find(cx => cx.id === id); 
+                    if (!cyl) return ''; 
+                    return `<div class="flex justify-between items-center bg-slate-800 p-2 rounded mb-1 text-xs default-cyl-item" data-id="${id}"><span>${cyl.label} (${cyl.type})</span> <button onclick="ui.removeEditCylinder(this)" class="text-red-400 hover:text-red-300"><i class="fas fa-times"></i></button></div>`; 
+                }).join('');
+
+                c.innerHTML = `
+                    <h3 class="text-xl font-bold mb-4">${this.editingId === 'new' ? 'Neuer Ballon' : 'Ballon bearbeiten'}</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="space-y-4">
+                            <div><label>Kennung</label><input type="text" id="f-callsign" value="${b.callsign}" placeholder="z.B. D-OAAA"></div>
+                            
+                            <!-- Bild Upload -->
+                            <div>
+                                <label>Ballon Bild (für Karte)</label>
+                                <div class="flex items-center gap-4 bg-white/5 p-2 rounded border border-white/10">
+                                    <div class="w-12 h-12 bg-slate-800 rounded-full border border-white/20 flex items-center justify-center overflow-hidden shrink-0">
+                                        <img id="preview-balloon-img" src="${b.image || ''}" class="w-full h-full object-cover ${b.image ? '' : 'hidden'}">
+                                        <span class="${b.image ? 'hidden' : ''} text-[8px] text-slate-500 uppercase">Kein Bild</span>
+                                    </div>
+                                    <div class="flex-1">
+                                        <input type="file" id="f-image" accept="image/*" class="text-xs w-full file:mr-2 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700" onchange="ui.handleImageUpload(this)">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <div><label>Volumen (m³)</label><input type="number" id="f-volume" value="${b.volume}"></div>
+                                <div><label>Leergewicht (kg)</label><input type="number" id="f-weight" value="${b.weight}"></div>
+                            </div>
+                            <div><label>MTOM (kg)</label><input type="number" id="f-mtom" value="${b.mtom}"></div>
+                            
+                            <div class="border-t border-white/10 pt-4 mt-2">
+                                <label class="text-blue-400 font-bold mb-2">Standard-Flaschenbestückung</label>
+                                <div class="glass-panel p-3 border border-white/5 bg-slate-900/40">
+                                    <div id="edit-cyl-list" class="mb-3 max-h-32 overflow-y-auto">${defCyls.length > 0 ? renderDefaultList() : '<div class="text-xs text-slate-500 italic">Keine Standard-Flaschen</div>'}</div>
+                                    <div class="flex gap-2"><select id="edit-cyl-select" class="text-xs bg-slate-800 border-none w-full"><option value="">+ Flasche wählen</option>${state.cylinders.map(c => `<option value="${c.id}">${c.label} (${c.type})</option>`).join('')}</select><button onclick="ui.addEditCylinder()" class="bg-blue-600 px-3 rounded text-xs hover:bg-blue-500 shrink-0"><i class="fas fa-plus"></i></button></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <label>Tragkraft-Matrix (kg/m³)</label>
+                            <div class="perf-grid grid grid-cols-4 gap-1 text-[10px] text-center">
+                                <div></div><div>0°C</div><div>15°C</div><div>30°C</div><div>0m</div>${b.matrix.map((row, i) => `${i > 0 ? `<div>${i*1000}m</div>` : ''}${row.map((val, j) => `<input type="number" step="0.001" class="matrix-input" data-row="${i}" data-col="${j}" value="${val}">`).join('')}`).join('')}
+                            </div>
+                            <p class="text-[9px] text-slate-500 mt-2">Werte: Netto-Tragkraft in kg pro 1m³ Hülle.</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-2 mt-6"><button onclick="ui.saveBalloon()" class="bg-blue-600 px-6 py-2 rounded">Speichern</button><button onclick="ui.switchTab('fleet')" class="bg-slate-700 px-6 py-2 rounded">Abbrechen</button></div>
+                `;
+            },
+            
+            handleImageUpload(input) {
+                if (input.files && input.files[0]) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const img = document.getElementById('preview-balloon-img');
+                        img.src = e.target.result;
+                        img.classList.remove('hidden');
+                        img.nextElementSibling.classList.add('hidden'); // Hide text placeholder
+                    }
+                    reader.readAsDataURL(input.files[0]);
+                }
+            },
+            
+            addEditCylinder() { 
+                const sel = document.getElementById('edit-cyl-select'); 
+                const id = sel.value; 
+                if (!id) return; 
+                const list = document.getElementById('edit-cyl-list'); 
+                // Check dupes
+                if (list.querySelector(`[data-id="${id}"]`)) return; 
+                if(list.innerHTML.includes('Keine Standard')) list.innerHTML = ''; 
+                
+                const cyl = state.cylinders.find(c => c.id === id); 
+                const div = document.createElement('div'); 
+                div.className = "flex justify-between items-center bg-slate-800 p-2 rounded mb-1 text-xs default-cyl-item"; 
+                div.setAttribute('data-id', id); 
+                div.innerHTML = `<span>${cyl.label} (${cyl.type})</span> <button onclick="ui.removeEditCylinder(this)" class="text-red-400 hover:text-red-300"><i class="fas fa-times"></i></button>`; 
+                list.appendChild(div); 
+            },
+            
+            removeEditCylinder(btn) { btn.parentElement.remove(); },
+
+            formCylinder(c) {
+                const cyl = state.cylinders.find(x => x.id === this.editingId) || { label: "", type: "V40", sn: "", tare: 15, gas: 20, tuv: "2028-12-31" };
+                c.innerHTML = `<h3 class="text-xl font-bold mb-4">Gasflasche Details</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div class="col-span-1 md:col-span-2"><label>Bezeichnung</label><input type="text" id="f-label" value="${cyl.label}"></div><div><label>Typ</label><input type="text" id="f-type" value="${cyl.type}"></div><div><label>Seriennummer</label><input type="text" id="f-sn" value="${cyl.sn}"></div><div><label>Tara (kg)</label><input type="number" id="f-tare" value="${cyl.tare}"></div><div><label>Gasfüllung (kg)</label><input type="number" id="f-gas" value="${cyl.gas}"></div><div class="col-span-1 md:col-span-2"><label>Nächster TÜV</label><input type="date" id="f-tuv" value="${cyl.tuv}"></div></div><div class="flex gap-2 mt-6"><button onclick="ui.saveCylinder()" class="bg-blue-600 px-6 py-2 rounded">Speichern</button><button onclick="ui.switchTab('cylinders')" class="bg-slate-700 px-6 py-2 rounded">Abbrechen</button></div>`;
+            },
+            formPassenger(c) {
+                const p = state.passengers.find(x => x.id === this.editingId) || { firstName: "", lastName: "", weight: 80, gender: "n/a", phone: "", baptism: false, baptismName: "" };
+                c.innerHTML = `<h3 class="text-xl font-bold mb-4">Passagier Details</h3>
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div><label>Vorname</label><input type="text" id="f-firstName" value="${p.firstName || ''}"></div>
+                            <div><label>Nachname</label><input type="text" id="f-lastName" value="${p.lastName || ''}"></div>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div><label>Gewicht (kg)</label><input type="number" id="f-p-weight" value="${p.weight}"></div>
+                            <div><label>Geschlecht</label><select id="f-gender"><option value="n/a" ${p.gender==='n/a'?'selected':''}>n/a</option><option value="m" ${p.gender==='m'?'selected':''}>Männlich</option><option value="w" ${p.gender==='w'?'selected':''}>Weiblich</option><option value="d" ${p.gender==='d'?'selected':''}>Divers</option></select></div>
+                        </div>
+                        <div><label>Telefonnummer</label><input type="tel" id="f-phone" value="${p.phone}"></div>
+                        
+                        <!-- NEW BAPTISM FIELDS -->
+                        <div class="bg-amber-900/20 p-3 rounded border border-amber-600/30">
+                            <label class="flex items-center gap-2 mb-2 cursor-pointer font-bold text-amber-500">
+                                <input type="checkbox" id="f-baptism" class="w-4 h-4 rounded border-amber-500 text-amber-600 focus:ring-amber-500" ${p.baptism ? 'checked' : ''}>
+                                Ballonfahrertaufe erfolgt
+                            </label>
+                            <div><label>Adelstitel / Taufname</label><input type="text" id="f-baptism-name" value="${p.baptismName || ''}" placeholder="z.B. Graf von..."></div>
+                        </div>
+                    </div>
+                    <div class="flex gap-2 mt-6"><button onclick="ui.savePassenger()" class="bg-blue-600 px-6 py-2 rounded">Speichern</button><button onclick="ui.switchTab('passengers')" class="bg-slate-700 px-6 py-2 rounded">Abbrechen</button></div>`;
+            },
+            formLogManual(c) {
+                c.innerHTML = `<h3 class="text-xl font-bold mb-4">Manueller Log-Eintrag</h3><div class="space-y-4"><div><label>Datum</label><input type="date" id="f-l-date" value="${new Date().toISOString().split('T')[0]}"></div><div class="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label>Startzeit</label><input type="time" id="f-l-start" value="08:00"></div><div><label>Landezeit</label><input type="time" id="f-l-end" value="09:30"></div></div><div><label>Ballon</label><select id="f-l-balloon">${state.balloons.map(b=>`<option>${b.callsign}</option>`).join('')}</select></div><div><label>Notizen / Ort</label><textarea id="f-l-notes" rows="3"></textarea></div></div><div class="flex gap-2 mt-6"><button onclick="ui.saveLogManual()" class="bg-blue-600 px-6 py-2 rounded">Speichern</button><button onclick="ui.switchTab('logbook')" class="bg-slate-700 px-6 py-2 rounded">Abbrechen</button></div>`;
+            },
+
+            saveBalloon() {
+                const matrix = [[],[],[],[]];
+                document.querySelectorAll('.matrix-input').forEach(el => { matrix[el.dataset.row][el.dataset.col] = parseFloat(el.value); });
+                const defaultCylinders = [];
+                document.querySelectorAll('.default-cyl-item').forEach(el => { defaultCylinders.push(el.dataset.id); });
+                const data = { id: this.editingId === 'new' ? Date.now().toString() : this.editingId, callsign: document.getElementById('f-callsign').value, volume: parseFloat(document.getElementById('f-volume').value), weight: parseFloat(document.getElementById('f-weight').value), mtom: parseFloat(document.getElementById('f-mtom').value), matrix: matrix, defaultCylinders: defaultCylinders, image: state.balloons.find(b=>b.id === this.editingId)?.image };
+                const imgPreview = document.getElementById('preview-balloon-img');
+                if (!imgPreview.classList.contains('hidden') && imgPreview.src.length > 100) { data.image = imgPreview.src; }
+                if (this.editingId === 'new') state.balloons.push(data); else state.balloons = state.balloons.map(x => x.id === this.editingId ? data : x);
+                saveState(); this.switchTab('fleet');
+            },
+            saveCylinder() { const data = { id: this.editingId === 'new' ? Date.now().toString() : this.editingId, label: document.getElementById('f-label').value, type: document.getElementById('f-type').value, sn: document.getElementById('f-sn').value, tare: parseFloat(document.getElementById('f-tare').value), gas: parseFloat(document.getElementById('f-gas').value), tuv: document.getElementById('f-tuv').value }; if (this.editingId === 'new') state.cylinders.push(data); else state.cylinders = state.cylinders.map(x => x.id === this.editingId ? data : x); saveState(); this.switchTab('cylinders'); },
+            savePassenger() { 
+                const data = { 
+                    id: this.editingId === 'new' ? Date.now().toString() : this.editingId, 
+                    firstName: document.getElementById('f-firstName').value,
+                    lastName: document.getElementById('f-lastName').value,
+                    weight: parseFloat(document.getElementById('f-p-weight').value), 
+                    gender: document.getElementById('f-gender').value, 
+                    phone: document.getElementById('f-phone').value,
+                    // New Fields
+                    baptism: document.getElementById('f-baptism').checked,
+                    baptismName: document.getElementById('f-baptism-name').value
+                }; 
+                if (this.editingId === 'new') state.passengers.push(data); else state.passengers = state.passengers.map(x => x.id === this.editingId ? data : x); 
+                saveState(); this.switchTab('passengers'); 
+            },
+            saveLogManual() { const date = document.getElementById('f-l-date').value; state.logs.push({ id: Date.now(), start: date + "T" + document.getElementById('f-l-start').value, end: date + "T" + document.getElementById('f-l-end').value, balloon: document.getElementById('f-l-balloon').value, notes: document.getElementById('f-l-notes').value, track: [] }); saveState(); this.switchTab('logbook'); },
+            delete(collection, id) { if (confirm("Löschen?")) { state[collection] = state[collection].filter(x => x.id != id); saveState(); this.render(); } },
+            taufe(name) { alert(`Die feierliche Taufe von ${name} wurde vermerkt!`); },
+            
             viewFleet(c) { c.innerHTML = `<div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold">Ballon-Flotte</h3><button onclick="ui.edit('new')" class="bg-blue-600 px-4 py-2 rounded text-sm">+ Ballon hinzufügen</button></div>`; state.balloons.forEach(b => { const defaultCount = b.defaultCylinders ? b.defaultCylinders.length : 0; c.innerHTML += `<div class="glass-panel p-4 mb-2 flex justify-between items-center"><div><div class="font-bold text-lg">${b.callsign}</div><div class="text-xs text-slate-400">${b.volume}m³ | Std-Flaschen: ${defaultCount} | MTOM: ${b.mtom}kg</div></div><div class="flex gap-2"><button onclick="ui.edit('${b.id}')" class="bg-slate-700 px-3 py-1 rounded">Edit</button><button onclick="ui.delete('balloons','${b.id}')" class="text-red-400 p-1"><i class="fas fa-trash"></i></button></div></div>`; }); },
             viewCylinders(c) { c.innerHTML = `<div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold">Gasflaschen-Inventar</h3><button onclick="ui.edit('new')" class="bg-blue-600 px-4 py-2 rounded text-sm">+ Flasche hinzufügen</button></div>`; state.cylinders.forEach(cyl => { const isTuvExpired = new Date(cyl.tuv) < new Date(); c.innerHTML += `<div class="glass-panel p-4 mb-2 flex justify-between items-center ${isTuvExpired ? 'border-red-500/50 border' : ''}"><div><div class="font-bold">${cyl.label} (${cyl.type})</div><div class="text-xs text-slate-400">SN: ${cyl.sn} | Tara: ${cyl.tare}kg | Gas: ${cyl.gas}kg | TÜV: <span class="${isTuvExpired ? 'text-red-400 font-bold' : ''}">${cyl.tuv}</span></div></div><div class="flex gap-2"><button onclick="ui.edit('${cyl.id}')" class="bg-slate-700 px-3 py-1 rounded">Edit</button><button onclick="ui.delete('cylinders','${cyl.id}')" class="text-red-400 p-1"><i class="fas fa-trash"></i></button></div></div>`; }); },
-            viewPassengers(c) { c.innerHTML = `<div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold">Passagier-Datenbank</h3><button onclick="ui.edit('new')" class="bg-blue-600 px-4 py-2 rounded text-sm">+ Passagier hinzufügen</button></div>`; const activePax = state.passengers.filter(p => !p.flights || p.flights === 0); const archivedPax = state.passengers.filter(p => p.flights > 0); if (activePax.length > 0) { c.innerHTML += `<h4 class="text-xs uppercase text-slate-400 font-bold mb-2">Warteliste</h4>`; activePax.forEach(p => { c.innerHTML += `<div class="glass-panel p-4 mb-2 flex justify-between items-center"><div><div class="font-bold">${p.firstName} ${p.lastName}</div><div class="text-xs text-slate-400">${p.weight}kg | ${p.gender} | ${p.phone}</div></div><div class="flex gap-2"><button onclick="ui.taufe('${p.firstName}')" class="bg-amber-600/20 text-amber-500 px-2 py-1 rounded text-xs">Taufe</button><button onclick="ui.edit('${p.id}')" class="bg-slate-700 px-3 py-1 rounded text-xs">Edit</button><button onclick="ui.delete('passengers','${p.id}')" class="text-red-400 p-1"><i class="fas fa-trash"></i></button></div></div>`; }); } if (archivedPax.length > 0) { c.innerHTML += `<h4 class="text-xs uppercase text-slate-400 font-bold mb-2 mt-6">Gäste-Archiv (Bereits gefahren)</h4>`; archivedPax.forEach(p => { c.innerHTML += `<div class="glass-panel p-4 mb-2 flex justify-between items-center border-l-4 border-green-500/50 bg-slate-900/40"><div><div class="font-bold text-slate-300">${p.firstName} ${p.lastName}</div><div class="text-xs text-slate-500">${p.flights} Fahrten | Letzte: ${new Date(p.lastFlight).toLocaleDateString()}</div></div><div class="flex gap-2"><button onclick="ui.edit('${p.id}')" class="bg-slate-700 px-3 py-1 rounded text-xs text-slate-400">Edit</button><button onclick="ui.delete('passengers','${p.id}')" class="text-red-400 p-1"><i class="fas fa-trash"></i></button></div></div>`; }); } if (state.passengers.length === 0) { c.innerHTML += `<div class="text-center text-slate-500 italic py-8">Noch keine Passagiere angelegt</div>`; } },
+            
+            setPassengerView(mode) {
+                this.passengerMode = mode;
+                this.render();
+            },
+            
+            viewPassengers(c) { 
+                const isArchive = this.passengerMode === 'archive';
+                const listTitle = isArchive ? 'Gäste-Archiv' : 'Warteliste';
+                
+                // Filter passengers
+                let filteredPax = [];
+                if (isArchive) {
+                    filteredPax = state.passengers.filter(p => (p.flights || 0) > 0);
+                } else {
+                    filteredPax = state.passengers.filter(p => !p.flights || p.flights === 0);
+                }
+
+                c.innerHTML = `
+                    <h3 class="text-xl font-bold mb-4">Passagier-Datenbank</h3>
+                    <div class="mb-4 glass-panel border border-white/10 p-4">
+                         <div class="flex gap-4 border-b border-white/10 pb-2 mb-4 text-sm">
+                            <button onclick="ui.setPassengerView('active')" class="${!isArchive ? 'text-blue-400 font-bold border-b-2 border-blue-400' : 'text-slate-500 hover:text-slate-300'} pb-1 transition">Warteliste</button>
+                            <button onclick="ui.setPassengerView('archive')" class="${isArchive ? 'text-blue-400 font-bold border-b-2 border-blue-400' : 'text-slate-500 hover:text-slate-300'} pb-1 transition">Archiv (Gefahren)</button>
+                        </div>
+                        
+                        <div class="flex justify-between items-center mb-4">
+                            <h4 class="text-xs uppercase text-slate-400 font-bold">${listTitle}</h4>
+                            <button onclick="ui.edit('new')" class="bg-blue-600 px-4 py-2 rounded text-sm hover:bg-blue-500 transition">+ Passagier hinzufügen</button>
+                        </div>
+                        
+                        <div class="space-y-2">
+                             ${filteredPax.length === 0 ? `<div class="text-center text-slate-500 italic py-4">Keine Einträge in dieser Liste</div>` : ''}
+                             ${filteredPax.map(p => `
+                                <div class="glass-panel p-4 flex justify-between items-center ${isArchive ? 'border-l-4 border-green-500/50 bg-slate-900/40' : ''}">
+                                    <div>
+                                        <div class="font-bold text-white">${p.firstName} ${p.lastName}</div>
+                                        <div class="text-xs text-slate-400">${p.weight}kg | ${p.gender} | ${p.phone}</div>
+                                        ${isArchive ? `<div class="text-[10px] text-green-400 mt-1"><i class="fas fa-check"></i> ${p.flights} Fahrten | Letzte: ${new Date(p.lastFlight).toLocaleDateString()}</div>` : ''}
+                                    </div>
+                                    <div class="flex gap-2">
+                                        ${!isArchive ? `<button onclick="ui.taufe('${p.firstName}')" class="bg-amber-600/20 text-amber-500 px-2 py-1 rounded text-xs border border-amber-500/30">Taufe</button>` : ''}
+                                        ${isArchive ? `<button onclick="ui.viewPassengerHistory('${p.id}')" class="bg-indigo-600/20 text-indigo-400 px-3 py-1 rounded text-xs border border-indigo-500/30 hover:bg-indigo-600 hover:text-white transition" title="Fahrtenbuch"><i class="fas fa-book-open"></i></button>` : ''}
+                                        <button onclick="ui.edit('${p.id}')" class="bg-slate-700 px-3 py-1 rounded text-xs hover:bg-slate-600">Edit</button>
+                                        <button onclick="ui.delete('passengers','${p.id}')" class="text-red-400 p-1 hover:text-red-300"><i class="fas fa-trash"></i></button>
+                                    </div>
+                                </div>
+                             `).join('')}
+                        </div>
+                    </div>
+                `; 
+            },
+            
+            // --- NEW: Passenger History View ---
+            viewPassengerHistory(paxId) {
+                const p = state.passengers.find(x => x.id === paxId);
+                if(!p) return;
+                
+                const logs = state.logs.filter(l => l.pax && l.pax.includes(paxId)).sort((a,b) => new Date(b.start) - new Date(a.start));
+                
+                document.getElementById('main-modal').style.display = 'flex';
+                const c = document.getElementById('tab-content');
+                
+                c.innerHTML = `
+                    <div class="flex items-center gap-4 mb-6">
+                        <button onclick="ui.switchTab('passengers')" class="text-slate-400 hover:text-white"><i class="fas fa-arrow-left"></i> Zurück</button>
+                        <div>
+                            <h3 class="text-xl font-bold text-white">Fahrtenbuch: ${p.firstName} ${p.lastName}</h3>
+                            <div class="text-xs text-slate-400">Gesamt: ${logs.length} Fahrten</div>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-2">
+                        ${logs.length === 0 ? '<div class="text-slate-500 italic text-center">Keine Fahrten gefunden.</div>' : 
+                            logs.map(l => {
+                                const durMs = new Date(l.end) - new Date(l.start);
+                                const mins = Math.floor(durMs / 60000);
+                                return `
+                                    <div class="bg-slate-800 p-4 rounded-lg flex justify-between items-center hover:bg-slate-700/50 transition border border-white/5">
+                                        <div>
+                                            <div class="font-bold text-blue-400">${new Date(l.start).toLocaleDateString()} <span class="text-slate-500 font-normal text-xs">| ${l.balloon}</span></div>
+                                            <div class="text-xs text-slate-300 mt-1"><i class="fas fa-clock"></i> ${Math.floor(mins/60)}h ${mins%60}m | <i class="fas fa-map-marker-alt"></i> ${l.startLoc || '?'} -> ${l.endLoc || '?'}</div>
+                                        </div>
+                                        <button onclick="ui.showSummary(${l.id})" class="bg-blue-600/20 text-blue-400 p-2 rounded-full hover:bg-blue-600 hover:text-white transition"><i class="fas fa-eye"></i></button>
+                                    </div>
+                                `;
+                            }).join('')
+                        }
+                    </div>
+                `;
+            },
+
             viewLogbook(c) { const logFlights = state.logs.length; const logDurationMs = state.logs.reduce((acc, log) => acc + (new Date(log.end) - new Date(log.start)), 0); const logHours = logDurationMs / 3600000; const totalFlights = (state.pilot.initialFlights || 0) + logFlights; const totalHoursDec = (state.pilot.initialHours || 0) + logHours; const tHrs = Math.floor(totalHoursDec); const tMins = Math.round((totalHoursDec - tHrs) * 60); const timeString = `${tHrs}h ${tMins.toString().padStart(2, '0')}m`; c.innerHTML = `<div class="flex justify-between items-center mb-4"><div><h3 class="text-xl font-bold">Fahrtenbuch</h3><div class="text-xs text-slate-400 mt-1">Gesamt: <span class="text-white font-bold">${totalFlights}</span> Fahrten | <span class="text-white font-bold">${timeString}</span></div></div><button onclick="ui.edit('new')" class="bg-blue-600 px-4 py-2 rounded text-sm">+ Manueller Eintrag</button></div>`; state.logs.sort((a,b)=>new Date(b.start)-new Date(a.start)).forEach(l => { 
                 const startStr = ui.formatTime(l.start);
                 const endStr = ui.formatTime(l.end);
                 c.innerHTML += `<div class="glass-panel p-4 mb-2 flex justify-between items-center"><div><div class="font-bold">${new Date(l.start).toLocaleDateString()} - ${l.balloon}</div><div class="text-xs text-slate-400">${startStr} bis ${endStr} | ${l.notes.substring(0,30)}...</div></div><div class="flex gap-2"><button onclick="ui.showSummary(${l.id})" class="text-blue-400 p-1"><i class="fas fa-eye"></i></button><button onclick="ui.delete('logs',${l.id})" class="text-red-400 p-1"><i class="fas fa-trash"></i></button></div></div>`; 
             }); },
+
             viewPlanning(c) { if (!state.plannings) { state.plannings = []; saveState(); } if (!state.archive) { state.archive = []; saveState(); } const isArchive = this.planningMode === 'archive'; const listData = isArchive ? state.archive : state.plannings; const listTitle = isArchive ? 'Archiv / Vorlagen' : 'Aktive Planungen'; c.innerHTML = `<h3 class="text-xl font-bold mb-4">Weight & Balance Planung</h3><div class="mb-6 p-4 glass-panel border border-white/10"><div class="flex gap-4 border-b border-white/10 pb-2 mb-2 text-sm"><button onclick="ui.setPlanView('active')" class="${!isArchive ? 'text-blue-400 font-bold border-b-2 border-blue-400' : 'text-slate-500 hover:text-slate-300'} pb-1 transition">Aktive Planungen</button><button onclick="ui.setPlanView('archive')" class="${isArchive ? 'text-blue-400 font-bold border-b-2 border-blue-400' : 'text-slate-500 hover:text-slate-300'} pb-1 transition">Archiv</button></div><div class="flex justify-between items-center mb-2"><h4 class="text-xs uppercase text-slate-400 font-bold">${listTitle}</h4>${!isArchive ? '<button onclick="ui.clearPlanForm()" class="text-xs bg-slate-700 px-3 py-1 rounded hover:bg-slate-600 transition">+ Neue Planung</button>' : ''}</div><div class="max-h-32 overflow-y-auto space-y-1" id="saved-plans-list">${listData.length === 0 ? `<div class="text-xs text-slate-500 italic p-2">${isArchive ? 'Archiv ist leer' : 'Keine aktiven Planungen'}</div>` : listData.sort((a,b) => b.id - a.id).map(p => `<div class="flex justify-between items-center bg-slate-800 p-2 rounded text-xs group hover:bg-slate-700/50 transition"><div class="cursor-pointer flex-1" onclick="${isArchive ? `ui.loadTemplate('${p.id}')` : `ui.loadPlan('${p.id}')`}" title="${isArchive ? 'Als Vorlage laden' : 'Bearbeiten'}"><div class="font-bold text-white flex items-center gap-2">${isArchive ? '<i class="fas fa-history text-slate-500"></i>' : ''} ${p.name}</div><div class="text-slate-400 text-[10px]">${p.date} | ${p.balloonName}</div></div><div class="flex gap-1">${!isArchive ? `<button onclick="ui.archivePlan(${p.id})" class="text-blue-400 hover:text-blue-300 p-1 px-2 bg-slate-900/50 rounded" title="Ins Archiv verschieben"><i class="fas fa-box-archive"></i></button>` : `<button onclick="ui.unarchivePlan(${p.id})" class="text-green-400 hover:text-green-300 p-1 px-2 bg-slate-900/50 rounded" title="Wiederherstellen"><i class="fas fa-box-open"></i></button>`}<button onclick="ui.delete('${isArchive ? 'archive' : 'plannings'}', ${p.id})" class="text-red-400 hover:text-red-300 p-1 px-2 bg-slate-900/50 rounded"><i class="fas fa-trash"></i></button></div></div>`).join('')}</div></div><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div class="space-y-4"><div><label>Bezeichnung der Planung</label><input type="text" id="plan-name" placeholder="z.B. Morgenfahrt Alpen" class="bg-slate-800 border-slate-600 focus:border-blue-500"></div><div><label>Ballon wählen</label><select id="plan-balloon" onchange="ui.selectBalloon()"><option value="">-- Wählen --</option>${state.balloons.map(b => `<option value="${b.id}">${b.callsign}</option>`).join('')}</select></div><div><label>Gasflaschen für diese Fahrt</label><div class="glass-panel p-3 border border-white/5 bg-slate-900/40"><div id="plan-cyl-list" class="space-y-2 mb-3"><div class="text-xs text-slate-500 italic">Keine Flaschen ausgewählt</div></div><div class="flex gap-2 pt-2 border-t border-white/10"><select id="plan-cyl-add-select" class="text-xs bg-slate-800 border-none w-full"><option value="">+ Flasche wählen</option>${state.cylinders.map(c => `<option value="${c.id}">${c.label} (${c.type}) - ${c.gas+c.tare}kg</option>`).join('')}</select><button onclick="ui.addPlanCylinder()" class="bg-blue-600 px-3 rounded text-xs hover:bg-blue-500 shrink-0"><i class="fas fa-plus"></i></button></div></div></div><div><label>Passagiere wählen</label><div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 border border-white/5 rounded" id="plan-pax">${state.passengers.sort((a,b) => (a.flights||0) - (b.flights||0)).map(p => { const isFlown = p.flights > 0; const badge = isFlown ? `<span class="text-green-400 text-[9px] ml-1">✓ ${p.flights}</span>` : ''; return `<label class="flex items-center gap-2 bg-slate-800 p-2 rounded text-[10px] hover:bg-slate-700 cursor-pointer ${isFlown ? 'opacity-75' : ''}"><input type="checkbox" value="${p.id}" onchange="ui.recalcWB()" class="w-4 h-4 shrink-0"> <span class="flex-1 truncate">${p.firstName} ${p.lastName}${badge}</span> <span class="text-slate-400">${p.weight}kg</span></label>`; }).join('')}</div></div></div><div class="space-y-4"><div class="grid grid-cols-1 sm:grid-cols-2 gap-2"><div><label>Startort Temp (°C)</label><input type="number" id="plan-temp" value="15" onchange="ui.recalcWB()"></div><div><label>Zielhöhe (m)</label><input type="number" id="plan-alt" value="1000" onchange="ui.recalcWB()"></div></div><div id="wb-result" class="glass-panel p-6 border-blue-500/30 border min-h-[200px] flex flex-col justify-center text-center"><div class="text-slate-500 italic">Bitte Ballon und Zuladung wählen...</div></div><button onclick="ui.savePlan()" id="btn-save-plan" class="bg-green-600 hover:bg-green-500 w-full py-3 rounded font-bold shadow-lg shadow-green-900/20 mt-4 transition transform active:scale-95 flex items-center justify-center gap-2"><i class="fas fa-save"></i> Planung Speichern</button></div></div>`; },
             viewSettings(c) { const initHrs = Math.floor(state.pilot.initialHours || 0); const initMins = Math.round(((state.pilot.initialHours || 0) - initHrs) * 60); const initTimeStr = `${initHrs}:${initMins.toString().padStart(2, '0')}`; c.innerHTML = `
                 <div class="space-y-6">
@@ -1524,245 +1853,13 @@
             viewEnvironment(c) { c.innerHTML = `<h3 class="text-xl font-bold mb-4">Wetter & Wind Simulation</h3><div class="glass-panel p-6 border-white/10 border"><div class="flex justify-between items-start mb-4"><p class="text-sm text-slate-400">Hier definierst du die Windschichten für die Simulation. Der Ballon bewegt sich basierend auf der aktuellen Höhe und diesen Werten.</p><button onclick="weatherService.fetchLiveWind()" class="bg-green-600/20 text-green-400 border border-green-500/50 px-3 py-1 rounded text-xs whitespace-nowrap hover:bg-green-600 hover:text-white transition"><i class="fas fa-satellite-dish mr-1"></i> Live-Daten laden</button></div><div class="grid grid-cols-4 gap-2 text-xs uppercase text-slate-500 font-bold mb-2"><div>Höhe (m)</div><div>Richtung (°)</div><div>Speed (kt)</div><div></div></div><div id="wind-rows" class="space-y-2 mb-4">${state.windLayers.sort((a,b)=>a.alt-b.alt).map((w, idx) => `<div class="grid grid-cols-4 gap-2 items-center"><input type="number" class="wind-edit-alt" value="${w.alt}" placeholder="Höhe"><input type="number" class="wind-edit-dir" value="${w.dir}" placeholder="Dir"><input type="number" class="wind-edit-spd" value="${w.speed}" placeholder="Knots"><button onclick="ui.removeWindLayer(${idx})" class="text-red-400 hover:text-red-300"><i class="fas fa-trash"></i></button></div>`).join('')}</div><button onclick="ui.addWindLayer()" class="bg-slate-700 px-4 py-2 rounded text-xs mb-6">+ Schicht hinzufügen</button><button onclick="ui.saveEnvironment()" class="bg-blue-600 w-full py-3 rounded font-bold shadow-lg">Wetterdaten Speichern</button><div class="mt-4"><label class="text-xs uppercase text-slate-500 font-bold mb-1 block">Wind-Filter (Grad)</label><div class="flex items-center gap-2"><input type="number" id="set-wind-threshold" class="w-20 bg-slate-800 text-sm p-1 rounded" value="${state.settings.windThreshold || 5}"><span class="text-xs text-slate-400">Nur Änderungen > X° anzeigen</span></div></div><p class="text-[10px] text-slate-500 mt-2 text-center">Live-Daten bereitgestellt durch Open-Meteo.com (Kein Key erforderlich)</p></div>`; },
             
             // --- WIND FILTER LOGIC ---
-            renderWind() { 
-                const container = document.getElementById('wind-layers-container'); 
-                container.innerHTML = ''; 
-                
-                const isKmh = state.settings.unitSpeed === 'kmh';
-                const unitLabel = isKmh ? 'km/h' : 'kt';
-                const threshold = state.settings.windThreshold || 5;
-
-                const layerMap = new Map();
-                
-                state.windLayers.forEach(l => layerMap.set(l.alt, { ...l, isMeasured: false }));
-                
-                if (state.measuredWindLayers) {
-                    state.measuredWindLayers.forEach(l => layerMap.set(l.alt, { ...l, isMeasured: true }));
-                }
-
-                const sortedLayers = Array.from(layerMap.values()).sort((a, b) => b.alt - a.alt);
-
-                let lastKeptDir = null;
-                
-                sortedLayers.forEach((layer, index) => {
-                    let keep = false;
-                    
-                    if (index === 0) keep = true;
-                    else if (layer.isMeasured) keep = true;
-                    else {
-                        if (lastKeptDir === null) {
-                            keep = true;
-                        } else {
-                            let diff = Math.abs(layer.dir - lastKeptDir);
-                            if (diff > 180) diff = 360 - diff;
-                            if (diff >= threshold) keep = true;
-                        }
-                    }
-
-                    if (keep) {
-                        let speed = layer.speed;
-                        if (isKmh) speed *= 1.852; 
-
-                        const colorClass = layer.isMeasured ? 'text-green-400 font-bold' : 'text-blue-300';
-                        const labelClass = layer.isMeasured ? 'text-green-400' : '';
-                        const arrowClass = layer.isMeasured ? 'compass-arrow arrow-green' : 'compass-arrow';
-
-                        // HIGHLIGHT CURRENT ALTITUDE
-                        const isCurrentAlt = Math.abs(layer.alt - simulation.alt) < 25;
-                        const activeClass = isCurrentAlt ? 'active-altitude' : '';
-
-                        const div = document.createElement('div'); 
-                        div.className = `wind-layer ${activeClass}`; 
-                        div.dataset.alt = layer.alt; // Added dataset
-                        div.innerHTML = `<div class="${colorClass}">${layer.alt}m</div><div class="${arrowClass}" style="transform: rotate(${layer.dir}deg)"></div><div class="${labelClass}">${speed.toFixed(1)}${unitLabel}</div>`; 
-                        container.appendChild(div);
-                        
-                        lastKeptDir = layer.dir;
-                    }
-                });
-            },
-
-            // --- FORM RENDERING & HELPERS ---
-            edit(id) { this.editingId = id; this.render(); },
-            renderForm(c) {
-                if (this.tab === 'fleet') this.formBalloon(c);
-                if (this.tab === 'cylinders') this.formCylinder(c);
-                if (this.tab === 'passengers') this.formPassenger(c);
-                if (this.tab === 'logbook') this.formLogManual(c);
-            },
-            
-            formBalloon(c) {
-                const b = state.balloons.find(x => x.id === this.editingId) || { callsign: "", volume: 3000, weight: 400, mtom: 1100, defaultCylinders: [], matrix: [[0.320, 0.280, 0.240],[0.280, 0.240, 0.200],[0.240, 0.200, 0.160],[0.200, 0.160, 0.120]], image: null };
-                const defCyls = b.defaultCylinders || [];
-                const renderDefaultList = () => defCyls.map(id => { const cyl = state.cylinders.find(cx => cx.id === id); if (!cyl) return ''; return `<div class="flex justify-between items-center bg-slate-800 p-2 rounded mb-1 text-xs default-cyl-item" data-id="${id}"><span>${cyl.label} (${cyl.type})</span> <button onclick="ui.removeEditCylinder(this)" class="text-red-400 hover:text-red-300"><i class="fas fa-times"></i></button></div>`; }).join('');
-
-                c.innerHTML = `
-                    <h3 class="text-xl font-bold mb-4">${this.editingId === 'new' ? 'Neuer Ballon' : 'Ballon bearbeiten'}</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div class="space-y-4">
-                            <div><label>Kennung</label><input type="text" id="f-callsign" value="${b.callsign}" placeholder="z.B. D-OAAA"></div>
-                            
-                            <!-- Bild Upload -->
-                            <div>
-                                <label>Ballon Bild (für Karte)</label>
-                                <div class="flex items-center gap-4 bg-white/5 p-2 rounded border border-white/10">
-                                    <div class="w-12 h-12 bg-slate-800 rounded-full border border-white/20 flex items-center justify-center overflow-hidden shrink-0">
-                                        <img id="preview-balloon-img" src="${b.image || ''}" class="w-full h-full object-cover ${b.image ? '' : 'hidden'}">
-                                        <span class="${b.image ? 'hidden' : ''} text-[8px] text-slate-500 uppercase">Kein Bild</span>
-                                    </div>
-                                    <div class="flex-1">
-                                        <input type="file" id="f-image" accept="image/*" class="text-xs w-full file:mr-2 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700" onchange="ui.handleImageUpload(this)">
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                <div><label>Volumen (m³)</label><input type="number" id="f-volume" value="${b.volume}"></div>
-                                <div><label>Leergewicht (kg)</label><input type="number" id="f-weight" value="${b.weight}"></div>
-                            </div>
-                            <div><label>MTOM (kg)</label><input type="number" id="f-mtom" value="${b.mtom}"></div>
-                            
-                            <div class="border-t border-white/10 pt-4 mt-2">
-                                <label class="text-blue-400 font-bold mb-2">Standard-Flaschenbestückung</label>
-                                <div class="glass-panel p-3 border border-white/5 bg-slate-900/40">
-                                    <div id="edit-cyl-list" class="mb-3 max-h-32 overflow-y-auto">${defCyls.length > 0 ? renderDefaultList() : '<div class="text-xs text-slate-500 italic">Keine Standard-Flaschen</div>'}</div>
-                                    <div class="flex gap-2"><select id="edit-cyl-select" class="text-xs bg-slate-800 border-none w-full"><option value="">+ Flasche wählen</option>${state.cylinders.map(c => `<option value="${c.id}">${c.label} (${c.type})</option>`).join('')}</select><button onclick="ui.addEditCylinder()" class="bg-blue-600 px-3 rounded text-xs hover:bg-blue-500 shrink-0"><i class="fas fa-plus"></i></button></div>
-                                </div>
-                            </div>
-                        </div>
-                        <div>
-                            <label>Tragkraft-Matrix (kg/m³)</label>
-                            <div class="perf-grid grid grid-cols-4 gap-1 text-[10px] text-center">
-                                <div></div><div>0°C</div><div>15°C</div><div>30°C</div><div>0m</div>${b.matrix.map((row, i) => `${i > 0 ? `<div>${i*1000}m</div>` : ''}${row.map((val, j) => `<input type="number" step="0.001" class="matrix-input" data-row="${i}" data-col="${j}" value="${val}">`).join('')}`).join('')}
-                            </div>
-                            <p class="text-[9px] text-slate-500 mt-2">Werte: Netto-Tragkraft in kg pro 1m³ Hülle.</p>
-                        </div>
-                    </div>
-                    <div class="flex gap-2 mt-6"><button onclick="ui.saveBalloon()" class="bg-blue-600 px-6 py-2 rounded">Speichern</button><button onclick="ui.switchTab('fleet')" class="bg-slate-700 px-6 py-2 rounded">Abbrechen</button></div>
-                `;
-            },
-            
-            handleImageUpload(input) {
-                if (input.files && input.files[0]) {
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        const img = document.getElementById('preview-balloon-img');
-                        img.src = e.target.result;
-                        img.classList.remove('hidden');
-                        img.nextElementSibling.classList.add('hidden'); // Hide text placeholder
-                    }
-                    reader.readAsDataURL(input.files[0]);
-                }
-            },
-
-            formCylinder(c) {
-                const cyl = state.cylinders.find(x => x.id === this.editingId) || { label: "", type: "V40", sn: "", tare: 15, gas: 20, tuv: "2028-12-31" };
-                c.innerHTML = `<h3 class="text-xl font-bold mb-4">Gasflasche Details</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div class="col-span-1 md:col-span-2"><label>Bezeichnung</label><input type="text" id="f-label" value="${cyl.label}"></div><div><label>Typ</label><input type="text" id="f-type" value="${cyl.type}"></div><div><label>Seriennummer</label><input type="text" id="f-sn" value="${cyl.sn}"></div><div><label>Tara (kg)</label><input type="number" id="f-tare" value="${cyl.tare}"></div><div><label>Gasfüllung (kg)</label><input type="number" id="f-gas" value="${cyl.gas}"></div><div class="col-span-1 md:col-span-2"><label>Nächster TÜV</label><input type="date" id="f-tuv" value="${cyl.tuv}"></div></div><div class="flex gap-2 mt-6"><button onclick="ui.saveCylinder()" class="bg-blue-600 px-6 py-2 rounded">Speichern</button><button onclick="ui.switchTab('cylinders')" class="bg-slate-700 px-6 py-2 rounded">Abbrechen</button></div>`;
-            },
-            formPassenger(c) {
-                const p = state.passengers.find(x => x.id === this.editingId) || { firstName: "", lastName: "", weight: 80, gender: "n/a", phone: "", baptism: false, baptismName: "" };
-                c.innerHTML = `<h3 class="text-xl font-bold mb-4">Passagier Details</h3>
-                    <div class="space-y-4">
-                        <div class="grid grid-cols-2 gap-4">
-                            <div><label>Vorname</label><input type="text" id="f-firstName" value="${p.firstName || ''}"></div>
-                            <div><label>Nachname</label><input type="text" id="f-lastName" value="${p.lastName || ''}"></div>
-                        </div>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div><label>Gewicht (kg)</label><input type="number" id="f-p-weight" value="${p.weight}"></div>
-                            <div><label>Geschlecht</label><select id="f-gender"><option value="n/a" ${p.gender==='n/a'?'selected':''}>n/a</option><option value="m" ${p.gender==='m'?'selected':''}>Männlich</option><option value="w" ${p.gender==='w'?'selected':''}>Weiblich</option><option value="d" ${p.gender==='d'?'selected':''}>Divers</option></select></div>
-                        </div>
-                        <div><label>Telefonnummer</label><input type="tel" id="f-phone" value="${p.phone}"></div>
-                        
-                        <!-- NEW BAPTISM FIELDS -->
-                        <div class="bg-amber-900/20 p-3 rounded border border-amber-600/30">
-                            <label class="flex items-center gap-2 mb-2 cursor-pointer font-bold text-amber-500">
-                                <input type="checkbox" id="f-baptism" class="w-4 h-4 rounded border-amber-500 text-amber-600 focus:ring-amber-500" ${p.baptism ? 'checked' : ''}>
-                                Ballonfahrertaufe erfolgt
-                            </label>
-                            <div><label>Adelstitel / Taufname</label><input type="text" id="f-baptism-name" value="${p.baptismName || ''}" placeholder="z.B. Graf von..."></div>
-                        </div>
-                    </div>
-                    <div class="flex gap-2 mt-6"><button onclick="ui.savePassenger()" class="bg-blue-600 px-6 py-2 rounded">Speichern</button><button onclick="ui.switchTab('passengers')" class="bg-slate-700 px-6 py-2 rounded">Abbrechen</button></div>`;
-            },
-            formLogManual(c) {
-                c.innerHTML = `<h3 class="text-xl font-bold mb-4">Manueller Log-Eintrag</h3><div class="space-y-4"><div><label>Datum</label><input type="date" id="f-l-date" value="${new Date().toISOString().split('T')[0]}"></div><div class="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label>Startzeit</label><input type="time" id="f-l-start" value="08:00"></div><div><label>Landezeit</label><input type="time" id="f-l-end" value="09:30"></div></div><div><label>Ballon</label><select id="f-l-balloon">${state.balloons.map(b=>`<option>${b.callsign}</option>`).join('')}</select></div><div><label>Notizen / Ort</label><textarea id="f-l-notes" rows="3"></textarea></div></div><div class="flex gap-2 mt-6"><button onclick="ui.saveLogManual()" class="bg-blue-600 px-6 py-2 rounded">Speichern</button><button onclick="ui.switchTab('logbook')" class="bg-slate-700 px-6 py-2 rounded">Abbrechen</button></div>`;
-            },
-
-            // --- SAVING & LOGIC ---
-            addEditCylinder() { const sel = document.getElementById('edit-cyl-select'); const id = sel.value; if (!id) return; const list = document.getElementById('edit-cyl-list'); if (list.querySelector(`[data-id="${id}"]`)) return; if(list.innerHTML.includes('Keine Standard')) list.innerHTML = ''; const cyl = state.cylinders.find(c => c.id === id); const div = document.createElement('div'); div.className = "flex justify-between items-center bg-slate-800 p-2 rounded mb-1 text-xs default-cyl-item"; div.setAttribute('data-id', id); div.innerHTML = `<span>${cyl.label} (${cyl.type})</span> <button onclick="ui.removeEditCylinder(this)" class="text-red-400 hover:text-red-300"><i class="fas fa-times"></i></button>`; list.appendChild(div); },
-            removeEditCylinder(btn) { btn.parentElement.remove(); },
-            addPlanCylinder(idOverride) { const sel = document.getElementById('plan-cyl-add-select'); const id = idOverride || sel.value; if (!id) return; const list = document.getElementById('plan-cyl-list'); if (list.querySelector(`[data-pid="${id}"]`)) return; if(list.innerHTML.includes('Keine Flaschen')) list.innerHTML = ''; const cyl = state.cylinders.find(c => c.id === id); const div = document.createElement('div'); div.className = "flex justify-between items-center bg-slate-800 p-2 rounded mb-1 text-xs plan-cyl-item"; div.setAttribute('data-pid', id); div.innerHTML = `<div><div class="font-bold">${cyl.label}</div><div class="text-slate-400 text-[10px]">Total: ${cyl.gas+cyl.tare}kg</div></div><button onclick="ui.removePlanCylinder(this)" class="text-red-400 hover:text-red-300 px-2"><i class="fas fa-trash-alt"></i></button>`; list.appendChild(div); if (!idOverride) this.recalcWB(); },
-            removePlanCylinder(btn) { btn.parentElement.remove(); this.recalcWB(); },
-
-            saveBalloon() {
-                const matrix = [[],[],[],[]];
-                document.querySelectorAll('.matrix-input').forEach(el => { matrix[el.dataset.row][el.dataset.col] = parseFloat(el.value); });
-                const defaultCylinders = [];
-                document.querySelectorAll('.default-cyl-item').forEach(el => { defaultCylinders.push(el.dataset.id); });
-                const data = { id: this.editingId === 'new' ? Date.now().toString() : this.editingId, callsign: document.getElementById('f-callsign').value, volume: parseFloat(document.getElementById('f-volume').value), weight: parseFloat(document.getElementById('f-weight').value), mtom: parseFloat(document.getElementById('f-mtom').value), matrix: matrix, defaultCylinders: defaultCylinders, image: state.balloons.find(b=>b.id === this.editingId)?.image };
-                const imgPreview = document.getElementById('preview-balloon-img');
-                if (!imgPreview.classList.contains('hidden') && imgPreview.src.length > 100) { data.image = imgPreview.src; }
-                if (this.editingId === 'new') state.balloons.push(data); else state.balloons = state.balloons.map(x => x.id === this.editingId ? data : x);
-                saveState(); this.switchTab('fleet');
-            },
-            saveCylinder() { const data = { id: this.editingId === 'new' ? Date.now().toString() : this.editingId, label: document.getElementById('f-label').value, type: document.getElementById('f-type').value, sn: document.getElementById('f-sn').value, tare: parseFloat(document.getElementById('f-tare').value), gas: parseFloat(document.getElementById('f-gas').value), tuv: document.getElementById('f-tuv').value }; if (this.editingId === 'new') state.cylinders.push(data); else state.cylinders = state.cylinders.map(x => x.id === this.editingId ? data : x); saveState(); this.switchTab('cylinders'); },
-            savePassenger() { 
-                const data = { 
-                    id: this.editingId === 'new' ? Date.now().toString() : this.editingId, 
-                    firstName: document.getElementById('f-firstName').value,
-                    lastName: document.getElementById('f-lastName').value,
-                    weight: parseFloat(document.getElementById('f-p-weight').value), 
-                    gender: document.getElementById('f-gender').value, 
-                    phone: document.getElementById('f-phone').value,
-                    // New Fields
-                    baptism: document.getElementById('f-baptism').checked,
-                    baptismName: document.getElementById('f-baptism-name').value
-                }; 
-                if (this.editingId === 'new') state.passengers.push(data); else state.passengers = state.passengers.map(x => x.id === this.editingId ? data : x); 
-                saveState(); this.switchTab('passengers'); 
-            },
-            saveLogManual() { const date = document.getElementById('f-l-date').value; state.logs.push({ id: Date.now(), start: date + "T" + document.getElementById('f-l-start').value, end: date + "T" + document.getElementById('f-l-end').value, balloon: document.getElementById('f-l-balloon').value, notes: document.getElementById('f-l-notes').value, track: [] }); saveState(); this.switchTab('logbook'); },
-            delete(collection, id) { if (confirm("Löschen?")) { state[collection] = state[collection].filter(x => x.id != id); saveState(); this.render(); } },
-
-            saveSettings(silent = false) {
-                state.pilot.name = document.getElementById('set-pilot-name').value;
-                state.pilot.weight = parseFloat(document.getElementById('set-pilot-weight').value);
-                
-                const timeStr = document.getElementById('set-pilot-hours').value;
-                const parts = timeStr.split(':');
-                if (parts.length >= 2) { const h = parseInt(parts[0]) || 0; const m = parseInt(parts[1]) || 0; state.pilot.initialHours = h + (m / 60); } 
-                else { state.pilot.initialHours = parseFloat(timeStr) || 0; }
-                
-                state.settings.apiKey = document.getElementById('set-api-key').value;
-                state.settings.unitAlt = 'm'; // Hidden fallback
-                state.settings.unitSpeed = 'kmh'; // Hidden fallback
-                state.settings.unitVario = 'ms'; // Hidden fallback
-                state.settings.trackColor = document.getElementById('set-track-color').value;
-                state.settings.mapStyle = document.getElementById('set-map-style').value;
-                const modeToggle = document.getElementById('set-mode-toggle');
-                state.settings.mode = modeToggle.checked ? 'gps' : 'sim';
-                state.settings.windThreshold = parseFloat(document.getElementById('set-wind-threshold')?.value) || 5;
-                state.settings.imageRetention = parseInt(document.getElementById('set-image-retention')?.value) || 30;
-                state.settings.baptismMaxWords = parseInt(document.getElementById('set-baptism-words')?.value) || 15;
-                state.settings.useUTC = document.getElementById('set-use-utc').checked;
-                
-                saveState();
-                mapManager.updateTrackStyle();
-                mapManager.setLayer(state.settings.mapStyle);
-                mapManager.updateIcon(); 
-                simulation.applyMode();
-                this.renderWind();
-                
-                if (!silent) ui.showToast("Einstellungen gespeichert!", "success");
-            },
-            
-            // --- WIND ENVIRONMENT EDITING ---
             addWindLayer() { const container = document.getElementById('wind-rows'); const div = document.createElement('div'); div.className = "grid grid-cols-4 gap-2 items-center"; div.innerHTML = `<input type="number" class="wind-edit-alt" value="0" placeholder="Höhe"><input type="number" class="wind-edit-dir" value="0" placeholder="Dir"><input type="number" class="wind-edit-spd" value="0" placeholder="Knots"><button onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-300"><i class="fas fa-trash"></i></button>`; container.appendChild(div); },
             removeWindLayer(idx) { state.windLayers.splice(idx, 1); this.render(); },
             saveEnvironment() { const newLayers = []; const rows = document.querySelectorAll('#wind-rows > div'); rows.forEach(row => { const alt = parseFloat(row.querySelector('.wind-edit-alt').value); const dir = parseFloat(row.querySelector('.wind-edit-dir').value); const spd = parseFloat(row.querySelector('.wind-edit-spd').value); if (!isNaN(alt)) { newLayers.push({ alt, dir, speed: spd }); } }); state.windLayers = newLayers; saveState(); this.renderWind(); ui.showToast("Wetterdaten gespeichert!", "success"); },
-
+            
+            // --- HELPER FUNCTIONS ---
             selectBalloon() { const bId = document.getElementById('plan-balloon').value; const list = document.getElementById('plan-cyl-list'); list.innerHTML = ''; if (!bId) { list.innerHTML = '<div class="text-xs text-slate-500 italic">Keine Flaschen ausgewählt</div>'; return; } const b = state.balloons.find(x => x.id === bId); if (b.defaultCylinders && b.defaultCylinders.length > 0) { b.defaultCylinders.forEach(id => { this.addPlanCylinder(id); }); } else { list.innerHTML = '<div class="text-xs text-slate-500 italic">Keine Standard-Flaschen definiert</div>'; } this.recalcWB(); },
-
+            
             recalcWB() {
                 const bId = document.getElementById('plan-balloon').value;
                 if (!bId) return;
@@ -1813,154 +1910,7 @@
                     <div class="mt-4 text-xs italic text-slate-500">Berechnet für ${cAlt}m AMSL bei ${cTemp}°C<br>(Tragkraftfaktor: ${liftFactor.toFixed(4)} kg/m³)</div>
                 `;
             },
-            taufe(name) { const titles = ["Baron von Thermika", "Graf von Wolkenstein", "Ritter der Windstille", "Herzog der sanften Landung", "Fürst von Cumulus"]; alert(`Die feierliche Taufe von ${name}:\n\nSie werden hiermit erhoben in den Adelsstand als:\n\n"${titles[Math.floor(Math.random()*titles.length)]}"`); },
             
-            capture() { html2canvas(document.body).then(canvas => { const link = document.createElement('a'); link.download = `AeroNav-Screenshot-${Date.now()}.png`; link.href = canvas.toDataURL(); link.click(); }); },
-
-            // --- PLANNING LOGIC ---
-            setPlanView(mode) {
-                this.planningMode = mode;
-                this.render();
-            },
-
-            archivePlan(id) {
-                const planIdx = state.plannings.findIndex(p => p.id == id);
-                if (planIdx > -1) {
-                    const plan = state.plannings.splice(planIdx, 1)[0];
-                    state.archive.push(plan);
-                    saveState();
-                    this.render();
-                }
-            },
-
-            unarchivePlan(id) {
-                const planIdx = state.archive.findIndex(p => p.id == id);
-                if (planIdx > -1) {
-                    const plan = state.archive.splice(planIdx, 1)[0];
-                    state.plannings.push(plan);
-                    saveState();
-                    this.render();
-                }
-            },
-
-            savePlan() {
-                const name = document.getElementById('plan-name').value || `Planung ${new Date().toLocaleDateString()}`;
-                const balloonId = document.getElementById('plan-balloon').value;
-                const temp = parseFloat(document.getElementById('plan-temp').value);
-                const alt = parseFloat(document.getElementById('plan-alt').value);
-                
-                if(!balloonId) { ui.showToast("Bitte Ballon auswählen!", "error"); return; }
-
-                // Get selected cylinders from the DOM list
-                const cylIds = [];
-                document.querySelectorAll('.plan-cyl-item').forEach(el => cylIds.push(el.dataset.pid));
-
-                // Get selected passengers
-                const paxIds = Array.from(document.querySelectorAll('#plan-pax input:checked')).map(cb => cb.value);
-
-                const balloon = state.balloons.find(b => b.id === balloonId);
-
-                const planData = {
-                    id: this.editingPlanId || Date.now(), // Use existing ID or create new
-                    name: name,
-                    date: new Date().toLocaleDateString(),
-                    balloonId: balloonId,
-                    balloonName: balloon ? balloon.callsign : 'Unbekannt',
-                    cylinders: cylIds,
-                    passengers: paxIds,
-                    temp: temp,
-                    alt: alt
-                };
-
-                if (this.editingPlanId) {
-                    // Update existing plan
-                    const index = state.plannings.findIndex(p => p.id == this.editingPlanId);
-                    if (index !== -1) {
-                        state.plannings[index] = planData;
-                    } else {
-                        // Edge case: if editing an archived plan directly (should not happen with current logic, but safe fallback)
-                        state.plannings.push(planData);
-                    }
-                } else {
-                    // Create new plan
-                    state.plannings.push(planData);
-                }
-
-                saveState();
-                this.editingPlanId = null; // Reset after save
-                
-                // Force switch to active view to see the saved plan
-                this.planningMode = 'active';
-                this.render(); 
-            },
-
-            loadPlan(id) {
-                const plan = state.plannings.find(p => p.id == id);
-                if(!plan) return;
-                this._fillPlanForm(plan);
-                this.editingPlanId = plan.id; // Set edit mode (Update)
-                
-                const btn = document.getElementById('btn-save-plan');
-                if(btn) { btn.innerHTML = '<i class="fas fa-pen"></i> Änderung Speichern'; btn.className = btn.className.replace('bg-green-600', 'bg-blue-600'); }
-            },
-
-            loadTemplate(id) {
-                const plan = state.archive.find(p => p.id == id);
-                if(!plan) return;
-                this._fillPlanForm(plan);
-                this.editingPlanId = null; // New Mode (Create copy)
-                
-                // Pre-fill name with "Kopie von..." to indicate template usage
-                document.getElementById('plan-name').value = `${plan.name} (Kopie)`;
-                
-                const btn = document.getElementById('btn-save-plan');
-                if(btn) { btn.innerHTML = '<i class="fas fa-save"></i> Als neue Planung Speichern'; btn.className = btn.className.replace('bg-blue-600', 'bg-green-600'); }
-            },
-
-            _fillPlanForm(plan) {
-                // Set Balloon
-                document.getElementById('plan-balloon').value = plan.balloonId;
-                document.getElementById('plan-name').value = plan.name;
-                document.getElementById('plan-temp').value = plan.temp;
-                document.getElementById('plan-alt').value = plan.alt;
-
-                // Clear current cylinders list visual
-                const list = document.getElementById('plan-cyl-list');
-                list.innerHTML = '';
-                
-                // Add cylinders from plan
-                if (plan.cylinders && plan.cylinders.length > 0) {
-                    plan.cylinders.forEach(cylId => this.addPlanCylinder(cylId));
-                } else {
-                    list.innerHTML = '<div class="text-xs text-slate-500 italic">Keine Flaschen ausgewählt</div>';
-                }
-
-                // Check passengers
-                document.querySelectorAll('#plan-pax input').forEach(cb => {
-                    cb.checked = plan.passengers.includes(cb.value);
-                });
-
-                this.recalcWB();
-            },
-
-            clearPlanForm() {
-                this.editingPlanId = null; // Reset to new mode
-
-                // Reset to default empty state
-                document.getElementById('plan-balloon').value = "";
-                document.getElementById('plan-name').value = "";
-                document.getElementById('plan-temp').value = "15";
-                document.getElementById('plan-alt').value = "1000";
-                
-                document.getElementById('plan-cyl-list').innerHTML = '<div class="text-xs text-slate-500 italic">Keine Flaschen ausgewählt</div>';
-                document.querySelectorAll('#plan-pax input').forEach(cb => cb.checked = false);
-                document.getElementById('wb-result').innerHTML = '<div class="text-slate-500 italic">Bitte Ballon und Zuladung wählen...</div>';
-
-                // Reset Button Text
-                const btn = document.getElementById('btn-save-plan');
-                if(btn) { btn.innerHTML = '<i class="fas fa-save"></i> Planung Speichern'; btn.className = btn.className.replace('bg-blue-600', 'bg-green-600'); }
-            },
-
             showStartDialog() {
                 const c = document.getElementById('tab-content');
                 document.getElementById('main-modal').style.display = 'flex';
@@ -1992,322 +1942,76 @@
                 `;
             },
 
-            showSummary(logId, editMode = false) {
-                if (typeof logId === 'object') logId = logId.id;
-                const log = state.logs.find(l => l.id == logId);
-                if(!log) return;
+            addPlanCylinder(idOverride) { const sel = document.getElementById('plan-cyl-add-select'); const id = idOverride || sel.value; if (!id) return; const list = document.getElementById('plan-cyl-list'); if (list.querySelector(`[data-pid="${id}"]`)) return; if(list.innerHTML.includes('Keine Flaschen')) list.innerHTML = ''; const cyl = state.cylinders.find(c => c.id === id); const div = document.createElement('div'); div.className = "flex justify-between items-center bg-slate-800 p-2 rounded mb-1 text-xs plan-cyl-item"; div.setAttribute('data-pid', id); div.innerHTML = `<div><div class="font-bold">${cyl.label}</div><div class="text-slate-400 text-[10px]">Total: ${cyl.gas+cyl.tare}kg</div></div><button onclick="ui.removePlanCylinder(this)" class="text-red-400 hover:text-red-300 px-2"><i class="fas fa-trash-alt"></i></button>`; list.appendChild(div); if (!idOverride) this.recalcWB(); },
+            removePlanCylinder(btn) { btn.parentElement.remove(); this.recalcWB(); },
 
-                const balloonObj = state.balloons.find(b => b.callsign === log.balloon);
-                const balloonImg = balloonObj ? balloonObj.image : null;
+            clearPlanForm() {
+                this.editingPlanId = null; // Reset to new mode
 
-                document.getElementById('main-modal').style.display = 'flex';
-                const c = document.getElementById('tab-content');
+                // Reset to default empty state
+                document.getElementById('plan-balloon').value = "";
+                document.getElementById('plan-name').value = "";
+                document.getElementById('plan-temp').value = "15";
+                document.getElementById('plan-alt').value = "1000";
                 
-                const durMs = new Date(log.end) - new Date(log.start);
-                const hrs = Math.floor(durMs / 3600000);
-                const mins = Math.floor((durMs % 3600000) / 60000);
-                const paxNames = log.pax.map(pid => {
-                    const p = state.passengers.find(px => px.id == pid);
-                    return p ? `${p.firstName} ${p.lastName}` : "Unbekannt";
-                }).join(", ") || "Keine";
+                document.getElementById('plan-cyl-list').innerHTML = '<div class="text-xs text-slate-500 italic">Keine Flaschen ausgewählt</div>';
+                document.querySelectorAll('#plan-pax input').forEach(cb => cb.checked = false);
+                document.getElementById('wb-result').innerHTML = '<div class="text-slate-500 italic">Bitte Ballon und Zuladung wählen...</div>';
 
-                const isPlanActive = log.planId && state.plannings.some(p => p.id == log.planId);
-
-                // Calculations
-                const paxWeight = log.pax.reduce((sum, pid) => sum + (state.passengers.find(p => p.id == pid)?.weight || 0), 0);
-                const cylWeight = log.cylinders.reduce((sum, cid) => {
-                    const cyl = state.cylinders.find(c => c.id == cid);
-                    return sum + (cyl ? (cyl.tare + cyl.gas) : 0);
-                }, 0);
-                const pilotWeight = state.pilot.weight;
-                const balloonWeight = balloonObj ? balloonObj.weight : 0;
-                const totalWeight = balloonWeight + pilotWeight + paxWeight + cylWeight;
-                const mtom = balloonObj ? balloonObj.mtom : 0;
-                const mtomPercent = mtom > 0 ? (totalWeight / mtom * 100).toFixed(0) : 0;
-
-                // Render helpers for Read vs Edit mode
-                const renderLocationInput = (id, val, label) => editMode ? 
-                    `<div><label class="text-[10px] uppercase text-slate-500">${label}</label><textarea id="${id}" class="text-sm h-14 bg-slate-800/50 border-white/10 rounded w-full p-2 resize-none">${val || ''}</textarea></div>` :
-                    `<div><div class="text-[10px] uppercase text-slate-500">${label}</div><div class="text-sm p-2 min-h-[3.5rem] bg-slate-800/30 rounded border border-transparent">${val || '-'}</div></div>`;
-
-                const renderNotesInput = () => editMode ?
-                    `<div class="mb-4"><label class="text-[10px] uppercase text-slate-500">Bemerkungen</label><textarea id="sum-notes" class="text-sm h-20 bg-slate-800/50 border-white/10 rounded w-full p-2 resize-none">${log.notes || ''}</textarea></div>` :
-                    `<div class="mb-4"><div class="text-[10px] uppercase text-slate-500">Bemerkungen</div><div class="text-sm p-3 bg-slate-800/30 rounded border border-transparent whitespace-pre-line">${log.notes || '-'}</div></div>`;
-
-                // --- Baptism Logic ---
-                const renderBaptismSection = () => {
-                    if (!editMode) return ''; 
-                    
-                    const firstTimePax = log.pax.map(pid => state.passengers.find(p => p.id == pid)).filter(p => p && (!p.baptism || p.flights === 1)); // Either not baptized or first flight
-                    
-                    if (firstTimePax.length === 0) return '';
-
-                    let html = '<div class="bg-amber-900/10 border border-amber-600/20 p-3 rounded-lg mb-4"><h4 class="text-amber-500 font-bold text-xs uppercase mb-2">Ballonfahrertaufe</h4><div class="space-y-3">';
-                    
-                    firstTimePax.forEach(p => {
-                        html += `
-                            <div>
-                                <label class="text-[10px] text-slate-400">${p.firstName} ${p.lastName}</label>
-                                <div class="flex gap-2">
-                                    <input type="text" id="bapt-name-${p.id}" value="${p.baptismName || ''}" class="bg-slate-800 text-sm flex-1 rounded border-white/10 px-2" placeholder="Taufname eingeben...">
-                                    ${state.settings.apiKey ? 
-                                        `<button onclick="ui.generateBaptismName(${log.id}, '${p.id}', '${p.firstName}')" class="bg-purple-600/30 text-purple-300 hover:bg-purple-600 hover:text-white px-2 rounded border border-purple-500/50" id="btn-bapt-gen-${p.id}" title="KI Vorschlag"><i class="fas fa-magic"></i></button>` 
-                                        : ''
-                                    }
-                                </div>
-                                <div id="bapt-suggestions-${p.id}" class="hidden mt-2 grid gap-1"></div>
-                            </div>
-                        `;
-                    });
-                    
-                    html += '</div></div>';
-                    return html;
-                };
-
-                const renderBalloonSelect = () => editMode ?
-                    `<select id="sum-balloon" class="bg-transparent border-none text-2xl font-bold text-white p-0 focus:ring-0 cursor-pointer w-auto" onchange="ui.updateLogBalloon(${log.id}, this.value)">
-                         ${state.balloons.map(b => `<option value="${b.callsign}" ${log.balloon === b.callsign ? 'selected' : ''} class="bg-slate-900 text-sm">${b.callsign}</option>`).join('')}
-                     </select>` :
-                    `<div class="text-2xl font-bold text-white">${log.balloon}</div>`;
-
-                const renderCylinderList = () => {
-                    const list = log.cylinders.map(cid => {
-                        const cyl = state.cylinders.find(c => c.id == cid);
-                        if (!cyl) return '';
-                        const removeBtn = editMode ? `<button onclick="ui.removeLogCylinder(${log.id}, '${cid}')" class="text-red-400 hover:text-white font-bold ml-1">&times;</button>` : '';
-                        return `<span class="bg-slate-800 px-1.5 py-0.5 rounded text-[10px] border border-white/10 flex items-center gap-1">${cyl.label} ${removeBtn}</span>`;
-                    }).join('');
-                    const addBtn = editMode ? `<button onclick="ui.addLogCylinder(${log.id})" class="text-[10px] bg-slate-700 px-1.5 py-0.5 rounded text-blue-300 hover:text-white">+</button>` : '';
-                    return (list || (log.cylinders.length === 0 ? '<span class="text-xs text-slate-600 italic">Keine Flaschen</span>' : '')) + addBtn;
-                };
-                
-                // NEW: Render Passenger List for Edit Mode
-                const renderPaxList = () => {
-                    if (!editMode) {
-                        return `<span class="truncate inline-block align-bottom max-w-[120px]" title="${paxNames}">${paxNames}</span>`;
-                    }
-                    // Edit Mode
-                    let html = '<div class="flex flex-wrap gap-1 mt-1">';
-                    log.pax.forEach(pid => {
-                        const p = state.passengers.find(px => px.id == pid);
-                        if(p) {
-                             html += `<span class="bg-slate-800 px-1.5 py-0.5 rounded text-[10px] border border-white/10 flex items-center gap-1">${p.firstName} ${p.lastName} <button onclick="ui.removeLogPassenger(${log.id}, '${pid}')" class="text-red-400 hover:text-white font-bold ml-1">&times;</button></span>`;
-                        }
-                    });
-                    // Add Button
-                    html += `<button onclick="ui.addLogPassenger(${log.id})" class="text-[10px] bg-slate-700 px-1.5 py-0.5 rounded text-blue-300 hover:text-white" title="Gast hinzufügen">+</button>`;
-                    html += '</div>';
-                    return html;
-                }
-
-                // Add times
-                const startStr = ui.formatTime(log.start);
-                const endStr = ui.formatTime(log.end);
-
-                c.innerHTML = `
-                    <div id="flight-summary-view" class="max-w-2xl mx-auto bg-slate-900 p-0 rounded-xl border border-white/10 overflow-hidden relative">
-                        <!-- Header -->
-                        <div class="relative h-24 bg-slate-800">
-                             ${balloonImg ? 
-                                `<div class="absolute inset-0 opacity-40 bg-center bg-cover" style="background-image: url('${balloonImg}')"></div>` 
-                                : '<div class="absolute inset-0 opacity-10 bg-gradient-to-r from-blue-600 to-purple-600"></div>'
-                             }
-                             <div class="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent"></div>
-                             
-                             <div class="absolute bottom-3 left-4 flex items-end gap-3 z-10">
-                                 ${balloonImg ? `<img src="${balloonImg}" class="w-12 h-12 rounded-full border-2 border-white shadow-lg object-cover bg-slate-800">` : '<div class="w-12 h-12 rounded-full border-2 border-white shadow-lg bg-slate-700 flex items-center justify-center text-xl">🎈</div>'}
-                                 <div>
-                                     ${renderBalloonSelect()}
-                                     <div class="text-[10px] text-slate-300">${new Date(log.start).toLocaleDateString()}</div>
-                                 </div>
-                             </div>
-                             
-                             <div class="absolute top-3 right-4 text-right">
-                                 <div class="text-[10px] text-slate-300 uppercase tracking-wider">Dauer</div>
-                                 <div class="font-mono text-lg font-bold">${hrs}h ${mins}m</div>
-                             </div>
-                             
-                             <!-- Start/End Time Display -->
-                             <div class="absolute bottom-3 right-4 text-right text-[10px] text-slate-300 bg-slate-900/50 px-2 py-1 rounded">
-                                 ${startStr} - ${endStr}
-                             </div>
-                        </div>
-
-                        <div class="p-4">
-                            <!-- Map Preview -->
-                            <div id="summary-map-container" class="h-56 bg-black rounded-lg mb-4 relative overflow-hidden border border-white/20">
-                                <div class="absolute inset-0 flex items-center justify-center text-slate-500 text-xs">
-                                    <i class="fas fa-map mr-2"></i> Karte wird geladen...
-                                </div>
-                            </div>
-                            
-                            <!-- Altitude Profile Chart -->
-                            <div class="h-32 mb-4 bg-slate-800/50 rounded-lg p-2 border border-white/5">
-                                <canvas id="altitudeChart"></canvas>
-                            </div>
-
-                            <!-- Locations -->
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                ${renderLocationInput('sum-start', log.startLoc, 'Startort')}
-                                ${renderLocationInput('sum-end', log.endLoc, 'Landeort')}
-                            </div>
-
-                            <!-- Notes Field -->
-                            ${renderNotesInput()}
-
-                            <!-- Technical Details -->
-                            <div class="bg-white/5 p-3 rounded-lg mb-4 text-sm border border-white/5">
-                                <h4 class="text-[10px] uppercase text-slate-400 font-bold mb-2 border-b border-white/10 pb-1 flex justify-between">
-                                    <span>Technische Daten</span>
-                                    <span>MTOW: <span class="${totalWeight > mtom ? 'text-red-400' : 'text-green-400'}">${Math.round(totalWeight)} / ${mtom} kg</span></span>
-                                </h4>
-                                
-                                <div class="grid grid-cols-2 gap-2 mb-2 text-xs">
-                                    <div><span class="text-slate-500">Pilot:</span> ${state.pilot.name}</div>
-                                    <div><span class="text-slate-500">Gäste:</span> ${renderPaxList()}</div>
-                                </div>
-
-                                <div class="flex flex-wrap gap-1 items-center" id="sum-cyl-list">
-                                    <span class="text-[10px] text-slate-500 mr-1">Gas:</span>
-                                    ${renderCylinderList()}
-                                </div>
-                            </div>
-
-                            <!-- Baptism Section (Edit Mode Only) -->
-                            ${renderBaptismSection()}
-
-                            <!-- Photos -->
-                            ${log.photos && log.photos.length > 0 ? `
-                                <div class="mb-4">
-                                    <h4 class="text-[10px] uppercase text-slate-400 mb-1">Fotos</h4>
-                                    <div class="flex gap-2 overflow-x-auto pb-2">
-                                        ${log.photos.map(p => `<img src="${p.src}" onclick="ui.showPhoto('${p.src}')" class="h-14 w-14 object-cover rounded border border-white/20 cursor-pointer hover:border-blue-400 transition">`).join('')}
-                                    </div>
-                                </div>
-                            ` : ''}
-
-                            <div class="flex gap-2 mt-4 pt-4 border-t border-white/10 flex-wrap">
-                                ${editMode ? 
-                                    `<button onclick="ui.saveSummaryChanges(${log.id})" class="flex-1 bg-green-600 hover:bg-green-500 py-2 rounded font-bold text-white shadow-lg transition">Speichern & Schließen</button>` :
-                                    `<button onclick="ui.closeModal()" class="flex-1 bg-slate-700 hover:bg-slate-600 py-2 rounded font-bold text-white shadow-lg transition">Schließen</button>
-                                     <button onclick="ui.showSummary(${log.id}, true)" class="bg-blue-600/20 text-blue-400 border border-blue-500/30 px-3 rounded hover:bg-blue-600/40" title="Bearbeiten"><i class="fas fa-pen"></i></button>`
-                                }
-                                
-                                ${isPlanActive ? `<button onclick="ui.archivePlanFromSummary(${log.planId}, this)" class="bg-amber-600/20 text-amber-400 border border-amber-500/30 px-3 rounded hover:bg-amber-600/40" title="Planung archivieren"><i class="fas fa-box-archive"></i></button>` : ''}
-                                <button onclick="ui.exportGPX(${log.id})" class="bg-slate-800 border border-white/10 px-3 rounded text-orange-400 hover:text-white transition" title="GPX"><i class="fas fa-route"></i></button>
-                                <button onclick="ui.generateReportImage(${log.id})" class="bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 px-3 rounded hover:bg-indigo-600/40" title="Teilen / Report"><i class="fas fa-share-alt"></i></button>
-                            </div>
-                        </div>
-                    </div>`;
-
-                // Render Map Preview inside Modal
-                setTimeout(() => {
-                    const mapContainer = document.getElementById('summary-map-container');
-                    mapContainer.innerHTML = ''; // Remove loader
-                    const miniMap = L.map(mapContainer, { zoomControl: false, attributionControl: false }).setView([51.1657, 10.4515], 13);
-                    
-                    // FIX: Use settings map style
-                    const style = state.settings.mapStyle || 'dark';
-                    let tileLayerUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-                    if (style === 'light') tileLayerUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-                    else if (style === 'sat') tileLayerUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-                    
-                    L.tileLayer(tileLayerUrl).addTo(miniMap);
-                    
-                    if (log.track && log.track.length > 0) {
-                        const line = L.polyline(log.track, { color: '#3b82f6', weight: 3 }).addTo(miniMap);
-                        miniMap.fitBounds(line.getBounds(), { padding: [20, 20] });
-                    }
-
-                    // Render Chart
-                    const ctx = document.getElementById('altitudeChart').getContext('2d');
-                    const trackData = log.track || [];
-                    const labels = trackData.map((_, i) => i);
-                    const altData = trackData.map(p => p[2]);
-                    
-                    new Chart(ctx, {
-                        type: 'line',
-                        data: {
-                            labels: labels,
-                            datasets: [{
-                                label: 'Höhe (m)',
-                                data: altData,
-                                borderColor: '#3b82f6',
-                                borderWidth: 1.5,
-                                backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                                fill: true,
-                                pointRadius: 0
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: { legend: { display: false } },
-                            scales: {
-                                x: { display: false },
-                                y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b' } }
-                            }
-                        }
-                    });
-
-                }, 100);
+                // Reset Button Text
+                const btn = document.getElementById('btn-save-plan');
+                if(btn) { btn.innerHTML = '<i class="fas fa-save"></i> Planung Speichern'; btn.className = btn.className.replace('bg-blue-600', 'bg-green-600'); }
             },
-
-            async generateBaptismName(logId, paxId, firstName) {
-                const log = state.logs.find(l => l.id == logId);
-                // Get Time context
-                let timeOfDay = "Tag";
-                if (log) {
-                    const hour = new Date(log.start).getHours();
-                    if (hour < 11) timeOfDay = "Morgen";
-                    else if (hour < 14) timeOfDay = "Mittag";
-                    else if (hour < 18) timeOfDay = "Nachmittag";
-                    else timeOfDay = "Abend";
-                }
-
-                const startLoc = document.getElementById('sum-start').value;
-                const endLoc = document.getElementById('sum-end').value;
-                const notes = document.getElementById('sum-notes').value;
-                const btn = document.getElementById(`btn-bapt-gen-${paxId}`);
-                const suggestionsBox = document.getElementById(`bapt-suggestions-${paxId}`);
-                
-                const suggestions = await aiService.getBaptismSuggestions(firstName, startLoc, endLoc, timeOfDay, notes, btn);
-                
-                if (suggestions.length > 0) {
-                    suggestionsBox.innerHTML = suggestions.map(s => 
-                        `<button onclick="ui.selectBaptismName('${paxId}', '${s.replace(/'/g, "\\'")}')" class="text-left text-xs bg-slate-700 hover:bg-blue-600 p-2 rounded transition">${s}</button>`
-                    ).join('');
-                    suggestionsBox.classList.remove('hidden');
-                } else {
-                    ui.showToast("Keine Vorschläge erhalten", "error");
-                }
-            },
-
-            selectBaptismName(paxId, name) {
-                document.getElementById(`bapt-name-${paxId}`).value = name;
-                document.getElementById(`bapt-suggestions-${paxId}`).classList.add('hidden');
-            },
-
-            updateLogBalloon(logId, newCallsign) {
-                const log = state.logs.find(l => l.id == logId);
-                if (log) {
-                    log.balloon = newCallsign;
-                    saveState();
-                    // Don't re-render entire form to keep input focus, handled by state update on save
-                }
-            },
-
-            removeLogCylinder(logId, cylId) {
-                const log = state.logs.find(l => l.id == logId);
-                if (log) {
-                    log.cylinders = log.cylinders.filter(id => id !== cylId);
-                    saveState();
-                    this.showSummary(logId, true); // Refresh
-                }
-            },
-
-            // --- REPLACED: New Modal-based Selection Logic ---
             
+            _fillPlanForm(plan) {
+                // Set Balloon
+                document.getElementById('plan-balloon').value = plan.balloonId;
+                document.getElementById('plan-name').value = plan.name;
+                document.getElementById('plan-temp').value = plan.temp;
+                document.getElementById('plan-alt').value = plan.alt;
+
+                // Clear current cylinders list visual
+                const list = document.getElementById('plan-cyl-list');
+                list.innerHTML = '';
+                
+                // Add cylinders from plan
+                if (plan.cylinders && plan.cylinders.length > 0) {
+                    plan.cylinders.forEach(cylId => this.addPlanCylinder(cylId));
+                } else {
+                    list.innerHTML = '<div class="text-xs text-slate-500 italic">Keine Flaschen ausgewählt</div>';
+                }
+
+                // Check passengers
+                document.querySelectorAll('#plan-pax input').forEach(cb => {
+                    cb.checked = plan.passengers.includes(cb.value);
+                });
+
+                this.recalcWB();
+            },
+
+            loadPlan(id) {
+                const plan = state.plannings.find(p => p.id == id);
+                if(!plan) return;
+                this._fillPlanForm(plan);
+                this.editingPlanId = plan.id; // Set edit mode (Update)
+                
+                const btn = document.getElementById('btn-save-plan');
+                if(btn) { btn.innerHTML = '<i class="fas fa-pen"></i> Änderung Speichern'; btn.className = btn.className.replace('bg-green-600', 'bg-blue-600'); }
+            },
+
+            loadTemplate(id) {
+                const plan = state.archive.find(p => p.id == id);
+                if(!plan) return;
+                this._fillPlanForm(plan);
+                this.editingPlanId = null; // New Mode (Create copy)
+                
+                // Pre-fill name with "Kopie von..." to indicate template usage
+                document.getElementById('plan-name').value = `${plan.name} (Kopie)`;
+                
+                const btn = document.getElementById('btn-save-plan');
+                if(btn) { btn.innerHTML = '<i class="fas fa-save"></i> Als neue Planung Speichern'; btn.className = btn.className.replace('bg-blue-600', 'bg-green-600'); }
+            },
+
             showSelectionModal(title, items, onSelect) {
                 const overlay = document.getElementById('selection-overlay');
                 const titleEl = document.getElementById('sel-title');
@@ -2353,7 +2057,6 @@
                 });
             },
 
-            // --- MODIFIED: Log Passenger with Modal ---
             addLogPassenger(logId) {
                 const log = state.logs.find(l => l.id == logId);
                 if(!log) return;
@@ -2391,7 +2094,7 @@
                     }
                 });
             },
-
+            
             removeLogPassenger(logId, paxId) {
                 const log = state.logs.find(l => l.id == logId);
                 if(!log) return;
