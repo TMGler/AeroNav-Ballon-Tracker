@@ -2049,7 +2049,14 @@
                     const mapContainer = document.getElementById('summary-map-container');
                     mapContainer.innerHTML = ''; // Remove loader
                     const miniMap = L.map(mapContainer, { zoomControl: false, attributionControl: false }).setView([51.1657, 10.4515], 13);
-                    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(miniMap);
+                    
+                    // FIX: Use settings map style
+                    const style = state.settings.mapStyle || 'dark';
+                    let tileLayerUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+                    if (style === 'light') tileLayerUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+                    else if (style === 'sat') tileLayerUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+                    
+                    L.tileLayer(tileLayerUrl).addTo(miniMap);
                     
                     if (log.track && log.track.length > 0) {
                         const line = L.polyline(log.track, { color: '#3b82f6', weight: 3 }).addTo(miniMap);
@@ -2170,31 +2177,164 @@
             },
 
             generateReportImage(logId) {
+                const log = state.logs.find(l => l.id == logId);
+                if (!log) return;
+                
                 const loader = document.getElementById('loading-overlay');
                 loader.classList.remove('hidden');
                 
-                // Wait for UI to render
+                const stage = document.getElementById('report-stage');
+                // Ensure stage is visible to renderer but offscreen
+                stage.style.display = 'block'; 
+                
+                // Data prep
+                const balloon = state.balloons.find(b => b.callsign === log.balloon);
+                const balloonImg = balloon ? balloon.image : null;
+                const durMs = new Date(log.end) - new Date(log.start);
+                const hrs = Math.floor(durMs / 3600000);
+                const mins = Math.floor((durMs % 3600000) / 60000);
+                const dateStr = new Date(log.start).toLocaleDateString('de-DE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                
+                // HTML Structure for Report
+                stage.innerHTML = `
+                    <div class="border border-white/20 rounded-xl overflow-hidden bg-slate-900 shadow-2xl relative">
+                        <!-- Header Banner -->
+                        <div class="h-40 relative bg-slate-800 overflow-hidden">
+                            ${balloonImg ? `<div class="absolute inset-0 bg-cover bg-center opacity-60" style="background-image: url('${balloonImg}')"></div>` : `<div class="absolute inset-0 bg-gradient-to-r from-blue-900 to-slate-900"></div>`}
+                            <div class="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent"></div>
+                            <div class="absolute bottom-6 left-8">
+                                <h1 class="text-4xl font-bold text-white mb-1">Flight Report</h1>
+                                <div class="text-blue-300 text-lg font-mono">${log.balloon} | ${dateStr}</div>
+                            </div>
+                            <div class="absolute top-6 right-8 text-right">
+                                <div class="text-white/50 text-xs uppercase tracking-widest">AeroNav Pilot</div>
+                                <div class="text-white font-bold text-xl">${state.pilot.name}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="p-8">
+                            <!-- Stats Grid -->
+                            <div class="grid grid-cols-4 gap-4 mb-8">
+                                <div class="bg-white/5 p-4 rounded-lg text-center border border-white/5">
+                                    <div class="text-slate-400 text-xs uppercase">Dauer</div>
+                                    <div class="text-2xl font-bold text-white">${hrs}h ${mins}m</div>
+                                </div>
+                                <div class="bg-white/5 p-4 rounded-lg text-center border border-white/5">
+                                    <div class="text-slate-400 text-xs uppercase">Max Höhe</div>
+                                    <div class="text-2xl font-bold text-blue-400">${Math.round(log.maxAlt || 0)} m</div>
+                                </div>
+                                <div class="bg-white/5 p-4 rounded-lg text-center border border-white/5">
+                                    <div class="text-slate-400 text-xs uppercase">Max Speed</div>
+                                    <div class="text-2xl font-bold text-yellow-400">${Math.round(log.maxSpeed || 0)} km/h</div>
+                                </div>
+                                <div class="bg-white/5 p-4 rounded-lg text-center border border-white/5">
+                                    <div class="text-slate-400 text-xs uppercase">Passagiere</div>
+                                    <div class="text-2xl font-bold text-green-400">${log.pax.length}</div>
+                                </div>
+                            </div>
+
+                            <!-- Locations -->
+                            <div class="flex justify-between items-center mb-8 px-4 py-4 bg-white/5 rounded-lg border border-white/5">
+                                <div>
+                                    <div class="text-slate-500 text-xs uppercase mb-1">Start</div>
+                                    <div class="text-white font-bold text-lg leading-tight">${log.startLoc || 'Unbekannt'}</div>
+                                    <div class="text-slate-600 text-xs mt-1">${ui.formatTime(log.start)}</div>
+                                </div>
+                                <div class="text-slate-600"><i class="fas fa-arrow-right"></i></div>
+                                <div class="text-right">
+                                    <div class="text-slate-500 text-xs uppercase mb-1">Landung</div>
+                                    <div class="text-white font-bold text-lg leading-tight">${log.endLoc || 'Unbekannt'}</div>
+                                    <div class="text-slate-600 text-xs mt-1">${ui.formatTime(log.end)}</div>
+                                </div>
+                            </div>
+
+                            <!-- Map & Profile -->
+                            <div class="grid grid-cols-3 gap-6 h-64">
+                                <div class="col-span-2 bg-black rounded-lg border border-white/20 overflow-hidden relative" id="report-map-container"></div>
+                                <div class="col-span-1 bg-slate-800/50 rounded-lg border border-white/5 p-2 flex flex-col">
+                                    <div class="text-xs text-slate-500 mb-2 text-center uppercase">Höhenprofil</div>
+                                    <div class="flex-1 relative"><canvas id="report-altitude-chart"></canvas></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Footer -->
+                        <div class="px-8 py-4 bg-black/20 border-t border-white/5 flex justify-between items-center text-[10px] text-slate-500">
+                            <div>Generated by AeroNav Balloon Pilot</div>
+                            <div>${new Date().toLocaleString()}</div>
+                        </div>
+                    </div>
+                `;
+
+                // --- Init Report Map ---
+                const mapContainer = document.getElementById('report-map-container');
+                const reportMap = L.map(mapContainer, { zoomControl: false, attributionControl: false });
+                
+                // Style logic for report map
+                const style = state.settings.mapStyle || 'dark';
+                let tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+                if (style === 'light') tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+                else if (style === 'sat') tileUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+                
+                L.tileLayer(tileUrl).addTo(reportMap);
+
+                if (log.track && log.track.length > 0) {
+                    const line = L.polyline(log.track, { color: '#3b82f6', weight: 4 }).addTo(reportMap);
+                    reportMap.fitBounds(line.getBounds(), { padding: [30, 30] });
+                } else {
+                    reportMap.setView([51.1657, 10.4515], 6);
+                }
+
+                // --- Init Report Chart ---
+                const ctx = document.getElementById('report-altitude-chart').getContext('2d');
+                const altData = log.track ? log.track.map(p => p[2]) : [];
+                const labels = altData.map((_, i) => i);
+                
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: altData,
+                            borderColor: '#3b82f6',
+                            borderWidth: 2,
+                            backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                            fill: true,
+                            pointRadius: 0,
+                            tension: 0.1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { display: false },
+                            y: { display: true, grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#64748b', font: { size: 8 } } }
+                        }
+                    }
+                });
+
+                // --- Capture ---
                 setTimeout(() => {
-                    const element = document.getElementById('flight-summary-view');
-                    if (!element) return;
-                    
-                    html2canvas(element, {
+                    html2canvas(stage, {
                         useCORS: true,
                         backgroundColor: '#0f172a',
-                        scale: 2
+                        scale: 2 // High res
                     }).then(canvas => {
                         loader.classList.add('hidden');
                         const link = document.createElement('a');
-                        link.download = `Flight-Report-${logId}.png`;
+                        link.download = `Flight-Report-${log.balloon}-${dateStr}.png`;
                         link.href = canvas.toDataURL('image/png');
                         link.click();
-                        ui.showToast("Bericht heruntergeladen!");
+                        ui.showToast("Bericht erstellt!");
+                        stage.innerHTML = ''; // Clean up
                     }).catch(err => {
                         loader.classList.add('hidden');
                         console.error(err);
-                        ui.showToast("Fehler beim Erstellen des Bildes", "error");
+                        ui.showToast("Fehler beim Export", "error");
                     });
-                }, 500);
+                }, 1500); // Wait for map tiles
             }
         };
 
