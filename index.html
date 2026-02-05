@@ -276,6 +276,10 @@
         #ai-nav-overlay { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 600px; background: rgba(15, 23, 42, 0.95); border: 1px solid var(--accent-blue); box-shadow: 0 0 20px rgba(59, 130, 246, 0.3); border-radius: 12px; padding: 12px; z-index: 1000; display: none; backdrop-filter: blur(8px); }
         #photo-overlay { position: fixed; inset: 0; z-index: 7000; background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; padding: 20px; }
         #photo-overlay img { max-width: 95%; max-height: 95%; border-radius: 8px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        
+        /* SELECTION OVERLAY */
+        #selection-overlay { position: fixed; inset: 0; z-index: 3000; background: rgba(0,0,0,0.8); display: none; justify-content: center; align-items: center; padding: 20px; backdrop-filter: blur(4px); }
+        .selection-box { background: #1e293b; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; width: 100%; max-width: 400px; max-height: 80vh; display: flex; flex-direction: column; shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
 
         /* Form Controls */
         input, select, textarea { background: rgba(30, 41, 59, 0.5) !important; border: 1px solid rgba(255,255,255,0.1) !important; color: white !important; border-radius: 6px; padding: 8px 12px; width: 100%; }
@@ -338,6 +342,19 @@
     <!-- Photo View Overlay -->
     <div id="photo-overlay" onclick="this.style.display='none'">
         <img id="photo-overlay-img" src="">
+    </div>
+    
+    <!-- SELECTION OVERLAY -->
+    <div id="selection-overlay">
+        <div class="selection-box">
+            <div class="p-4 border-b border-white/10 flex justify-between items-center bg-slate-900/50 rounded-t-xl">
+                <h3 id="sel-title" class="font-bold text-white">Auswahl</h3>
+                <button onclick="document.getElementById('selection-overlay').style.display='none'" class="text-slate-400 hover:text-white px-2"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="sel-content" class="overflow-y-auto p-2 flex-1 space-y-1 max-h-[60vh]">
+                <!-- Items injected here -->
+            </div>
+        </div>
     </div>
 
     <!-- Hidden Inputs -->
@@ -723,17 +740,15 @@
                 const maxWords = state.settings.baptismMaxWords || 15;
                 const promptText = `
                     Generiere 5 kreative und lustige Ballonfahrertaufnamen (Adelstitel) für einen Passagier.
-                    
-                    Passagier Vorname: ${paxName}
-                    Startort: ${startLoc}
-                    Landeort: ${endLoc}
-                    Tageszeit: ${time}
-                    Besondere Ereignisse/Notizen: ${notes}
+                    Erwähne den Vornamen: ${paxName}.
+                    Inkorporiere Elemente aus:
+                    1. Startort (${startLoc}) ODER Landeort (${endLoc}).
+                    2. Der Tageszeit (${time}).
+                    3. Dem folgenden Ereignis/Notiz: ${notes} (Falls leer, ignoriere dies).
                     
                     Regeln:
                     - Die Titel müssen auf Deutsch sein.
                     - Jeder Titel darf maximal ${maxWords} Wörter lang sein.
-                    - Versuche Elemente aus den Orten, der Zeit oder den Notizen einzubauen.
                     - Format: Nur die 5 Titel, getrennt durch ein Semikolon (;). Keine Nummerierung, keine Anführungszeichen.
                 `;
 
@@ -1244,7 +1259,7 @@
                     end: end.toISOString(), 
                     track: this.points, 
                     balloon: balloonName,
-                    notes: `Start: ${startLoc}\nLandung: ${endLoc}`,
+                    notes: "", // Changed from start/end loc
                     startLoc: startLoc, 
                     endLoc: endLoc,     
                     planId: this.currentActivePlan ? this.currentActivePlan.id : null,
@@ -1834,7 +1849,7 @@
                 const temp = parseFloat(document.getElementById('plan-temp').value);
                 const alt = parseFloat(document.getElementById('plan-alt').value);
                 
-                if(!balloonId) { alert("Bitte Ballon auswählen!"); return; }
+                if(!balloonId) { ui.showToast("Bitte Ballon auswählen!", "error"); return; }
 
                 // Get selected cylinders from the DOM list
                 const cylIds = [];
@@ -2036,7 +2051,7 @@
                                 <div class="flex gap-2">
                                     <input type="text" id="bapt-name-${p.id}" value="${p.baptismName || ''}" class="bg-slate-800 text-sm flex-1 rounded border-white/10 px-2" placeholder="Taufname eingeben...">
                                     ${state.settings.apiKey ? 
-                                        `<button onclick="ui.generateBaptismName('${p.id}', '${p.firstName}')" class="bg-purple-600/30 text-purple-300 hover:bg-purple-600 hover:text-white px-2 rounded border border-purple-500/50" id="btn-bapt-gen-${p.id}" title="KI Vorschlag"><i class="fas fa-magic"></i></button>` 
+                                        `<button onclick="ui.generateBaptismName(${log.id}, '${p.id}', '${p.firstName}')" class="bg-purple-600/30 text-purple-300 hover:bg-purple-600 hover:text-white px-2 rounded border border-purple-500/50" id="btn-bapt-gen-${p.id}" title="KI Vorschlag"><i class="fas fa-magic"></i></button>` 
                                         : ''
                                     }
                                 </div>
@@ -2066,6 +2081,25 @@
                     return (list || (log.cylinders.length === 0 ? '<span class="text-xs text-slate-600 italic">Keine Flaschen</span>' : '')) + addBtn;
                 };
                 
+                // NEW: Render Passenger List for Edit Mode
+                const renderPaxList = () => {
+                    if (!editMode) {
+                        return `<span class="truncate inline-block align-bottom max-w-[120px]" title="${paxNames}">${paxNames}</span>`;
+                    }
+                    // Edit Mode
+                    let html = '<div class="flex flex-wrap gap-1 mt-1">';
+                    log.pax.forEach(pid => {
+                        const p = state.passengers.find(px => px.id == pid);
+                        if(p) {
+                             html += `<span class="bg-slate-800 px-1.5 py-0.5 rounded text-[10px] border border-white/10 flex items-center gap-1">${p.firstName} ${p.lastName} <button onclick="ui.removeLogPassenger(${log.id}, '${pid}')" class="text-red-400 hover:text-white font-bold ml-1">&times;</button></span>`;
+                        }
+                    });
+                    // Add Button
+                    html += `<button onclick="ui.addLogPassenger(${log.id})" class="text-[10px] bg-slate-700 px-1.5 py-0.5 rounded text-blue-300 hover:text-white" title="Gast hinzufügen">+</button>`;
+                    html += '</div>';
+                    return html;
+                }
+
                 // Add times
                 const startStr = ui.formatTime(log.start);
                 const endStr = ui.formatTime(log.end);
@@ -2130,7 +2164,7 @@
                                 
                                 <div class="grid grid-cols-2 gap-2 mb-2 text-xs">
                                     <div><span class="text-slate-500">Pilot:</span> ${state.pilot.name}</div>
-                                    <div><span class="text-slate-500">Gäste:</span> <span class="truncate inline-block align-bottom max-w-[120px]">${paxNames}</span></div>
+                                    <div><span class="text-slate-500">Gäste:</span> ${renderPaxList()}</div>
                                 </div>
 
                                 <div class="flex flex-wrap gap-1 items-center" id="sum-cyl-list">
@@ -2219,27 +2253,25 @@
                 }, 100);
             },
 
-            async generateBaptismName(paxId, firstName) {
-                const logId = state.logs.find(l => l.pax.includes(paxId) && new Date(l.end).getTime() > Date.now() - 86400000)?.id; 
-                // Just use the currently open log from context if possible, but hard to get here directly.
-                // Workaround: We are inside showSummary logic context visually, but function call needs data.
-                // Let's grab data from DOM input fields for context since user might have edited them.
-                
+            async generateBaptismName(logId, paxId, firstName) {
+                const log = state.logs.find(l => l.id == logId);
+                // Get Time context
+                let timeOfDay = "Tag";
+                if (log) {
+                    const hour = new Date(log.start).getHours();
+                    if (hour < 11) timeOfDay = "Morgen";
+                    else if (hour < 14) timeOfDay = "Mittag";
+                    else if (hour < 18) timeOfDay = "Nachmittag";
+                    else timeOfDay = "Abend";
+                }
+
                 const startLoc = document.getElementById('sum-start').value;
                 const endLoc = document.getElementById('sum-end').value;
                 const notes = document.getElementById('sum-notes').value;
                 const btn = document.getElementById(`btn-bapt-gen-${paxId}`);
                 const suggestionsBox = document.getElementById(`bapt-suggestions-${paxId}`);
                 
-                // Get time from current log being viewed (we need to find it again or pass it)
-                // Simplified: Grab from summary header which is hard. 
-                // Better: Pass logId to generateBaptismName in the onclick HTML generation.
-                
-                // Correction: The onclick in HTML generation didn't pass logId. 
-                // I'll assume the inputs provide enough context for the AI prompt.
-                const time = "Tag"; // Default fallback if not parsing UI
-
-                const suggestions = await aiService.getBaptismSuggestions(firstName, startLoc, endLoc, time, notes, btn);
+                const suggestions = await aiService.getBaptismSuggestions(firstName, startLoc, endLoc, timeOfDay, notes, btn);
                 
                 if (suggestions.length > 0) {
                     suggestionsBox.innerHTML = suggestions.map(s => 
@@ -2274,21 +2306,107 @@
                 }
             },
 
-            addLogCylinder(logId) {
-                // Simple prompt for now - could be a modal selector
-                const available = state.cylinders.map((c, i) => `${i+1}: ${c.label}`).join('\n');
-                const selection = prompt("Nummer der Flasche eingeben:\n" + available);
-                if (selection) {
-                    const idx = parseInt(selection) - 1;
-                    if (state.cylinders[idx]) {
-                        const log = state.logs.find(l => l.id == logId);
-                        if(log) {
-                            log.cylinders.push(state.cylinders[idx].id);
-                            saveState();
-                            this.showSummary(logId, true);
-                        }
-                    }
+            // --- REPLACED: New Modal-based Selection Logic ---
+            
+            showSelectionModal(title, items, onSelect) {
+                const overlay = document.getElementById('selection-overlay');
+                const titleEl = document.getElementById('sel-title');
+                const contentEl = document.getElementById('sel-content');
+                
+                titleEl.innerText = title;
+                contentEl.innerHTML = '';
+                
+                if (items.length === 0) {
+                    contentEl.innerHTML = '<div class="text-slate-400 text-center italic p-4">Keine Einträge verfügbar</div>';
+                } else {
+                    items.forEach((item) => {
+                        const btn = document.createElement('button');
+                        btn.className = "w-full text-left bg-slate-800 hover:bg-slate-700 p-3 rounded mb-1 flex justify-between items-center transition";
+                        btn.innerHTML = `<div><div class="font-bold text-white">${item.main}</div><div class="text-xs text-slate-400">${item.sub}</div></div><i class="fas fa-plus text-slate-500"></i>`;
+                        btn.onclick = () => {
+                            onSelect(item.id);
+                            overlay.style.display = 'none';
+                        };
+                        contentEl.appendChild(btn);
+                    });
                 }
+                
+                overlay.style.display = 'flex';
+            },
+
+            addLogCylinder(logId) {
+                const log = state.logs.find(l => l.id == logId);
+                if(!log) return;
+                
+                // Prepare items
+                const items = state.cylinders.map(c => ({
+                    id: c.id,
+                    main: c.label,
+                    sub: `${c.type} | ${c.gas + c.tare}kg`
+                }));
+                
+                this.showSelectionModal("Gasflasche hinzufügen", items, (selectedId) => {
+                    log.cylinders.push(selectedId);
+                    saveState();
+                    this.showSummary(logId, true); // Refresh
+                    this.showToast("Flasche hinzugefügt");
+                });
+            },
+
+            // --- MODIFIED: Log Passenger with Modal ---
+            addLogPassenger(logId) {
+                const log = state.logs.find(l => l.id == logId);
+                if(!log) return;
+                
+                // Filter passengers not already in log
+                const available = state.passengers.filter(p => !log.pax.includes(p.id));
+                
+                if(available.length === 0) {
+                    this.showToast("Alle Passagiere bereits an Bord", "error");
+                    return;
+                }
+                
+                const items = available.map(p => ({
+                    id: p.id,
+                    main: `${p.firstName} ${p.lastName}`,
+                    sub: `${p.weight}kg | ${p.flights || 0} Fahrten`
+                }));
+                
+                this.showSelectionModal("Passagier hinzufügen", items, (selectedId) => {
+                    const p = state.passengers.find(px => px.id === selectedId);
+                    if (p) {
+                        log.pax.push(p.id);
+                        
+                        // Update Stats
+                        p.flights = (p.flights || 0) + 1;
+                        const logDate = new Date(log.start);
+                        const pDate = p.lastFlight ? new Date(p.lastFlight) : new Date(0);
+                        if (logDate > pDate) {
+                            p.lastFlight = log.start;
+                        }
+                        
+                        saveState();
+                        this.showSummary(logId, true); // Refresh UI
+                        this.showToast(`${p.firstName} hinzugefügt`);
+                    }
+                });
+            },
+
+            removeLogPassenger(logId, paxId) {
+                const log = state.logs.find(l => l.id == logId);
+                if(!log) return;
+                
+                log.pax = log.pax.filter(id => id !== paxId);
+                
+                // Update Stats (decrement)
+                const p = state.passengers.find(px => px.id == paxId);
+                if(p) {
+                    p.flights = Math.max(0, (p.flights || 1) - 1);
+                }
+                
+                saveState();
+                this.showSummary(logId, true);
+                this.showToast("Passagier entfernt");
             },
 
             saveSummaryChanges(logId) {
