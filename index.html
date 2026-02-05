@@ -63,8 +63,10 @@
         .hud-top-container {
             position: absolute;
             top: 10px;
-            left: 50%;
-            transform: translateX(-50%);
+            /* Changed centering method to avoid 'fixed position' trap */
+            left: 0;
+            right: 0;
+            margin: 0 auto;
             z-index: 1000;
             width: 95%;
             max-width: 800px;
@@ -116,8 +118,10 @@
         .hud-nav-container {
             position: absolute;
             top: 100px;
-            left: 50%;
-            transform: translateX(-50%);
+            /* Changed centering method */
+            left: 0;
+            right: 0;
+            margin: 0 auto;
             z-index: 990;
             width: 90%;
             max-width: 600px;
@@ -141,27 +145,29 @@
         }
         
         .hud-nav.minimized {
-            transform: translateX(-150%);
+            /* Changed from translateX to translateY for vertical collapse effect */
+            transform: translateY(-50%) scale(0.9);
             opacity: 0;
             pointer-events: none;
         }
 
+        /* Nav Toggle: Moved to TOP Center */
         #btn-nav-toggle-wrapper {
             position: absolute;
-            left: -40px;
-            top: 50%;
-            transform: translateY(-50%);
+            left: 50%;
+            top: -28px; /* Positioned above the HUD */
+            transform: translateX(-50%);
             z-index: 991;
             pointer-events: auto;
             transition: all 0.4s ease;
         }
         
-        /* DOCKED STATE: Nav Toggle moves to left screen edge */
+        /* DOCKED STATE: Nav Toggle stays at its position but fixed */
         .hud-nav-container.docked #btn-nav-toggle-wrapper {
              position: fixed !important;
-             left: 10px !important; 
-             top: 130px !important; /* Fixed vertical pos */
-             transform: none !important;
+             left: 50% !important; 
+             top: 100px !important; /* Fixed vertical pos */
+             transform: translateX(-50%) !important;
              background: rgba(15, 23, 42, 0.9);
              border: 1px solid rgba(255,255,255,0.2);
         }
@@ -379,10 +385,10 @@
 
     <!-- HUD NAVIGATION CONTAINER -->
     <div id="hud-nav-container" class="hud-nav-container hidden">
-        <!-- Collapse Button -->
+        <!-- Collapse Button MOVED TO TOP -->
         <div id="btn-nav-toggle-wrapper">
             <button onclick="ui.toggleNavHUD()" class="bg-slate-800 text-slate-400 hover:text-white rounded-full w-8 h-8 flex items-center justify-center text-xs shadow border border-white/20" title="Ein/Ausblenden">
-                <i class="fas fa-chevron-left transition-transform duration-300" id="icon-nav-hud-toggle"></i>
+                <i class="fas fa-chevron-up transition-transform duration-300" id="icon-nav-hud-toggle"></i>
             </button>
         </div>
 
@@ -1319,10 +1325,12 @@
                 nav.classList.toggle('minimized'); 
                 
                 if (nav.classList.contains('minimized')) {
-                    btnIcon.className = 'fas fa-chevron-right transition-transform duration-300';
+                    // Changed Icon to Down
+                    btnIcon.className = 'fas fa-chevron-down transition-transform duration-300';
                     container.classList.add('docked');
                 } else {
-                    btnIcon.className = 'fas fa-chevron-left transition-transform duration-300';
+                    // Changed Icon to Up
+                    btnIcon.className = 'fas fa-chevron-up transition-transform duration-300';
                     container.classList.remove('docked');
                 }
             },
