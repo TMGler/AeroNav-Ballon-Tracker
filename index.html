@@ -89,7 +89,7 @@
         .hud-top {
             pointer-events: auto;
             display: grid;
-            grid-template-columns: repeat(5, 1fr); /* Changed to 5 for Time */
+            grid-template-columns: repeat(5, 1fr);
             gap: 4px;
             padding: 8px;
             width: 100%;
@@ -1196,7 +1196,7 @@
                 ui.showToast("Bereinigung durchgeführt.", "success");
             },
 
-            startRecording(planId) {
+            startRecording(planId, balloonId) {
                 wakeLockManager.request();
                 
                 let plan = null;
@@ -1204,7 +1204,25 @@
                     plan = state.plannings.find(p => p.id == planId) || state.archive.find(p => p.id == planId);
                 }
                 
-                this.currentActivePlan = plan;
+                // --- NEW: Handle Explicit Balloon Selection ---
+                // If plan exists, it already has balloonId. If spontaneous, we might have passed balloonId.
+                // We construct a temporary "active plan" object to hold this context.
+                
+                if (!plan && balloonId) {
+                    const b = state.balloons.find(x => x.id === balloonId);
+                    // Create a pseudo-plan for spontaneous flight context
+                    this.currentActivePlan = {
+                        id: null, // No plan ID
+                        name: "Spontanfahrt",
+                        balloonId: balloonId,
+                        balloonName: b ? b.callsign : "Unbekannt",
+                        passengers: [], // Start empty
+                        cylinders: []   // Start empty
+                    };
+                } else {
+                    this.currentActivePlan = plan;
+                }
+                
                 this.currentPhotos = []; 
                 this.maxSpeed = 0;
                 this.maxAlt = 0;
@@ -1234,8 +1252,15 @@
 
                 const end = new Date();
                 
-                const balloonName = this.currentActivePlan ? this.currentActivePlan.balloonName : (state.balloons.find(b => b.id === state.settings.activeBalloonId)?.callsign || "Spontan");
-                
+                // Use balloon from active context (Plan or Spontaneous) or fallback to default
+                let balloonName = "Spontan";
+                if (this.currentActivePlan && this.currentActivePlan.balloonName) {
+                    balloonName = this.currentActivePlan.balloonName;
+                } else {
+                     const defB = state.balloons.find(b => b.id === state.settings.activeBalloonId);
+                     if(defB) balloonName = defB.callsign;
+                }
+
                 const currentPaxIds = this.currentActivePlan ? this.currentActivePlan.passengers : [];
                 
                 if (currentPaxIds.length > 0) {
@@ -1592,27 +1617,10 @@
                 // Determine units for display
                 const isFt = state.settings.unitVario === 'fts';
                 const climbUnit = isFt ? '1000 ft/min' : 'm/s';
-                // Just use m/s values for input, but label changes if we want to be fancy.
-                // The prompt says "je nach einstellung... 1000ft/min".
-                // If isFt, the value 5 m/s approx 1000 fpm.
-                // To simplify: I keep the storage in m/s. The input will show m/s.
-                // If I want to show fpm, I need conversion.
-                // Let's implement conversion for display.
                 let valClimb = b.maxClimb || 5;
                 let valDescent = b.maxDescent || 3;
                 let step = 0.1;
                 
-                if (isFt) {
-                    // Convert m/s to 1000 ft/min (approx). 1 m/s = 196.85 ft/min ~ 0.2 (1000ft/min)
-                    // Actually 1000 ft/min = 5.08 m/s.
-                    // Let's just use ft/min as unit for the input if fts is selected.
-                    // Or keep it simple: Just m/s. Pilots usually know m/s.
-                    // The prompt: "füge bitte noch zwei Felder für maximal erlaubtes Steig- und Sinkgeschwindigkeit in m/s oder 1000ft/min, je nach einstellung"
-                    // Okay, I will try to respect the unit setting for the LABEL, but keep value in m/s to avoid conversion bugs for now, as physics is m/s.
-                    // If user enters 5 and label says 1000ft/min, it is confusing.
-                    // Let's stick to m/s for input but add label hint.
-                }
-
                 c.innerHTML = `
                     <h3 class="text-xl font-bold mb-4">${this.editingId === 'new' ? 'Neuer Ballon' : 'Ballon bearbeiten'}</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1750,8 +1758,8 @@
                     volume: parseFloat(document.getElementById('f-volume').value), 
                     weight: parseFloat(document.getElementById('f-weight').value), 
                     mtom: parseFloat(document.getElementById('f-mtom').value), 
-                    maxClimb: parseFloat(document.getElementById('f-maxClimb').value) || 5, // NEW
-                    maxDescent: parseFloat(document.getElementById('f-maxDescent').value) || 3, // NEW
+                    maxClimb: parseFloat(document.getElementById('f-maxClimb').value) || 5, 
+                    maxDescent: parseFloat(document.getElementById('f-maxDescent').value) || 3, 
                     matrix: matrix, 
                     defaultCylinders: defaultCylinders, 
                     image: state.balloons.find(b=>b.id === this.editingId)?.image 
@@ -1836,7 +1844,6 @@
                 `; 
             },
             
-            // --- NEW: Passenger History View ---
             viewPassengerHistory(paxId) {
                 const p = state.passengers.find(x => x.id === paxId);
                 if(!p) return;
@@ -2017,19 +2024,33 @@
                 document.getElementById('main-modal').style.display = 'flex';
                 document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
                 
+                // Get all balloons for dropdown
+                const balloonOptions = state.balloons.map(b => 
+                    `<option value="${b.id}">${b.callsign}</option>`
+                ).join('');
+
                 c.innerHTML = `
                     <h3 class="text-2xl font-bold mb-6 text-center">Fahrt Starten</h3>
                     <div class="grid gap-4 max-w-md mx-auto">
-                        <button onclick="flightManager.startRecording(null)" class="bg-blue-600 hover:bg-blue-500 py-4 rounded-xl font-bold text-lg shadow-lg flex items-center justify-center gap-3">
-                            <i class="fas fa-play"></i> Spontanfahrt (Ohne Plan)
-                        </button>
+                        <div class="bg-slate-800 p-4 rounded-xl shadow-lg border border-white/10">
+                            <h4 class="font-bold text-slate-300 mb-2 text-sm uppercase">Spontanfahrt</h4>
+                            <div class="mb-4">
+                                <label class="text-xs text-slate-400 block mb-1">Ballon wählen</label>
+                                <select id="spontan-balloon-select" class="w-full bg-slate-700 border border-white/10 rounded p-2 text-white text-sm">
+                                    ${state.balloons.length === 0 ? '<option value="">Keine Ballone verfügbar</option>' : balloonOptions}
+                                </select>
+                            </div>
+                            <button onclick="flightManager.startRecording(null, document.getElementById('spontan-balloon-select').value)" class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-lg font-bold text-lg shadow-lg flex items-center justify-center gap-2 transition active:scale-95">
+                                <i class="fas fa-play"></i> Starten
+                            </button>
+                        </div>
                         
                         <div class="text-center text-slate-500 text-xs my-2">- ODER GEPLANTE FAHRT WÄHLEN -</div>
                         
                         <div class="space-y-2 max-h-60 overflow-y-auto">
                             ${state.plannings.length === 0 ? '<div class="text-center text-slate-500 italic">Keine aktiven Planungen vorhanden</div>' : 
                                 state.plannings.map(p => `
-                                    <button onclick="flightManager.startRecording('${p.id}')" class="w-full bg-slate-800 hover:bg-slate-700 p-3 rounded-lg flex justify-between items-center text-left">
+                                    <button onclick="flightManager.startRecording('${p.id}')" class="w-full bg-slate-800 hover:bg-slate-700 p-3 rounded-lg flex justify-between items-center text-left border border-white/5 transition active:scale-95">
                                         <div>
                                             <div class="font-bold text-white">${p.name}</div>
                                             <div class="text-[10px] text-slate-400">${p.date} | ${p.balloonName}</div>
@@ -2243,6 +2264,78 @@
                 btn.remove();
                 ui.showToast("Planung archiviert");
             },
+
+            // --- RE-ADDED MISSING FUNCTIONS ---
+            archivePlan(id) {
+                const planIdx = state.plannings.findIndex(p => p.id == id);
+                if (planIdx > -1) {
+                    const plan = state.plannings.splice(planIdx, 1)[0];
+                    state.archive.push(plan);
+                    saveState();
+                    this.render();
+                }
+            },
+
+            unarchivePlan(id) {
+                const planIdx = state.archive.findIndex(p => p.id == id);
+                if (planIdx > -1) {
+                    const plan = state.archive.splice(planIdx, 1)[0];
+                    state.plannings.push(plan);
+                    saveState();
+                    this.render();
+                }
+            },
+
+            savePlan() {
+                const name = document.getElementById('plan-name').value || `Planung ${new Date().toLocaleDateString()}`;
+                const balloonId = document.getElementById('plan-balloon').value;
+                const temp = parseFloat(document.getElementById('plan-temp').value);
+                const alt = parseFloat(document.getElementById('plan-alt').value);
+                
+                if(!balloonId) { ui.showToast("Bitte Ballon auswählen!", "error"); return; }
+
+                // Get selected cylinders from the DOM list
+                const cylIds = [];
+                document.querySelectorAll('.plan-cyl-item').forEach(el => cylIds.push(el.dataset.pid));
+
+                // Get selected passengers
+                const paxIds = Array.from(document.querySelectorAll('#plan-pax input:checked')).map(cb => cb.value);
+
+                const balloon = state.balloons.find(b => b.id === balloonId);
+
+                const planData = {
+                    id: this.editingPlanId || Date.now(), // Use existing ID or create new
+                    name: name,
+                    date: new Date().toLocaleDateString(),
+                    balloonId: balloonId,
+                    balloonName: balloon ? balloon.callsign : 'Unbekannt',
+                    cylinders: cylIds,
+                    passengers: paxIds,
+                    temp: temp,
+                    alt: alt
+                };
+
+                if (this.editingPlanId) {
+                    // Update existing plan
+                    const index = state.plannings.findIndex(p => p.id == this.editingPlanId);
+                    if (index !== -1) {
+                        state.plannings[index] = planData;
+                    } else {
+                        // Edge case: if editing an archived plan directly (should not happen with current logic, but safe fallback)
+                        state.plannings.push(planData);
+                    }
+                } else {
+                    // Create new plan
+                    state.plannings.push(planData);
+                }
+
+                saveState();
+                this.editingPlanId = null; // Reset after save
+                
+                // Force switch to active view to see the saved plan
+                this.planningMode = 'active';
+                this.render(); 
+            },
             
             exportGPX(logId) {
                 const log = state.logs.find(l => l.id == logId);
@@ -2293,7 +2386,8 @@
                 const paxListHtml = log.pax.map(pid => {
                     const p = state.passengers.find(px => px.id == pid);
                     if (!p) return '';
-                    return `<div class="bg-white/5 p-2 rounded text-sm text-slate-300">${p.firstName} ${p.lastName}</div>`;
+                    const baptism = p.baptismName ? `<div class="text-[10px] text-amber-400 italic font-serif mt-0.5">${p.baptismName}</div>` : '';
+                    return `<div class="bg-white/5 p-2 rounded text-sm text-slate-300"><div>${p.firstName} ${p.lastName}</div>${baptism}</div>`;
                 }).join('');
 
                 // HTML Structure for Report
@@ -2359,7 +2453,7 @@
                                 </div>
                                 <div>
                                     <h4 class="text-slate-500 text-xs uppercase mb-2">Gästeliste</h4>
-                                    <div class="grid grid-cols-1 gap-2 max-h-[80px] overflow-hidden">
+                                    <div class="grid grid-cols-1 gap-2 max-h-[120px] overflow-hidden">
                                         ${paxListHtml || '<div class="text-slate-500 italic text-sm">Keine Passagiere</div>'}
                                     </div>
                                 </div>
@@ -2367,7 +2461,7 @@
 
                             <!-- Map & Profile -->
                             <div class="grid grid-cols-3 gap-6 h-64">
-                                <div class="col-span-2 bg-black rounded-lg border border-white/20 overflow-hidden relative" id="report-map-container"></div>
+                                <div class="col-span-2 bg-black rounded-lg border border-white/20 overflow-hidden relative" id="report-map-container" style="height: 100%;"></div>
                                 <div class="col-span-1 bg-slate-800/50 rounded-lg border border-white/5 p-2 flex flex-col">
                                     <div class="text-xs text-slate-500 mb-2 text-center uppercase">Höhenprofil</div>
                                     <div class="flex-1 relative"><canvas id="report-altitude-chart"></canvas></div>
@@ -2394,6 +2488,9 @@
                 else if (style === 'sat') tileUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
                 
                 L.tileLayer(tileUrl).addTo(reportMap);
+                
+                // Important: force size recalculation because container was hidden/offscreen
+                reportMap.invalidateSize();
 
                 if (log.track && log.track.length > 0) {
                     const line = L.polyline(log.track, { color: '#3b82f6', weight: 4 }).addTo(reportMap);
@@ -2452,55 +2549,6 @@
                         ui.showToast("Fehler beim Export", "error");
                     });
                 }, 1500); // Wait for map tiles
-            }
-        };
-
-        /**
-         * SYSTEM FUNCTIONS (Import/Export)
-         */
-        const system = {
-            exportData() {
-                const dataStr = JSON.stringify(state);
-                const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-                const exportFileDefaultName = 'aeronav-backup-' + new Date().toISOString().slice(0,10) + '.json';
-                const linkElement = document.createElement('a');
-                linkElement.setAttribute('href', dataUri);
-                linkElement.setAttribute('download', exportFileDefaultName);
-                linkElement.click();
-            },
-            
-            triggerImport() {
-                document.getElementById('import-input').click();
-            },
-            
-            importData(input) {
-                if (input.files && input.files[0]) {
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        try {
-                            const importedState = JSON.parse(e.target.result);
-                            // Basic validation
-                            if (importedState.pilot && importedState.balloons) {
-                                state = importedState;
-                                saveState();
-                                ui.showToast("Daten erfolgreich importiert!", "success");
-                                setTimeout(() => location.reload(), 1000);
-                            } else {
-                                throw new Error("Ungültiges Format");
-                            }
-                        } catch (err) {
-                            ui.showToast("Import fehlgeschlagen: " + err.message, "error");
-                        }
-                    };
-                    reader.readAsText(input.files[0]);
-                }
-            },
-            
-            resetData() {
-                if (confirm("ACHTUNG: Alle Daten werden unwiderruflich gelöscht! Fortfahren?")) {
-                    localStorage.removeItem(STORAGE_KEY);
-                    location.reload();
-                }
             }
         };
 
