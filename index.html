@@ -288,7 +288,7 @@
         
         /* SELECTION OVERLAY */
         #selection-overlay { position: fixed; inset: 0; z-index: 10001; background: rgba(0,0,0,0.8); display: none; justify-content: center; align-items: center; padding: 20px; backdrop-filter: blur(4px); }
-        .selection-box { background: #1e293b; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; width: 100%; max-width: 400px; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+        .selection-box { background: #1e293b; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; width: 100%; max-width: 400px; max-height: 80vh; display: flex; flex-direction: column; shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
 
         /* Form Controls */
         input, select, textarea { background: rgba(30, 41, 59, 0.5) !important; border: 1px solid rgba(255,255,255,0.1) !important; color: white !important; border-radius: 6px; padding: 8px 12px; width: 100%; }
@@ -643,7 +643,8 @@
                 useUTC: false,
                 mapOffset: 0.25,
                 showPathPrediction: false,
-                pathPredictionMinutes: 5
+                pathPredictionMinutes: 5,
+                navMode: 'direct' // New navMode
             }
         };
 
@@ -663,6 +664,7 @@
         if(state.settings.windMeasurementMinDeviation === undefined) state.settings.windMeasurementMinDeviation = 5;
         if(state.settings.showPathPrediction === undefined) state.settings.showPathPrediction = false;
         if(state.settings.pathPredictionMinutes === undefined) state.settings.pathPredictionMinutes = 5;
+        if(state.settings.navMode === undefined) state.settings.navMode = 'direct';
 
         // Ensure archived property exists on balloons
         if (state.balloons) {
@@ -843,12 +845,146 @@
             async getNavigationAdvice() {
                 if (!state.settings.apiKey) { ui.showToast("Kein API Key in Einstellungen!", "error"); return; }
                 if (!state.targetWaypoint) { ui.showToast("Kein Ziel gesetzt!", "error"); return; }
-                // Implementation... (Abbreviated for brevity as not key to request)
-                ui.showToast("KI Routenberechnung in diesem Update nicht aktiv.", "info");
+
+                const overlay = document.getElementById('ai-nav-overlay');
+                const content = document.getElementById('ai-nav-content');
+                const time = document.getElementById('ai-nav-time');
+                
+                overlay.style.display = 'block';
+                content.innerHTML = '<div class="loader"></div> Berechne Wind-Vektoren...';
+
+                // Construct Prompt Data
+                const currentPos = { lat: simulation.lat, lng: simulation.lng, alt: simulation.alt };
+                const target = state.targetWaypoint;
+                const bearingToTarget = getBearing(currentPos.lat, currentPos.lng, target.lat, target.lng);
+                const distanceToTarget = getDistance(currentPos.lat, currentPos.lng, target.lat, target.lng);
+                
+                // Prioritize Measured Winds
+                const winds = [...state.windLayers];
+                state.measuredWindLayers.forEach(m => {
+                    const idx = winds.findIndex(w => Math.abs(w.alt - m.alt) < 25);
+                    if (idx >= 0) winds[idx] = m; else winds.push(m);
+                });
+
+                // Calculate Deltas for prompt
+                let windAnalysis = winds.sort((a,b)=>a.alt-b.alt).map(w => {
+                    let diff = Math.abs(w.dir - bearingToTarget);
+                    if (diff > 180) diff = 360 - diff;
+                    let suitability = "Schlecht";
+                    if (diff < 10) suitability = "PERFEKT";
+                    else if (diff < 25) suitability = "Gut";
+                    else if (diff < 45) suitability = "Mittel";
+                    return `- ${w.alt}m: ${w.dir}° (${w.speed}kt) -> Abweichung: ${Math.round(diff)}° (${suitability})`;
+                }).join('\n');
+                
+                // Nav Strategy based on settings
+                const strategyPrompt = state.settings.navMode === 'predictive' 
+                    ? "Berücksichtige 'Vorhalten' (Crabbing). Analysiere, ob es sinnvoll ist, jetzt eine Höhe zu wählen, die nicht direkt zum Ziel führt, aber eine bessere Position für spätere Windschichten ermöglicht, um das Ziel präziser anzusteuern (Trajektorien-Planung)."
+                    : "Fokussiere auf den direktesten Weg zum Ziel.";
+
+                const promptText = `
+                    Du bist ein intelligenter Ballon-Navigations-Computer (SatNav).
+                    
+                    Aktuelle Lage:
+                    - Position: ${currentPos.lat.toFixed(4)}, ${currentPos.lng.toFixed(4)}
+                    - Aktuelle Höhe: ${Math.round(currentPos.alt)}m
+                    - Ziel-Kurs (Bearing): ${Math.round(bearingToTarget)}°
+                    - Distanz: ${distanceToTarget.toFixed(1)} km
+                    
+                    Wind-Analyse (Vorhersage & Messung):
+                    ${windAnalysis}
+                    
+                    Aufgabe:
+                    Berechne die optimale Strategie. ${strategyPrompt}
+                    1. Ist das Ziel direkt erreichbar? (Abweichung < 20 Grad).
+                    2. Wenn ja, nenne die beste Höhe (schnellste Geschwindigkeit bei geringster Abweichung).
+                    3. Wenn nein, nenne die Höhe, die dem Ziel am nächsten kommt ("Hundekurve" vermeiden, besten Vektor suchen).
+                    
+                    Antworte extrem kurz, wie ein Navi:
+                    "Steige auf X m (Kurs Y°). ETA Z min." oder "Ziel nicht direkt erreichbar. Beste Option: X m (Abweichung D°)."
+                    Maximal 20 Wörter.
+                `;
+
+                try {
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${state.settings.apiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
+                    });
+                    
+                    const result = await response.json();
+                    const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "Keine Antwort.";
+                    
+                    content.innerHTML = text;
+                    time.innerText = "Stand: " + new Date().toLocaleTimeString();
+
+                } catch (e) {
+                    content.innerText = "Fehler bei AI Anfrage.";
+                    console.error(e);
+                }
             },
+
             async getBaptismSuggestions(paxName, startLoc, endLoc, time, notes, btn, targetInputId) {
-                // Implementation...
-                ui.showToast("KI Feature: API Key fehlt.", "error");
+                if (!state.settings.apiKey) { ui.showToast("Kein API Key in Einstellungen!", "error"); return; }
+                
+                const originalHtml = btn.innerHTML;
+                btn.innerHTML = '<div class="loader inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>';
+                
+                const maxWords = state.settings.baptismMaxWords || 15;
+                const promptText = `
+                    Generiere 5 kreative und lustige Ballonfahrertaufnamen (Adelstitel) für einen Passagier.
+                    Erwähne den Vornamen: ${paxName}.
+                    Inkorporiere Elemente aus:
+                    1. Startort (${startLoc}) ODER Landeort (${endLoc}).
+                    2. Der Tageszeit (${time}).
+                    3. Dem folgenden Ereignis/Notiz: ${notes} (Falls leer, ignoriere dies).
+                    
+                    Regeln:
+                    - Die Titel müssen auf Deutsch sein.
+                    - Jeder Titel darf maximal ${maxWords} Wörter lang sein.
+                    - Format: Nur die 5 Titel, jeweils in einer neuen Zeile. Keine Nummerierung, keine Anführungszeichen, kein Bindestrich am Anfang.
+                    - Format JSON Array von Strings: ["Titel 1", "Titel 2"...]
+                `;
+
+                try {
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${state.settings.apiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
+                    });
+                    
+                    const result = await response.json();
+                    let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                    
+                    // Parse JSON or Fallback
+                    let suggestions = [];
+                    try {
+                        const jsonMatch = text.match(/\[.*\]/s);
+                        if(jsonMatch) {
+                            suggestions = JSON.parse(jsonMatch[0]);
+                        } else {
+                            suggestions = text.split('\n').map(s => s.replace(/^\d+\.\s*|-\s*/, '').trim()).filter(s => s.length > 5);
+                        }
+                    } catch(e) {
+                        suggestions = text.split('\n').filter(s => s.length > 5);
+                    }
+                    
+                    if (suggestions.length > 0) {
+                        const items = suggestions.map((s, i) => ({ id: s, main: s, sub: '' }));
+                        ui.showSelectionModal(`Taufnamen für ${paxName}`, items, (selectedName) => {
+                            const input = document.getElementById(targetInputId);
+                            if(input) input.value = selectedName;
+                        });
+                    } else {
+                        ui.showToast("Keine Vorschläge erhalten.", "error");
+                    }
+
+                } catch (e) {
+                    ui.showToast("Fehler bei AI Anfrage.", "error");
+                    console.error(e);
+                } finally {
+                    btn.innerHTML = originalHtml;
+                }
             }
         };
 
@@ -869,17 +1005,28 @@
                 this.map = L.map('map', { zoomControl: false }).setView([51.1657, 10.4515], 13);
                 const style = state.settings.mapStyle || 'dark';
                 this.setLayer(style);
+                
                 this.updateIcon();
+                
                 this.track = L.polyline([], { color: state.settings.trackColor, weight: state.settings.trackWidth }).addTo(this.map);
+                
                 this.targetLayer = L.layerGroup().addTo(this.map);
                 this.navLine = L.polyline([], { color: '#eab308', weight: 2, dashArray: '5, 10' }).addTo(this.map); 
                 this.predictionLine = L.polyline([], { color: '#f472b6', weight: 3, dashArray: '5, 10', opacity: 0.7 }).addTo(this.map);
                 this.renderTarget();
+                
+                // Initialize KML Overlays from state
                 this.renderKMLs();
+
                 this.map.on('contextmenu', (e) => ui.setTarget(e.latlng));
+                
                 document.getElementById('btn-center').onclick = () => { this.lock = !this.lock; document.getElementById('btn-center').classList.toggle('active', this.lock); };
+                
+                // NEW: Layers Menu Toggle instead of Cycle
                 document.getElementById('btn-layers').onclick = () => ui.toggleLayersMenu();
+                
                 ui.updateLockBtn();
+
                 setTimeout(() => this.map.invalidateSize(), 500);
             },
 
@@ -889,14 +1036,22 @@
                 if (this.lock) {
                     let targetLat = pos.lat;
                     let targetLng = pos.lng;
+
+                    // --- OFFSET LOGIC (VORAUSSCHAU) ---
                     if (state.settings.mapOffset > 0) {
                         const bounds = this.map.getBounds();
                         const heightDeg = bounds.getNorth() - bounds.getSouth();
+                        
+                        // Shift distance in degrees roughly based on view height percentage
                         const shiftDist = heightDeg * state.settings.mapOffset;
                         const rad = toRad(pos.course);
+                        
+                        // Calculate new center that places the balloon 'behind' the center
                         targetLat += Math.cos(rad) * shiftDist;
+                        // Longitude correction for mercator/aspect ratio roughly
                         targetLng += (Math.sin(rad) * shiftDist) / Math.cos(toRad(pos.lat));
                     }
+
                     this.map.panTo([targetLat, targetLng], { animate: true, duration: 0.5 });
                 }
                 
@@ -932,10 +1087,14 @@
             updateIcon() {
                 let iconHtml = '<div class="text-3xl">🎈</div>';
                 let className = '';
+                
                 let balloonIdToUse = state.settings.activeBalloonId;
+                
+                // --- NEW LOGIC: Use Plan Balloon if active ---
                 if (flightManager.recording && flightManager.currentActivePlan) {
                     balloonIdToUse = flightManager.currentActivePlan.balloonId;
                 }
+
                 if (balloonIdToUse) {
                     const balloon = state.balloons.find(b => b.id === balloonIdToUse);
                     if (balloon && balloon.image) {
@@ -971,42 +1130,84 @@
                             iconAnchor: [15, 30]
                         })
                     });
-                    marker.bindPopup(`<div class="text-slate-900 text-sm text-center font-bold"><button onclick="ui.clearTarget()" class="text-red-600 hover:text-red-800 text-xs">Ziel Löschen</button></div>`);
+                    
+                    marker.bindPopup(`
+                        <div class="text-slate-900 text-sm text-center font-bold">
+                            <button onclick="ui.clearTarget()" class="text-red-600 hover:text-red-800 text-xs">Ziel Löschen</button>
+                        </div>
+                    `);
                     this.targetLayer.addLayer(marker);
                 }
             },
 
             // --- KML HANDLING ---
             renderKMLs() {
-                // ... same as before
                 state.kmlOverlays.forEach(overlay => {
+                    // Check if already active
                     if (overlay.visible && !this.activeKmlLayers[overlay.id]) {
                         try {
+                            // Custom Layer to handle styling and Popups for Areas
                             const customLayer = L.geoJson(null, {
                                 style: (feature) => {
+                                    // Default Color: Blue (CTR, RMZ, TMZ, etc.)
                                     let color = '#3b82f6'; 
+                                    
                                     if (feature && feature.properties) {
+                                        // Combine name and description for search (uppercase for case-insensitive check)
                                         const text = ((feature.properties.name || '') + ' ' + (feature.properties.description || '')).toUpperCase();
-                                        const isRestricted = text.includes('ED-R') || text.includes('ED-P') || text.includes('ED-D') || /ED[RPD]\s*\d/.test(text) || text.includes('RESTRICTED') || text.includes('PROHIBITED') || text.includes('DANGER');
-                                        if (isRestricted) { color = '#ef4444'; }
+                                        
+                                        // Check for Restricted (ED-R), Prohibited (ED-P) or Danger (ED-D) areas
+                                        const isRestricted = 
+                                            text.includes('ED-R') || text.includes('ED-P') || text.includes('ED-D') || 
+                                            /ED[RPD]\s*\d/.test(text) || // EDR/EDP/EDD followed by digit (e.g. EDR116)
+                                            text.includes('RESTRICTED') || 
+                                            text.includes('PROHIBITED') || 
+                                            text.includes('DANGER');
+
+                                        if (isRestricted) {
+                                            color = '#ef4444'; // Red
+                                        }
                                     }
-                                    return { color: color, weight: 2, opacity: 0.8, fillColor: color, fillOpacity: 0.2 };
+
+                                    return { 
+                                        color: color, 
+                                        weight: 2, 
+                                        opacity: 0.8, 
+                                        fillColor: color,
+                                        fillOpacity: 0.2 
+                                    };
                                 },
                                 onEachFeature: (feature, layer) => {
-                                    if (feature.properties && (feature.properties.name || feature.properties.description)) {
-                                        layer.bindPopup(`<div class="text-slate-900"><div class="font-bold border-b border-slate-300 mb-1">${feature.properties.name || ''}</div><div class="text-xs">${feature.properties.description || ''}</div></div>`);
+                                    if (feature.properties) {
+                                        let popupContent = '<div class="text-slate-900">';
+                                        if (feature.properties.name) popupContent += `<div class="font-bold border-b border-slate-300 mb-1">${feature.properties.name}</div>`;
+                                        if (feature.properties.description) popupContent += `<div class="text-xs">${feature.properties.description}</div>`;
+                                        popupContent += '</div>';
+                                        
+                                        // Only bind if there is content
+                                        if (feature.properties.name || feature.properties.description) {
+                                            layer.bindPopup(popupContent);
+                                        }
                                     }
                                 }
                             });
+
+                            // Leaflet-Omnivore parse string
                             const layer = omnivore.kml.parse(overlay.content, null, customLayer);
                             layer.addTo(this.map);
                             this.activeKmlLayers[overlay.id] = layer;
-                        } catch (e) { console.error("KML Parse Error", e); }
+                            
+                        } catch (e) {
+                            console.error("KML Parse Error", e);
+                        }
                     } else if (!overlay.visible && this.activeKmlLayers[overlay.id]) {
+                        // Remove if not visible anymore
                         this.map.removeLayer(this.activeKmlLayers[overlay.id]);
                         delete this.activeKmlLayers[overlay.id];
                     }
                 });
+
+                // Cleanup deleted overlays from map
                 Object.keys(this.activeKmlLayers).forEach(id => {
                     if (!state.kmlOverlays.find(o => o.id == id)) {
                         this.map.removeLayer(this.activeKmlLayers[id]);
@@ -1017,18 +1218,34 @@
 
             handleKmlImport(input) {
                 if (input.files && input.files[0]) {
+                    // Support multiple files? Currently input is single, can loop if multiple
                     Array.from(input.files).forEach(file => {
                         const reader = new FileReader();
                         reader.onload = (e) => {
-                            state.kmlOverlays.push({ id: Date.now() + Math.random(), name: file.name, content: e.target.result, visible: true });
+                            const content = e.target.result;
+                            const newOverlay = {
+                                id: Date.now() + Math.random(),
+                                name: file.name,
+                                content: content,
+                                visible: true
+                            };
+                            state.kmlOverlays.push(newOverlay);
                             saveState();
                             this.renderKMLs();
-                            ui.render(); 
+                            ui.render(); // Update Settings List
                             ui.showToast(`KML "${file.name}" geladen!`);
+                            
+                            // Zoom to new layer
+                            setTimeout(() => {
+                                if (this.activeKmlLayers[newOverlay.id]) {
+                                    const bounds = this.activeKmlLayers[newOverlay.id].getBounds();
+                                    if(bounds.isValid()) this.map.fitBounds(bounds);
+                                }
+                            }, 500);
                         };
                         reader.readAsText(file);
                     });
-                    input.value = '';
+                    input.value = ''; // Reset
                 }
             }
         };
@@ -1040,43 +1257,92 @@
                 const btn = document.getElementById('btn-record');
                 let pressTimer;
                 let longPressTriggered = false;
+
                 btn.addEventListener('click', (e) => {
-                    if (longPressTriggered) { longPressTriggered = false; return; }
-                    if (!this.recording) { ui.showStartDialog(); } else { ui.showToast("Zum Stoppen 1.5 Sek. gedrückt halten", "error"); }
+                    if (longPressTriggered) {
+                        longPressTriggered = false;
+                        return;
+                    }
+                    if (!this.recording) {
+                        ui.showStartDialog();
+                    } else {
+                        ui.showToast("Zum Stoppen 1.5 Sek. gedrückt halten", "error");
+                    }
                 });
+
                 const start = (e) => {
                     if (!this.recording) return;
                     if (e.type === 'mousedown' && e.button !== 0) return;
+                    
                     longPressTriggered = false;
-                    pressTimer = setTimeout(() => { longPressTriggered = true; this.stopRecording(); if (navigator.vibrate) navigator.vibrate(500); }, 1500); 
+                    pressTimer = setTimeout(() => {
+                        longPressTriggered = true;
+                        this.stopRecording();
+                        if (navigator.vibrate) navigator.vibrate(500);
+                    }, 1500); 
                 };
+
                 const cancel = () => { clearTimeout(pressTimer); };
+
                 btn.addEventListener('mousedown', start);
                 btn.addEventListener('touchstart', start, {passive: true});
+                
                 btn.addEventListener('mouseup', cancel);
                 btn.addEventListener('mouseleave', cancel);
                 btn.addEventListener('touchend', cancel);
+
+                // Auto-cleanup on init
                 this.cleanOldPhotos();
             },
+            
             toggle() { },
+
             takePhoto() { document.getElementById('cam-input').click(); },
+
             handlePhotoInput(input) {
                 if (input.files && input.files[0]) {
                     const file = input.files[0];
                     const reader = new FileReader();
                     reader.onload = (e) => {
+                        // Image Resizing Logic
                         const img = new Image();
                         img.onload = () => {
                             const canvas = document.createElement('canvas');
                             const ctx = canvas.getContext('2d');
+                            
+                            // Max dimensions
                             const MAX_SIZE = 800; 
-                            let width = img.width; let height = img.height;
-                            if (width > height) { if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; } } else { if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; } }
-                            canvas.width = width; canvas.height = height;
+                            let width = img.width;
+                            let height = img.height;
+                            
+                            if (width > height) {
+                                if (width > MAX_SIZE) {
+                                    height *= MAX_SIZE / width;
+                                    width = MAX_SIZE;
+                                }
+                            } else {
+                                if (height > MAX_SIZE) {
+                                    width *= MAX_SIZE / height;
+                                    height = MAX_SIZE;
+                                }
+                            }
+                            
+                            canvas.width = width;
+                            canvas.height = height;
                             ctx.drawImage(img, 0, 0, width, height);
+                            
+                            // Compress to JPEG 60%
                             const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.6); 
-                            this.currentPhotos.push({ time: new Date().toISOString(), src: compressedDataUrl, lat: simulation.lat, lng: simulation.lng });
+                            
+                            this.currentPhotos.push({
+                                time: new Date().toISOString(),
+                                src: compressedDataUrl,
+                                lat: simulation.lat,
+                                lng: simulation.lng
+                            });
                             ui.showToast("Foto gespeichert (komprimiert)!", "success");
+                            
+                            // Try save to catch quota errors early
                             saveState();
                         };
                         img.src = e.target.result;
@@ -1084,40 +1350,127 @@
                     reader.readAsDataURL(file);
                 }
             },
-            cleanOldPhotos() { /* ... same */ },
-            cleanOldPhotosNow() { this.cleanOldPhotos(); ui.showToast("Bereinigung durchgeführt.", "success"); },
+            
+            cleanOldPhotos() {
+                const days = state.settings.imageRetention || 30;
+                const cutoff = new Date();
+                cutoff.setDate(cutoff.getDate() - days);
+                
+                let cleanedCount = 0;
+                state.logs.forEach(log => {
+                    if (log.photos && log.photos.length > 0) {
+                        const originalLen = log.photos.length;
+                        log.photos = log.photos.filter(p => new Date(p.time) > cutoff);
+                        cleanedCount += (originalLen - log.photos.length);
+                    }
+                });
+                
+                if(cleanedCount > 0) {
+                    saveState();
+                    console.log(`Cleaned ${cleanedCount} old photos.`);
+                    ui.showToast(`${cleanedCount} alte Fotos bereinigt`, 'success');
+                }
+            },
+            
+            cleanOldPhotosNow() {
+                this.cleanOldPhotos();
+                ui.showToast("Bereinigung durchgeführt.", "success");
+            },
+
             startRecording(planId, balloonId) {
                 wakeLockManager.request();
+                
                 let plan = null;
-                if (planId) { plan = state.plannings.find(p => p.id == planId) || state.archive.find(p => p.id == planId); }
+                if (planId) {
+                    plan = state.plannings.find(p => p.id == planId) || state.archive.find(p => p.id == planId);
+                }
+                
+                // Handle Explicit Balloon Selection
                 if (!plan && balloonId) {
                     const b = state.balloons.find(x => x.id === balloonId);
-                    this.currentActivePlan = { id: null, name: "Spontanfahrt", balloonId: balloonId, balloonName: b ? b.callsign : "Unbekannt", passengers: [], cylinders: [] };
-                } else { this.currentActivePlan = plan; }
-                this.currentPhotos = []; this.maxSpeed = 0; this.maxAlt = 0;
-                state.measuredWindLayers = []; ui.renderWind(); this.points = []; mapManager.track.setLatLngs([]);
-                this.recording = true; this.start = new Date();
+                    this.currentActivePlan = {
+                        id: null, 
+                        name: "Spontanfahrt",
+                        balloonId: balloonId,
+                        balloonName: b ? b.callsign : "Unbekannt",
+                        passengers: [], 
+                        cylinders: []
+                    };
+                } else {
+                    this.currentActivePlan = plan;
+                }
+                
+                this.currentPhotos = []; 
+                this.maxSpeed = 0;
+                this.maxAlt = 0;
+                
+                state.measuredWindLayers = [];
+                ui.renderWind(); 
+                this.points = [];
+                mapManager.track.setLatLngs([]);
+                
+                this.recording = true; 
+                this.start = new Date();
+                
                 document.getElementById('btn-record').classList.add('recording');
                 document.getElementById('sb-rec').classList.remove('hidden');
                 document.getElementById('btn-take-photo').classList.remove('hidden');
+                
                 ui.closeModal();
+                
+                // Force Icon Update (Added to update balloon icon based on plan)
                 mapManager.updateIcon();
+                // Show AI button if key exists
                 ui.updateAiButtonVisibility();
             },
+
             async stopRecording() {
-                if (state.settings.mode !== 'gps') { wakeLockManager.release(); }
+                if (state.settings.mode !== 'gps') {
+                    wakeLockManager.release();
+                }
+
                 const end = new Date();
+                
+                // Use balloon from active context
                 let balloonName = "Spontan";
-                if (this.currentActivePlan && this.currentActivePlan.balloonName) { balloonName = this.currentActivePlan.balloonName; } else { const defB = state.balloons.find(b => b.id === state.settings.activeBalloonId); if(defB) balloonName = defB.callsign; }
+                if (this.currentActivePlan && this.currentActivePlan.balloonName) {
+                    balloonName = this.currentActivePlan.balloonName;
+                } else {
+                     const defB = state.balloons.find(b => b.id === state.settings.activeBalloonId);
+                     if(defB) balloonName = defB.callsign;
+                }
+
                 const currentPaxIds = this.currentActivePlan ? this.currentActivePlan.passengers : [];
-                if (currentPaxIds.length > 0) { currentPaxIds.forEach(pid => { const p = state.passengers.find(px => px.id == pid); if (p) { p.flights = (p.flights || 0) + 1; p.lastFlight = new Date().toISOString(); } }); }
-                let startLoc = "Unbekannt"; let endLoc = "Unbekannt";
+                
+                if (currentPaxIds.length > 0) {
+                    currentPaxIds.forEach(pid => {
+                        const p = state.passengers.find(px => px.id == pid);
+                        if (p) {
+                            p.flights = (p.flights || 0) + 1;
+                            p.lastFlight = new Date().toISOString();
+                        }
+                    });
+                }
+
+                let startLoc = "Unbekannt";
+                let endLoc = "Unbekannt";
+                
                 if (this.points.length > 0) {
                     try {
-                        const startPt = this.points[0]; const endPt = this.points[this.points.length-1];
-                        const getPlaceName = (data) => { if (!data || !data.address) return data.display_name ? data.display_name.split(',')[0] : "Unbekannter Ort"; return data.address.city || data.address.town || data.address.village || data.address.hamlet || data.address.municipality || data.address.suburb || (data.display_name ? data.display_name.split(',')[0] : "Unbekannter Ort"); };
-                        const r1 = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${startPt[0]}&lon=${startPt[1]}`); const d1 = await r1.json(); startLoc = getPlaceName(d1);
-                        const r2 = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${endPt[0]}&lon=${endPt[1]}`); const d2 = await r2.json(); endLoc = getPlaceName(d2);
+                        const startPt = this.points[0];
+                        const endPt = this.points[this.points.length-1];
+                        const getPlaceName = (data) => {
+                            if (!data || !data.address) return data.display_name ? data.display_name.split(',')[0] : "Unbekannter Ort";
+                            return data.address.city || data.address.town || data.address.village || data.address.hamlet || data.address.municipality || data.address.suburb || (data.display_name ? data.display_name.split(',')[0] : "Unbekannter Ort");
+                        };
+
+                        const r1 = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${startPt[0]}&lon=${startPt[1]}`);
+                        const d1 = await r1.json();
+                        startLoc = getPlaceName(d1);
+
+                        const r2 = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${endPt[0]}&lon=${endPt[1]}`);
+                        const d2 = await r2.json();
+                        endLoc = getPlaceName(d2);
                     } catch(e) { 
                         // Fallback coords
                         if(this.points.length > 0) {
@@ -1126,21 +1479,53 @@
                         }
                     }
                 }
-                const newLog = { id: Date.now(), start: this.start.toISOString(), end: end.toISOString(), track: this.points, balloon: balloonName, notes: "", startLoc: startLoc, endLoc: endLoc, planId: this.currentActivePlan ? this.currentActivePlan.id : null, pax: currentPaxIds, cylinders: this.currentActivePlan ? this.currentActivePlan.cylinders : [], photos: this.currentPhotos, maxSpeed: this.maxSpeed, maxAlt: this.maxAlt };
+
+                const newLog = { 
+                    id: Date.now(), 
+                    start: this.start.toISOString(), 
+                    end: end.toISOString(), 
+                    track: this.points, 
+                    balloon: balloonName,
+                    notes: "", 
+                    startLoc: startLoc, 
+                    endLoc: endLoc,       
+                    planId: this.currentActivePlan ? this.currentActivePlan.id : null,
+                    pax: currentPaxIds,
+                    cylinders: this.currentActivePlan ? this.currentActivePlan.cylinders : [],
+                    photos: this.currentPhotos,
+                    maxSpeed: this.maxSpeed,
+                    maxAlt: this.maxAlt
+                };
+                
                 state.logs.push(newLog);
                 saveState();
+                
                 this.recording = false;
+                
+                // Clear active plan
                 this.currentActivePlan = null;
+                
                 document.getElementById('btn-record').classList.remove('recording');
                 document.getElementById('sb-rec').classList.add('hidden');
                 document.getElementById('btn-take-photo').classList.add('hidden');
+                
+                // Reset Icon
                 mapManager.updateIcon();
+                
                 ui.showSummary(newLog);
             },
+
             updateHUD(data) {
+                // IMPORTANT: Pass data to mapManager for offset logic
                 mapManager.update(data);
-                // ... same HUD update logic ...
-                let dAlt = data.alt; let dSpeed = data.speed; let dVario = data.vario; let uAlt = 'm'; let uSpeed = 'km/h'; let uVario = 'm/s';
+
+                let dAlt = data.alt;
+                let dSpeed = data.speed; // kt
+                let dVario = data.vario; // m/s
+                let uAlt = 'm';
+                let uSpeed = 'km/h'; // Default is km/h now per request context, but keeping var name
+                let uVario = 'm/s';
+
                 if (state.settings.unitAlt === 'ft') { dAlt = data.alt * 3.28084; uAlt = 'ft'; }
                 if (state.settings.unitSpeed === 'kmh') { dSpeed = data.speed * 1.852; uSpeed = 'km/h'; } else { uSpeed = 'kt'; }
                 if (state.settings.unitVario === 'fts') { dVario = data.vario * 3.28084; uVario = 'ft/s'; }
@@ -1152,59 +1537,93 @@
                 document.getElementById('hud-course').innerText = Math.round(data.course);
                 
                 const varioValEl = document.getElementById('hud-vario');
+                const varioLblEl = document.getElementById('lbl-vario');
                 varioValEl.innerText = dVario.toFixed(1);
-                document.getElementById('lbl-vario').innerText = uVario;
-                varioValEl.className = 'hud-num'; 
-                
+                varioLblEl.innerText = uVario;
+                varioValEl.className = 'hud-num'; // Reset classes
+
                 // Vario Limits Check
                 let currentBalloon = null;
                 let balloonIdToUse = state.settings.activeBalloonId;
-                if (this.recording && this.currentActivePlan) { balloonIdToUse = this.currentActivePlan.balloonId; }
-                if (balloonIdToUse) { currentBalloon = state.balloons.find(b => b.id === balloonIdToUse); }
+                if (this.recording && this.currentActivePlan) {
+                     balloonIdToUse = this.currentActivePlan.balloonId;
+                }
+                if (balloonIdToUse) {
+                    currentBalloon = state.balloons.find(b => b.id === balloonIdToUse);
+                }
 
+                // Check limits (using internal m/s values for physics consistency)
                 if (currentBalloon) {
                     const maxClimb = currentBalloon.maxClimb || 5;
                     const maxDescent = currentBalloon.maxDescent || 3;
-                    if (data.vario > maxClimb || data.vario < -maxDescent) { varioValEl.classList.add('text-blink-red'); } 
-                    else if (data.vario >= 0.1) { varioValEl.classList.add('text-green-400'); } 
-                    else if (data.vario <= -0.1) { varioValEl.classList.add('text-red-400'); }
+                    
+                    if (data.vario > maxClimb || data.vario < -maxDescent) {
+                         varioValEl.classList.add('text-blink-red');
+                         // varioLblEl.classList.add('text-blink-red'); // REMOVED as requested
+                    } else if (data.vario >= 0.1) { 
+                        varioValEl.classList.add('text-green-400'); varioLblEl.classList.add('text-green-400'); 
+                    } else if (data.vario <= -0.1) { 
+                        varioValEl.classList.add('text-red-400'); varioLblEl.classList.add('text-red-400'); 
+                    }
                 }
                 
+                // Update Time Display if Recording
                 const timeEl = document.getElementById('hud-time');
                 if (this.recording && this.start) {
-                    const now = new Date(); const diffMs = now - this.start; const h = Math.floor(diffMs / 3600000); const m = Math.floor((diffMs % 3600000) / 60000);
+                    const now = new Date();
+                    const diffMs = now - this.start;
+                    const h = Math.floor(diffMs / 3600000);
+                    const m = Math.floor((diffMs % 3600000) / 60000);
                     timeEl.innerText = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
-                } else { timeEl.innerText = "--:--"; }
+                } else {
+                    timeEl.innerText = "--:--";
+                }
                 
                 if (this.recording && data.speed > 1) { 
+                    // Bucket by configured interval
                     const interval = state.settings.windMeasInterval || 50;
                     const bucketAlt = Math.round(data.alt / interval) * interval;
                     const existingIdx = state.measuredWindLayers.findIndex(l => l.alt === bucketAlt);
                     const newLayer = { alt: bucketAlt, dir: data.course, speed: data.speed, isMeasured: true };
                     if (existingIdx >= 0) { state.measuredWindLayers[existingIdx] = newLayer; } else { state.measuredWindLayers.push(newLayer); }
                     ui.renderWind();
+
+                    // Update Max Stats
                     if (data.alt > this.maxAlt) this.maxAlt = data.alt;
                     let currentSpeedKmh = data.speed * 1.852;
                     if (currentSpeedKmh > this.maxSpeed) this.maxSpeed = currentSpeedKmh;
                 }
-                // Wind rows highlight
+
+                // Update Active Wind Layer Highlight in DOM
+                // FIND CLOSEST LAYER LOGIC (Corrected)
+                let closestRow = null;
+                let minDiff = Infinity;
                 const windRows = document.querySelectorAll('.wind-layer');
                 windRows.forEach(row => {
+                    row.classList.remove('active-altitude'); // Reset all first
                     const rowAlt = parseInt(row.dataset.alt);
-                    if (Math.abs(rowAlt - data.alt) < 25) { row.classList.add('active-altitude'); } else { row.classList.remove('active-altitude'); }
+                    const diff = Math.abs(rowAlt - data.alt);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        closestRow = row;
+                    }
                 });
-                // Nav
+                // Highlight only the closest one
+                if (closestRow) {
+                    closestRow.classList.add('active-altitude');
+                }
+
                 if (state.targetWaypoint) {
                     const wp = state.targetWaypoint;
                     const distKm = getDistance(simulation.lat, simulation.lng, wp.lat, wp.lng);
                     const bearing = getBearing(simulation.lat, simulation.lng, wp.lat, wp.lng);
                     document.getElementById('hud-nav-container').classList.remove('hidden'); 
+                    
                     document.getElementById('nav-brg').innerText = Math.round(bearing);
-                    // ... (rest of HUD Nav logic same as before)
                     if (state.settings.unitAlt === 'ft') { 
                         const distNm = distKm * 0.539957;
                         document.getElementById('nav-dist').innerText = distNm.toFixed(1);
-                        document.getElementById('lbl-nav-dist').innerText = 'nm'; 
+                        document.getElementById('lbl-nav-dist').innerText = 'nm'; // Lowercase
                         if (data.speed > 1) {
                             const hours = distNm / data.speed;
                             const mins = Math.round(hours * 60);
@@ -1212,7 +1631,7 @@
                         } else { document.getElementById('nav-ete').innerText = "--:--"; }
                     } else {
                         document.getElementById('nav-dist').innerText = distKm.toFixed(1);
-                        document.getElementById('lbl-nav-dist').innerText = 'km'; 
+                        document.getElementById('lbl-nav-dist').innerText = 'km'; // Lowercase
                         const speedKmh = data.speed * 1.852;
                         if (speedKmh > 1) {
                             const hours = distKm / speedKmh;
@@ -1220,12 +1639,17 @@
                             document.getElementById('nav-ete').innerText = mins + " min";
                         } else { document.getElementById('nav-ete').innerText = "--:--"; }
                     }
-                } else { document.getElementById('hud-nav-container').classList.add('hidden'); }
+                } else {
+                    document.getElementById('hud-nav-container').classList.add('hidden');
+                }
             }
         };
 
         const simulation = {
-            gpsWatchId: null, lastGpsTime: null, lastGpsAlt: null,
+            gpsWatchId: null,
+            lastGpsTime: null,
+            lastGpsAlt: null,
+            
             lat: 51.1657, lng: 10.4515, alt: 200, targetAlt: 200,
             course: 270, speed: 5, vario: 0,
             targetVario: 0, // NEW for realistic physics
@@ -1236,10 +1660,15 @@
                     navigator.geolocation.getCurrentPosition(pos => {
                         this.lat = pos.coords.latitude;
                         this.lng = pos.coords.longitude;
-                        if(mapManager.map) { mapManager.map.setView([this.lat, this.lng], 14); flightManager.updateHUD(this.getCurrentState()); }
+                        if(mapManager.map) {
+                            mapManager.map.setView([this.lat, this.lng], 14);
+                            flightManager.updateHUD(this.getCurrentState()); 
+                        }
                     }, () => {});
                 }
+                
                 barometerService.init();
+                
                 setInterval(() => this.tick(), 1000);
                 this.applyMode();
             },
@@ -1249,53 +1678,92 @@
                 const simPanel = document.getElementById('sim-panel');
                 const badgeGPS = document.getElementById('sb-gps');
                 const badgeGPSText = document.getElementById('sb-gps-text');
+
+                // Safety check
                 if (!simPanel || !badgeGPS) return;
+
                 if (mode === 'gps') {
-                    simPanel.classList.add('hidden'); badgeGPS.classList.remove('hidden'); badgeGPS.classList.remove('blue', 'green'); badgeGPS.classList.add('red');
+                    simPanel.classList.add('hidden'); 
+                    badgeGPS.classList.remove('hidden');
+                    badgeGPS.classList.remove('blue', 'green'); 
+                    badgeGPS.classList.add('red');
                     if(badgeGPSText) badgeGPSText.innerText = "NO GPS";
                     this.startGPS();
                 } else {
-                    simPanel.classList.remove('hidden'); badgeGPS.classList.remove('hidden');
+                    simPanel.classList.remove('hidden');
+                    badgeGPS.classList.remove('hidden');
                     if(badgeGPSText) badgeGPSText.innerText = "SIMULATION";
-                    badgeGPS.classList.remove('red', 'green'); badgeGPS.classList.add('blue');
+                    badgeGPS.classList.remove('red', 'green');
+                    badgeGPS.classList.add('blue');
                     this.stopGPS();
                 }
             },
 
             startGPS() {
                 wakeLockManager.request();
-                const badgeGPS = document.getElementById('sb-gps'); const badgeGPSText = document.getElementById('sb-gps-text');
+                const badgeGPS = document.getElementById('sb-gps');
+                const badgeGPSText = document.getElementById('sb-gps-text');
+                
                 if (navigator.geolocation) {
                     if (this.gpsWatchId) navigator.geolocation.clearWatch(this.gpsWatchId);
+                    
                     this.gpsWatchId = navigator.geolocation.watchPosition(pos => {
-                        const c = pos.coords; const now = Date.now();
+                        const c = pos.coords;
+                        const now = Date.now();
+                        
                         if(badgeGPSText) badgeGPSText.innerText = "GPS OK";
-                        badgeGPS.classList.remove('red', 'blue'); badgeGPS.classList.add('green');
-                        this.lat = c.latitude; this.lng = c.longitude;
+                        badgeGPS.classList.remove('red', 'blue');
+                        badgeGPS.classList.add('green');
+                        
+                        this.lat = c.latitude;
+                        this.lng = c.longitude;
+                        
+                        // Calculate Vario if Barometer not available
                         if (c.altitude !== null) {
-                            if (barometerService.isAvailable) { this.vario = barometerService.vario; this.alt = c.altitude; } 
-                            else {
+                            if (barometerService.isAvailable) {
+                                // Use Barometer vario if available
+                                this.vario = barometerService.vario;
+                                this.alt = c.altitude; 
+                            } else {
+                                // Fallback GPS Vario
                                 if (this.lastGpsTime && this.lastGpsAlt !== null) {
                                     const dt = (now - this.lastGpsTime) / 1000;
-                                    if (dt > 0) { const instantVario = (c.altitude - this.lastGpsAlt) / dt; this.vario = (this.vario * 0.7) + (instantVario * 0.3); }
+                                    if (dt > 0) {
+                                        const instantVario = (c.altitude - this.lastGpsAlt) / dt;
+                                        // Simple low pass filter
+                                        this.vario = (this.vario * 0.7) + (instantVario * 0.3);
+                                    }
                                 }
-                                this.alt = c.altitude; this.lastGpsAlt = c.altitude; this.lastGpsTime = now;
+                                this.alt = c.altitude;
+                                this.lastGpsAlt = c.altitude;
+                                this.lastGpsTime = now;
                             }
                         }
+
                         this.speed = (c.speed || 0) * 1.94384; 
                         if(c.heading !== null && !isNaN(c.heading)) this.course = c.heading;
+                        
                         flightManager.updateHUD(this.getCurrentState());
+                        
                     }, err => {
                         console.warn("GPS Fehler:", err.message);
                         if(badgeGPSText) badgeGPSText.innerText = "NO GPS";
-                        badgeGPS.classList.remove('green', 'blue'); badgeGPS.classList.add('red');
+                        badgeGPS.classList.remove('green', 'blue');
+                        badgeGPS.classList.add('red');
                         ui.showToast("GPS Signal verloren", "error");
                     }, { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 });
-                } else { if(badgeGPSText) badgeGPSText.innerText = "NO SUPP"; badgeGPS.classList.remove('green', 'blue'); badgeGPS.classList.add('red'); }
+                } else {
+                    if(badgeGPSText) badgeGPSText.innerText = "NO SUPP";
+                    badgeGPS.classList.remove('green', 'blue');
+                    badgeGPS.classList.add('red');
+                }
             },
 
             stopGPS() {
-                if (this.gpsWatchId) { navigator.geolocation.clearWatch(this.gpsWatchId); this.gpsWatchId = null; }
+                if (this.gpsWatchId) {
+                    navigator.geolocation.clearWatch(this.gpsWatchId);
+                    this.gpsWatchId = null;
+                }
                 if (!flightManager.recording) { wakeLockManager.release(); }
             },
 
@@ -1369,6 +1837,7 @@
                 const lat = center.lat; const lng = center.lng;
                 document.getElementById('wind-layers-container').innerHTML = '<div class="text-center p-2"><div class="loader"></div></div>';
                 try {
+                    // Changed to include &models=best_match
                     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=wind_speed_10m,wind_direction_10m&hourly=wind_speed_1000hPa,wind_direction_1000hPa,wind_speed_950hPa,wind_direction_950hPa,wind_speed_850hPa,wind_direction_850hPa,wind_speed_700hPa,wind_direction_700hPa&wind_speed_unit=kn&models=best_match`;
                     const response = await fetch(url);
                     const data = await response.json();
@@ -1754,6 +2223,14 @@
                             <div>
                                 <label class="text-xs text-purple-200">Gemini API Key</label>
                                 <input type="password" id="set-api-key" value="${state.settings.apiKey || ''}" placeholder="AI Key eingeben..." onchange="ui.saveSettings(true)" class="border-purple-500/30 focus:border-purple-500">
+                            </div>
+                            <!-- NEW: Nav Strategy Selector -->
+                            <div>
+                                <label class="text-xs text-purple-200">Navigations-Strategie</label>
+                                <select id="set-nav-mode" onchange="state.settings.navMode=this.value; saveState();" class="w-full bg-slate-800 border border-purple-500/30 rounded text-sm p-2 text-white focus:border-purple-500">
+                                    <option value="direct" ${state.settings.navMode === 'direct' ? 'selected' : ''}>Direkt (Kürzester Weg)</option>
+                                    <option value="predictive" ${state.settings.navMode === 'predictive' ? 'selected' : ''}>Vorausschauend (Vorhalten)</option>
+                                </select>
                             </div>
                             <div class="flex items-end gap-2">
                                 <div class="flex-1">
