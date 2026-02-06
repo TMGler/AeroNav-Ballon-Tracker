@@ -229,7 +229,6 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            /* No transition on height anymore */
         }
         
         #wind-content-wrapper {
@@ -325,6 +324,25 @@
             background: rgba(0,0,0,0.3);
             border-bottom: 1px solid rgba(255,255,255,0.05);
             transition: all 0.3s;
+        }
+
+        /* TOAST CONTAINER FIXED POSITION */
+        #toast-container {
+            position: fixed;
+            top: 100px; /* Below HUD */
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 2001;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+            width: 90%;
+            max-width: 400px;
+            align-items: center;
+        }
+        .toast-notification {
+            pointer-events: auto;
         }
 
     </style>
@@ -463,7 +481,7 @@
         <div class="text-[10px] text-slate-500 mt-2 text-right" id="ai-nav-time"></div>
     </div>
 
-    <!-- TOAST CONTAINER -->
+    <!-- TOAST CONTAINER IN BODY FOR CSS TARGETING -->
     <div id="toast-container"></div>
 
     <!-- SIDEBAR LEFT -->
@@ -552,7 +570,7 @@
                 <button class="tab-btn" onclick="ui.switchTab('cylinders')">Gasflaschen</button>
                 <button class="tab-btn" onclick="ui.switchTab('passengers')">Passagiere</button>
                 <button class="tab-btn" onclick="ui.switchTab('logbook')">Logbuch</button>
-                <button class="tab-btn" onclick="ui.switchTab('environment')">Wetter/Wind</button>
+                <button class="tab-btn" onclick="ui.switchTab('environment')">Wind</button>
                 <button class="tab-btn" onclick="ui.switchTab('settings')">Einstellungen</button>
             </div>
 
@@ -564,7 +582,7 @@
                     <option value="cylinders">Gasflaschen</option>
                     <option value="passengers">Passagiere</option>
                     <option value="logbook">Logbuch</option>
-                    <option value="environment">Wetter/Wind</option>
+                    <option value="environment">Wind</option>
                     <option value="settings">Einstellungen</option>
                 </select>
             </div>
@@ -580,7 +598,7 @@
         /**
          * STATE & CONSTANTS
          */
-        const STORAGE_KEY = "AERONAV_PRO_DATA_V8"; // Updated version
+        const STORAGE_KEY = "AERONAV_PRO_DATA_V8"; 
         
         let state = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {
             pilot: { name: "Max Mustermann", weight: 85, initialFlights: 0, initialHours: 0 }, 
@@ -655,6 +673,55 @@
                 console.error("Storage failed", e);
             }
         }
+        
+        // --- SYSTEM OBJECT (BACKUP & RESTORE) ---
+        const system = {
+            exportData() {
+                const dataStr = JSON.stringify(state);
+                const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+                const exportFileDefaultName = 'BallonNav_Backup_' + new Date().toISOString().slice(0,10) + '.json';
+                
+                const linkElement = document.createElement('a');
+                linkElement.setAttribute('href', dataUri);
+                linkElement.setAttribute('download', exportFileDefaultName);
+                linkElement.click();
+                ui.showToast("Backup Datei erstellt", "success");
+            },
+            triggerImport() {
+                document.getElementById('import-input').click();
+            },
+            importData(input) {
+                if (input.files && input.files[0]) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        try {
+                            const importedState = JSON.parse(e.target.result);
+                            // Basic validation: Check if essential properties exist
+                            if (importedState.pilot && importedState.settings && Array.isArray(importedState.balloons)) {
+                                if(confirm("ACHTUNG: Dies überschreibt alle aktuellen Daten mit dem Backup. Fortfahren?")) {
+                                    state = importedState;
+                                    saveState();
+                                    ui.showToast("Backup erfolgreich wiederhergestellt!", "success");
+                                    setTimeout(() => location.reload(), 1500);
+                                }
+                            } else {
+                                throw new Error("Ungültiges Backup-Format (fehlende Schlüssel)");
+                            }
+                        } catch (err) {
+                            ui.showToast("Fehler beim Import: " + err.message, "error");
+                        }
+                        input.value = '';
+                    };
+                    reader.readAsText(input.files[0]);
+                }
+            },
+            resetData() {
+                if(confirm("ACHTUNG: Alle Daten (Logbuch, Flotte, Einstellungen) werden unwiderruflich gelöscht! App wird auf Werkseinstellungen zurückgesetzt. Fortfahren?")) {
+                    localStorage.removeItem(STORAGE_KEY);
+                    location.reload();
+                }
+            }
+        };
 
         // --- MATH HELPERS ---
         function toRad(deg) { return deg * Math.PI / 180; }
@@ -1456,10 +1523,11 @@
                              </label>
                         </div>
                         ${ppActive ? `
-                            <div class="flex items-center gap-2" onclick="event.stopPropagation()">
-                                <span class="text-xs text-slate-400">Zeit:</span>
-                                <input type="number" value="${ppMin}" min="1" max="60" class="w-16 bg-slate-800 text-xs p-1 rounded border border-white/10" onchange="state.settings.pathPredictionMinutes = parseInt(this.value); saveState();">
-                                <span class="text-xs text-slate-400">min</span>
+                            <div class="flex gap-2 mt-2 justify-end" onclick="event.stopPropagation()">
+                               ${[5, 10, 15].map(m => {
+                                   const active = ppMin === m ? 'bg-pink-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600';
+                                   return `<button onclick="state.settings.pathPredictionMinutes=${m}; saveState(); ui.renderLayersMenu();" class="px-2 py-1 rounded text-xs ${active}">${m}m</button>`;
+                               }).join('')}
                             </div>
                         ` : ''}
                     </div>
@@ -1641,34 +1709,15 @@
                         <div class="text-[10px] text-slate-500 mt-2">Hinweis: Große KML-Dateien können den Speicher verlangsamen.</div>
                     </div>
 
-                    <!-- SECTION 3: STORAGE & WIND CONFIG -->
+                    <!-- SECTION 3: STORAGE -->
                     <div class="bg-white/5 p-4 rounded-lg">
-                        <h4 class="text-amber-400 font-bold mb-3 border-b border-white/10 pb-1">Speicher & Wind-Konfig</h4>
-                        <div class="space-y-3">
-                            <div class="flex items-end gap-2">
-                                <div class="flex-1">
-                                    <label class="text-[10px]">Fotos aufbewahren (Tage)</label>
-                                    <input type="number" id="set-image-retention" value="${state.settings.imageRetention || 30}" onchange="ui.saveSettings(true)" class="bg-slate-800 border border-slate-600 rounded p-2 text-sm w-full">
-                                </div>
-                                <button onclick="flightManager.cleanOldPhotosNow()" class="bg-amber-700/50 hover:bg-amber-600 text-amber-100 p-2 rounded text-sm mb-[1px]">Jetzt bereinigen</button>
+                        <h4 class="text-amber-400 font-bold mb-3 border-b border-white/10 pb-1">Speicher & Bereinigung</h4>
+                        <div class="flex items-end gap-2">
+                            <div class="flex-1">
+                                <label class="text-[10px]">Fotos aufbewahren (Tage)</label>
+                                <input type="number" id="set-image-retention" value="${state.settings.imageRetention || 30}" onchange="ui.saveSettings(true)" class="bg-slate-800 border border-slate-600 rounded p-2 text-sm w-full">
                             </div>
-                            
-                            <div class="grid grid-cols-2 gap-2 pt-2 border-t border-white/5">
-                                <div>
-                                    <label class="text-[10px] text-blue-300">Mess-Intervall (Höhe)</label>
-                                    <div class="flex items-center gap-1">
-                                        <input type="number" id="set-wind-interval" value="${state.settings.windMeasInterval || 50}" onchange="ui.saveSettings(true)" class="bg-slate-800 border border-slate-600 rounded p-2 text-sm w-full">
-                                        <span class="text-xs text-slate-500">m</span>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label class="text-[10px] text-blue-300">Mess-Abweichung (Min)</label>
-                                    <div class="flex items-center gap-1">
-                                        <input type="number" id="set-wind-threshold" value="${state.settings.windThreshold || 5}" onchange="ui.saveSettings(true)" class="bg-slate-800 border border-slate-600 rounded p-2 text-sm w-full">
-                                        <span class="text-xs text-slate-500">°</span>
-                                    </div>
-                                </div>
-                            </div>
+                            <button onclick="flightManager.cleanOldPhotosNow()" class="bg-amber-700/50 hover:bg-amber-600 text-amber-100 p-2 rounded text-sm mb-[1px]">Jetzt bereinigen</button>
                         </div>
                     </div>
 
@@ -1701,7 +1750,40 @@
                 </div>`; 
             },
             
-            viewEnvironment(c) { c.innerHTML = `<h3 class="text-xl font-bold mb-4">Wetter & Wind Simulation</h3><div class="glass-panel p-6 border-white/10 border"><div class="flex justify-between items-start mb-4"><p class="text-sm text-slate-400">Hier definierst du die Windschichten für die Simulation. Der Ballon bewegt sich basierend auf der aktuellen Höhe und diesen Werten.</p><button onclick="weatherService.fetchLiveWind()" class="bg-green-600/20 text-green-400 border border-green-500/50 px-3 py-1 rounded text-xs whitespace-nowrap hover:bg-green-600 hover:text-white transition"><i class="fas fa-satellite-dish mr-1"></i> Live-Daten laden</button></div><div class="grid grid-cols-4 gap-2 text-xs uppercase text-slate-500 font-bold mb-2"><div>Höhe (m)</div><div>Richtung (°)</div><div>Speed (kt)</div><div></div></div><div id="wind-rows" class="space-y-2 mb-4">${state.windLayers.sort((a,b)=>a.alt-b.alt).map((w, idx) => `<div class="grid grid-cols-4 gap-2 items-center"><input type="number" class="wind-edit-alt" value="${w.alt}" placeholder="Höhe"><input type="number" class="wind-edit-dir" value="${w.dir}" placeholder="Dir"><input type="number" class="wind-edit-spd" value="${w.speed}" placeholder="Knots"><button onclick="ui.removeWindLayer(${idx})" class="text-red-400 hover:text-red-300"><i class="fas fa-trash"></i></button></div>`).join('')}</div><button onclick="ui.addWindLayer()" class="bg-slate-700 px-4 py-2 rounded text-xs mb-6">+ Schicht hinzufügen</button><button onclick="ui.saveEnvironment()" class="bg-blue-600 w-full py-3 rounded font-bold shadow-lg">Wetterdaten Speichern</button><div class="mt-4"><label class="text-xs uppercase text-slate-500 font-bold mb-1 block">Wind-Filter (Grad)</label><div class="flex items-center gap-2"><input type="number" id="set-wind-threshold" class="w-20 bg-slate-800 text-sm p-1 rounded" value="${state.settings.windThreshold || 5}"><span class="text-xs text-slate-400">Nur Änderungen > X° anzeigen</span></div></div><p class="text-[10px] text-slate-500 mt-2 text-center">Live-Daten bereitgestellt durch Open-Meteo.com (Kein Key erforderlich)</p></div>`; },
+            viewEnvironment(c) { c.innerHTML = `
+                <h3 class="text-xl font-bold mb-4">Wind Simulation</h3>
+                <div class="glass-panel p-6 border-white/10 border">
+                    <div class="flex justify-between items-start mb-4">
+                        <p class="text-sm text-slate-400">Hier definierst du die Windschichten für die Simulation. Der Ballon bewegt sich basierend auf der aktuellen Höhe und diesen Werten.</p>
+                        <button onclick="weatherService.fetchLiveWind()" class="bg-green-600/20 text-green-400 border border-green-500/50 px-3 py-1 rounded text-xs whitespace-nowrap hover:bg-green-600 hover:text-white transition"><i class="fas fa-satellite-dish mr-1"></i> Live-Daten laden</button>
+                    </div>
+                    
+                    <!-- Wind Configuration (Moved from Settings) -->
+                    <div class="grid grid-cols-2 gap-4 mb-6 pb-6 border-b border-white/10">
+                         <div>
+                            <label class="text-xs uppercase text-blue-300 font-bold mb-1">Mess-Intervall (Höhe)</label>
+                            <div class="flex items-center gap-1">
+                                <input type="number" id="set-wind-interval" value="${state.settings.windMeasInterval || 50}" onchange="state.settings.windMeasInterval = parseInt(this.value); saveState();" class="bg-slate-800 border border-slate-600 rounded p-2 text-sm w-full">
+                                <span class="text-xs text-slate-500">m</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-xs uppercase text-blue-300 font-bold mb-1">Mess-Abweichung (Min)</label>
+                            <div class="flex items-center gap-1">
+                                <input type="number" id="set-wind-threshold" value="${state.settings.windThreshold || 5}" onchange="state.settings.windThreshold = parseInt(this.value); saveState();" class="bg-slate-800 border border-slate-600 rounded p-2 text-sm w-full">
+                                <span class="text-xs text-slate-500">°</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-4 gap-2 text-xs uppercase text-slate-500 font-bold mb-2"><div>Höhe (m)</div><div>Richtung (°)</div><div>Speed (kt)</div><div></div></div>
+                    <div id="wind-rows" class="space-y-2 mb-4">${state.windLayers.sort((a,b)=>a.alt-b.alt).map((w, idx) => `<div class="grid grid-cols-4 gap-2 items-center"><input type="number" class="wind-edit-alt" value="${w.alt}" placeholder="Höhe"><input type="number" class="wind-edit-dir" value="${w.dir}" placeholder="Dir"><input type="number" class="wind-edit-spd" value="${w.speed}" placeholder="Knots"><button onclick="ui.removeWindLayer(${idx})" class="text-red-400 hover:text-red-300"><i class="fas fa-trash"></i></button></div>`).join('')}</div>
+                    <button onclick="ui.addWindLayer()" class="bg-slate-700 px-4 py-2 rounded text-xs mb-6">+ Schicht hinzufügen</button>
+                    <button onclick="ui.saveEnvironment()" class="bg-blue-600 w-full py-3 rounded font-bold shadow-lg">Wetterdaten Speichern</button>
+                    
+                    <p class="text-[10px] text-slate-500 mt-4 text-center">Live-Daten bereitgestellt durch Open-Meteo.com (Kein Key erforderlich)</p>
+                </div>`; 
+            },
             
             // --- WIND FILTER LOGIC ---
             renderWind() { 
@@ -2646,70 +2728,45 @@
 
                 // Basic Summary View
                 if (!isEdit) {
-                    // Display Photos Grid
-                    let photosHtml = '';
-                    if (log.photos && log.photos.length > 0) {
-                        photosHtml = `
-                            <h4 class="font-bold mb-2 text-sm text-slate-400 uppercase mt-4">Fotos</h4>
-                            <div class="grid grid-cols-4 gap-2 mb-4">
-                                ${log.photos.map(p => `
-                                    <div class="aspect-square bg-cover bg-center rounded-lg border border-white/10 cursor-pointer hover:opacity-80 transition" onclick="ui.showPhoto('${p.src}')" style="background-image: url('${p.src}')"></div>
-                                `).join('')}
-                            </div>
-                        `;
-                    } else {
-                        photosHtml = '<div class="text-xs text-slate-500 italic mt-4 mb-4">Keine Fotos vorhanden.</div>';
-                    }
-
                     c.innerHTML = `
                         <div class="flex items-center justify-between mb-4">
                             <h3 class="text-xl font-bold">Zusammenfassung</h3>
                             <button onclick="ui.switchTab('logbook')" class="text-slate-400">Schließen</button>
                         </div>
                         
-                        <!-- Map Container (Moved Top) -->
-                        <div class="relative w-full h-64 bg-slate-900 rounded-xl mb-4 border border-white/10 overflow-hidden">
-                            <div id="summary-map" class="absolute inset-0 z-0"></div>
-                            
-                            <!-- Balloon Overlay (Left on Map) -->
-                            <div class="absolute top-4 left-4 z-[400] flex items-center gap-3 pointer-events-none">
-                                ${balloonImg ? 
-                                    `<img src="${balloonImg}" class="w-16 h-16 rounded-full border-2 border-white object-cover shadow-lg bg-slate-800">` : 
-                                    `<div class="w-16 h-16 rounded-full bg-blue-600/90 backdrop-blur flex items-center justify-center text-3xl border-2 border-white shadow-lg text-white">🎈</div>`
-                                }
-                                <div class="bg-slate-900/80 backdrop-blur-md px-3 py-2 rounded-lg border border-white/10 shadow-lg">
-                                    <div class="font-bold text-white leading-tight">${log.balloon}</div>
-                                    <div class="text-slate-400 text-xs">${new Date(log.start).toLocaleDateString()}</div>
-                                </div>
+                        <!-- Header with Balloon Image -->
+                        <div class="flex items-center gap-4 mb-4">
+                            ${balloonImg ? `<img src="${balloonImg}" class="w-16 h-16 rounded-full border-2 border-white object-cover">` : '<div class="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-2xl border-2 border-white">🎈</div>'}
+                            <div>
+                                <div class="font-bold text-lg">${log.balloon}</div>
+                                <div class="text-slate-400 text-xs">${new Date(log.start).toLocaleDateString()}</div>
                             </div>
                         </div>
 
                         <div class="glass-panel p-4 mb-4">
-                            <!-- Locations & Duration -->
-                             <div class="flex justify-between mb-2">
+                            <div class="flex justify-between mb-2">
                                 <span class="text-slate-400 text-sm">Startort:</span>
-                                <span class="font-bold text-right">${log.startLoc}</span>
+                                <span class="font-bold">${log.startLoc}</span>
                             </div>
                             <div class="flex justify-between mb-2">
                                 <span class="text-slate-400 text-sm">Landeort:</span>
-                                <span class="font-bold text-right">${log.endLoc}</span>
+                                <span class="font-bold">${log.endLoc}</span>
                             </div>
                             <div class="flex justify-between mb-2">
                                 <span class="text-slate-400 text-sm">Dauer:</span>
                                 <span class="font-bold text-blue-400">${Math.floor((new Date(log.end)-new Date(log.start))/60000)} min</span>
                             </div>
-                             <div class="flex justify-between mb-2">
-                                <span class="text-slate-400 text-sm">Max Höhe:</span>
-                                <span class="font-bold text-blue-400">${Math.round(log.maxAlt || 0)} m</span>
-                            </div>
-
-                            <!-- Notes -->
+                            
+                            <!-- Bemerkungsfeld Read-Only -->
                             <div class="mt-4 pt-2 border-t border-white/10">
                                 <span class="text-xs text-slate-500 uppercase font-bold mb-1 block">Bemerkungen</span>
                                 <div class="text-sm italic text-slate-300 bg-slate-900/50 p-2 rounded min-h-[40px] whitespace-pre-wrap">${log.notes || "Keine Notizen vorhanden."}</div>
                             </div>
                         </div>
                         
+                        <!-- Interactive Map Container -->
+                        <div id="summary-map" class="w-full h-48 bg-slate-900 rounded-lg mb-4 border border-white/10 relative z-0"></div>
+
                         <h4 class="font-bold mb-2 text-sm text-slate-400 uppercase">Passagiere</h4>
                         <div class="space-y-2 mb-4">
                             ${log.pax.map(pid => {
@@ -2717,8 +2774,6 @@
                                 return p ? `<div class="bg-slate-800 p-2 rounded flex justify-between items-center text-sm"><span>${p.firstName} ${p.lastName}</span> ${p.baptism ? '<span class="text-[10px] bg-amber-900/50 text-amber-500 px-1 rounded">Getauft</span>' : ''}</div>` : '';
                             }).join('')}
                         </div>
-                        
-                        ${photosHtml}
                         
                         <div class="flex gap-2 mt-6">
                             <button onclick="ui.generateReportImage(${log.id})" class="bg-blue-600 hover:bg-blue-500 w-12 h-12 rounded-lg flex items-center justify-center shadow-lg" title="Bildbericht"><i class="fas fa-image text-xl"></i></button>
@@ -2793,14 +2848,7 @@
                 let html = '';
                 
                 if (this.tab === 'fleet') {
-                    const b = isNew ? { 
-                        id: Date.now().toString(), 
-                        callsign: '', volume: 3000, mtom: 1000, weight: 200, image: '', defaultCylinders: [], 
-                        matrix: [ [0.3,0.28,0.26], [0.28,0.26,0.24], [0.26,0.24,0.22], [0.24,0.22,0.20] ] // Default matrix
-                    } : state.balloons.find(x => x.id === id);
-                    
-                    if(!b.matrix) b.matrix = [ [0.3,0.28,0.26], [0.28,0.26,0.24], [0.26,0.24,0.22], [0.24,0.22,0.20] ];
-
+                    const b = isNew ? { id: Date.now().toString(), callsign: '', volume: 3000, mtom: 1000, weight: 200, image: '', defaultCylinders: [], matrix: Array(4).fill(Array(3).fill(0.3)) } : state.balloons.find(x => x.id === id);
                     html = `
                         <div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold">${isNew ? 'Neuer Ballon' : 'Ballon bearbeiten'}</h3><button onclick="ui.switchTab('fleet')" class="text-slate-400">Abbrechen</button></div>
                         <div class="space-y-4">
@@ -2810,7 +2858,7 @@
                                 <input type="file" id="edit-balloon-img" class="hidden" accept="image/*" onchange="ui.handleImageUpload(this)">
                             </div>
                             <div><label>Kennzeichen</label><input type="text" id="edit-callsign" value="${b.callsign}"></div>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+                            <div class="grid grid-cols-3 gap-2">
                                 <div><label>Volumen (m³)</label><input type="number" id="edit-vol" value="${b.volume}"></div>
                                 <div><label>MTOM (kg)</label><input type="number" id="edit-mtom" value="${b.mtom}"></div>
                                 <div><label>Leergewicht (kg)</label><input type="number" id="edit-weight" value="${b.weight}"></div>
@@ -2825,43 +2873,8 @@
                                     }).join('') : '<div class="text-slate-500 italic text-xs p-1">Keine Standard-Flaschen</div>'}
                                 </div>
                                 <div class="flex gap-2">
-                                    <select id="edit-cyl-select" onchange="ui.addEditCylinder()" class="text-xs"><option value="">+ Flasche wählen (Auto-Add)</option>${state.cylinders.map(cyl => `<option value="${cyl.id}">${cyl.label} (${cyl.type})</option>`).join('')}</select>
-                                </div>
-                            </div>
-                            
-                            <!-- Lift Matrix Editor -->
-                            <div class="border-t border-white/10 pt-4">
-                                <label class="mb-2 block">Tragkraft-Faktoren (kg/m³)</label>
-                                <div class="grid grid-cols-4 gap-2 text-xs items-center mb-2">
-                                     <div class="text-right text-slate-500 font-bold">Alt / T</div>
-                                     <div class="text-center text-blue-300 font-bold">0°C</div>
-                                     <div class="text-center text-blue-300 font-bold">15°C</div>
-                                     <div class="text-center text-blue-300 font-bold">30°C</div>
-                                </div>
-                                <div class="grid grid-cols-4 gap-2 text-xs items-center">
-                                     <!-- 0m -->
-                                     <div class="text-right text-slate-500 font-bold">0m</div>
-                                     <input type="number" step="0.001" id="mx-0-0" value="${b.matrix[0][0]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
-                                     <input type="number" step="0.001" id="mx-0-1" value="${b.matrix[0][1]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
-                                     <input type="number" step="0.001" id="mx-0-2" value="${b.matrix[0][2]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
-
-                                     <!-- 1000m -->
-                                     <div class="text-right text-slate-500 font-bold">1000m</div>
-                                     <input type="number" step="0.001" id="mx-1-0" value="${b.matrix[1][0]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
-                                     <input type="number" step="0.001" id="mx-1-1" value="${b.matrix[1][1]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
-                                     <input type="number" step="0.001" id="mx-1-2" value="${b.matrix[1][2]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
-
-                                     <!-- 2000m -->
-                                     <div class="text-right text-slate-500 font-bold">2000m</div>
-                                     <input type="number" step="0.001" id="mx-2-0" value="${b.matrix[2][0]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
-                                     <input type="number" step="0.001" id="mx-2-1" value="${b.matrix[2][1]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
-                                     <input type="number" step="0.001" id="mx-2-2" value="${b.matrix[2][2]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
-
-                                     <!-- 3000m -->
-                                     <div class="text-right text-slate-500 font-bold">3000m</div>
-                                     <input type="number" step="0.001" id="mx-3-0" value="${b.matrix[3][0]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
-                                     <input type="number" step="0.001" id="mx-3-1" value="${b.matrix[3][1]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
-                                     <input type="number" step="0.001" id="mx-3-2" value="${b.matrix[3][2]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
+                                    <select id="edit-cyl-select" class="text-xs"><option value="">+ Flasche wählen</option>${state.cylinders.map(cyl => `<option value="${cyl.id}">${cyl.label} (${cyl.type})</option>`).join('')}</select>
+                                    <button onclick="ui.addEditCylinder()" class="bg-slate-700 px-3 rounded hover:bg-slate-600"><i class="fas fa-plus"></i></button>
                                 </div>
                             </div>
 
@@ -2872,17 +2885,6 @@
                     window.saveBalloon = (bid) => {
                         const callsign = document.getElementById('edit-callsign').value;
                         if(!callsign) return;
-                        
-                        // Collect Matrix
-                        const matrix = [];
-                        for(let i=0; i<4; i++) {
-                            const row = [];
-                            for(let j=0; j<3; j++) {
-                                row.push(parseFloat(document.getElementById(`mx-${i}-${j}`).value) || 0);
-                            }
-                            matrix.push(row);
-                        }
-
                         const newB = {
                             id: bid,
                             callsign: callsign,
@@ -2891,7 +2893,7 @@
                             weight: parseFloat(document.getElementById('edit-weight').value),
                             image: document.getElementById('preview-balloon-img').src,
                             defaultCylinders: [],
-                            matrix: matrix 
+                            matrix: b.matrix // Keep matrix
                         };
                         
                         // Robustly collect cylinder IDs from DOM
@@ -2911,11 +2913,11 @@
                         <div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold">${isNew ? 'Neue Flasche' : 'Flasche bearbeiten'}</h3><button onclick="ui.switchTab('cylinders')" class="text-slate-400">Abbrechen</button></div>
                         <div class="space-y-4">
                             <div><label>Bezeichnung / Label</label><input type="text" id="edit-cyl-label" value="${cy.label}" placeholder="z.B. Blau 1"></div>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <div class="grid grid-cols-2 gap-2">
                                 <div><label>Typ</label><select id="edit-cyl-type"><option value="VA50" ${cy.type==='VA50'?'selected':''}>VA50</option><option value="VA70" ${cy.type==='VA70'?'selected':''}>VA70</option><option value="Master" ${cy.type==='Master'?'selected':''}>Master</option><option value="Standard" ${cy.type==='Standard'?'selected':''}>Standard</option></select></div>
                                 <div><label>Seriennummer</label><input type="text" id="edit-cyl-sn" value="${cy.sn}"></div>
                             </div>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <div class="grid grid-cols-2 gap-2">
                                 <div><label>Tara (kg)</label><input type="number" id="edit-cyl-tare" value="${cy.tare}"></div>
                                 <div><label>Füllung (kg)</label><input type="number" id="edit-cyl-gas" value="${cy.gas}"></div>
                             </div>
@@ -2944,11 +2946,11 @@
                     html = `
                         <div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold">${isNew ? 'Neuer Passagier' : 'Passagier bearbeiten'}</h3><button onclick="ui.switchTab('passengers')" class="text-slate-400">Abbrechen</button></div>
                         <div class="space-y-4">
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <div class="grid grid-cols-2 gap-2">
                                 <div><label>Vorname</label><input type="text" id="edit-pax-first" value="${p.firstName}"></div>
                                 <div><label>Nachname</label><input type="text" id="edit-pax-last" value="${p.lastName}"></div>
                             </div>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <div class="grid grid-cols-2 gap-2">
                                 <div><label>Gewicht (kg)</label><input type="number" id="edit-pax-weight" value="${p.weight}"></div>
                                 <div><label>Geschlecht</label><select id="edit-pax-gender"><option value="m" ${p.gender==='m'?'selected':''}>Männlich</option><option value="w" ${p.gender==='w'?'selected':''}>Weiblich</option><option value="d" ${p.gender==='d'?'selected':''}>Divers</option></select></div>
                             </div>
@@ -2981,12 +2983,12 @@
                     html = `
                         <div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold">Manueller Logbuch-Eintrag</h3><button onclick="ui.switchTab('logbook')" class="text-slate-400">Abbrechen</button></div>
                         <div class="space-y-4">
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <div class="grid grid-cols-2 gap-2">
                                 <div><label>Startzeit</label><input type="datetime-local" id="edit-log-start" value="${l.start}"></div>
                                 <div><label>Landung</label><input type="datetime-local" id="edit-log-end" value="${l.end}"></div>
                             </div>
                             <div><label>Ballon</label><input type="text" id="edit-log-balloon" placeholder="Kennzeichen"></div>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <div class="grid grid-cols-2 gap-2">
                                 <div><label>Startort</label><input type="text" id="edit-log-sloc"></div>
                                 <div><label>Landeort</label><input type="text" id="edit-log-eloc"></div>
                             </div>
