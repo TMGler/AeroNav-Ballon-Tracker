@@ -252,6 +252,9 @@
             100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
         }
 
+        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(6px); z-index: 9999; display: none; padding: 20px; overflow-y: auto; }
+        .modal-content { max-width: 1000px; margin: auto; min-height: 85vh; display: flex; flex-direction: column; }
+
         .tab-btn { padding: 12px 15px; border-bottom: 2px solid transparent; font-weight: 500; opacity: 0.6; white-space: nowrap; font-size: 0.9rem; }
         .tab-btn.active { border-color: var(--accent-blue); color: var(--accent-blue); opacity: 1; }
 
@@ -292,10 +295,6 @@
         input:focus { border-color: var(--accent-blue) !important; outline: none; }
         label { font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px; display: block; }
         .perf-grid input { padding: 4px; text-align: center; font-size: 0.8rem; }
-        
-        /* MAIN MODAL - Z-INDEX 9999 (Highest Priority) */
-        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(6px); z-index: 9999; display: none; padding: 20px; overflow-y: auto; }
-        .modal-content { max-width: 1000px; margin: auto; min-height: 85vh; display: flex; flex-direction: column; }
 
     </style>
 </head>
@@ -303,25 +302,34 @@
 
     <div id="map"></div>
     
+    <!-- Fullscreen Loading Overlay for Report Gen -->
     <div id="loading-overlay" class="fixed inset-0 z-[6000] bg-slate-900/95 flex flex-col items-center justify-center hidden backdrop-blur-sm">
         <div class="loader mb-4" style="width: 40px; height: 40px; border-width: 4px;"></div>
         <div class="text-white font-bold text-lg">Erstelle Bericht...</div>
         <div class="text-slate-400 text-sm">Bitte warten, Karte wird gerendert</div>
     </div>
     
+    <!-- Photo View Overlay -->
     <div id="photo-overlay" onclick="this.style.display='none'">
         <img id="photo-overlay-img" src="">
     </div>
     
+    <!-- SELECTION OVERLAY -->
     <div id="selection-overlay">
         <div class="selection-box">
             <div class="p-4 border-b border-white/10 flex justify-between items-center bg-slate-900/50 rounded-t-xl">
                 <h3 id="sel-title" class="font-bold text-white">Auswahl</h3>
                 <button onclick="document.getElementById('selection-overlay').style.display='none'" class="text-slate-400 hover:text-white px-2"><i class="fas fa-times"></i></button>
             </div>
-            <div id="sel-content" class="overflow-y-auto p-2 flex-1 space-y-1 max-h-[60vh]"></div>
+            <div id="sel-content" class="overflow-y-auto p-2 flex-1 space-y-1 max-h-[60vh]">
+                <!-- Items injected here -->
+            </div>
         </div>
     </div>
+
+    <!-- Hidden Inputs -->
+    <input type="file" id="cam-input" accept="image/*" capture="environment" class="hidden" onchange="flightManager.handlePhotoInput(this)">
+    <input type="file" id="import-input" accept=".json" class="hidden" onchange="system.importData(this)">
 
     <!-- HUD TOP CONTAINER -->
     <div id="hud-top-container" class="hud-top-container hud-container-anim">
@@ -486,21 +494,36 @@
 
     <!-- MAIN MODAL -->
     <div id="main-modal" class="overlay">
-        <div class="modal-content glass-panel p-0 md:p-6"> <!-- Full width on mobile -->
+        <div class="modal-content glass-panel p-0 md:p-6">
             <div class="flex justify-between items-center mb-4 p-4 md:p-0">
                 <h2 class="text-2xl font-bold flex items-center gap-2">AeroNav Control</h2>
                 <button onclick="ui.closeModal()" class="text-3xl opacity-50 hover:opacity-100">&times;</button>
             </div>
-            <!-- Improved Scrollable Tabs -->
-            <div class="flex border-b border-white/10 mb-4 overflow-x-auto gap-4 scrollbar-hide">
-                <button class="tab-btn active shrink-0" onclick="ui.switchTab('planning')">Planung</button>
-                <button class="tab-btn shrink-0" onclick="ui.switchTab('fleet')">Flotte</button>
-                <button class="tab-btn shrink-0" onclick="ui.switchTab('cylinders')">Gasflaschen</button>
-                <button class="tab-btn shrink-0" onclick="ui.switchTab('passengers')">Passagiere</button>
-                <button class="tab-btn shrink-0" onclick="ui.switchTab('logbook')">Logbuch</button>
-                <button class="tab-btn shrink-0" onclick="ui.switchTab('environment')">Wetter/Wind</button>
-                <button class="tab-btn shrink-0" onclick="ui.switchTab('settings')">Einstellungen</button>
+            
+            <!-- Desktop Tabs -->
+            <div class="hidden md:flex border-b border-white/10 mb-4 gap-4">
+                <button class="tab-btn active" onclick="ui.switchTab('planning')">Planung</button>
+                <button class="tab-btn" onclick="ui.switchTab('fleet')">Flotte</button>
+                <button class="tab-btn" onclick="ui.switchTab('cylinders')">Gasflaschen</button>
+                <button class="tab-btn" onclick="ui.switchTab('passengers')">Passagiere</button>
+                <button class="tab-btn" onclick="ui.switchTab('logbook')">Logbuch</button>
+                <button class="tab-btn" onclick="ui.switchTab('environment')">Wetter/Wind</button>
+                <button class="tab-btn" onclick="ui.switchTab('settings')">Einstellungen</button>
             </div>
+
+            <!-- Mobile Dropdown -->
+            <div class="md:hidden px-4 mb-4">
+                <select id="mobile-tab-select" onchange="ui.switchTab(this.value)" class="w-full bg-slate-800 border border-white/20 rounded-lg p-3 text-white font-bold focus:outline-none focus:border-blue-500">
+                    <option value="planning">Planung</option>
+                    <option value="fleet">Flotte</option>
+                    <option value="cylinders">Gasflaschen</option>
+                    <option value="passengers">Passagiere</option>
+                    <option value="logbook">Logbuch</option>
+                    <option value="environment">Wetter/Wind</option>
+                    <option value="settings">Einstellungen</option>
+                </select>
+            </div>
+
             <div id="tab-content" class="flex-grow overflow-y-auto pr-2 p-4 md:p-0"></div>
         </div>
     </div>
@@ -1592,7 +1615,20 @@
                 }
             },
             
-            switchTab(t) { this.tab = t; this.editingId = null; document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.onclick.toString().includes(`'${t}'`))); this.render(); },
+            switchTab(t) { 
+                this.tab = t; 
+                this.editingId = null; 
+                
+                // Update Desktop Buttons
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.onclick.toString().includes(`'${t}'`))); 
+                
+                // Update Mobile Select
+                const mobileSelect = document.getElementById('mobile-tab-select');
+                if(mobileSelect) mobileSelect.value = t;
+
+                this.render(); 
+            },
+
             render() { const c = document.getElementById('tab-content'); c.innerHTML = ''; if (this.editingId) { this.renderForm(c); return; } switch(this.tab) { case 'planning': this.viewPlanning(c); break; case 'fleet': this.viewFleet(c); break; case 'cylinders': this.viewCylinders(c); break; case 'passengers': this.viewPassengers(c); break; case 'logbook': this.viewLogbook(c); break; case 'settings': this.viewSettings(c); break; case 'environment': this.viewEnvironment(c); break; } },
             
             // ... existing view functions (viewFleet, viewCylinders etc) remain same ...
@@ -1704,13 +1740,12 @@
                         <h4 class="text-blue-400 font-bold mb-3 border-b border-white/10 pb-1">Pilot & Basisdaten</h4>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div><label>Name des Piloten</label><input type="text" id="set-pilot-name" value="${state.pilot.name}" onchange="ui.saveSettings(true)"></div>
-                            <div class="grid grid-cols-2 gap-2">
-                                <div><label>Gewicht (kg)</label><input type="number" id="set-pilot-weight" value="${state.pilot.weight}" onchange="ui.saveSettings(true)"></div>
-                                <div><label>Stunden (hh:mm)</label><input type="text" id="set-pilot-hours" value="${initTimeStr}" placeholder="hh:mm" onchange="ui.saveSettings(true)"></div>
-                            </div>
-                            <div class="md:col-span-2">
-                                <label>Bisherige Fahrten</label>
-                                <input type="number" id="set-pilot-flights" value="${state.pilot.initialFlights || 0}">
+                            <div><label>Gewicht (kg)</label><input type="number" id="set-pilot-weight" value="${state.pilot.weight}" onchange="ui.saveSettings(true)"></div>
+                            
+                            <!-- Combined Row for Experience -->
+                            <div class="md:col-span-2 grid grid-cols-2 gap-4 bg-slate-800/50 p-3 rounded border border-white/5">
+                                <div><label class="text-xs text-slate-400">Bisherige Fahrten</label><input type="number" id="set-pilot-flights" value="${state.pilot.initialFlights || 0}" onchange="ui.saveSettings(true)"></div>
+                                <div><label class="text-xs text-slate-400">Stunden (hh:mm)</label><input type="text" id="set-pilot-hours" value="${initTimeStr}" placeholder="hh:mm" onchange="ui.saveSettings(true)"></div>
                             </div>
                         </div>
                     </div>
@@ -1719,6 +1754,7 @@
                     <div class="bg-white/5 p-4 rounded-lg">
                         <h4 class="text-blue-400 font-bold mb-3 border-b border-white/10 pb-1">Anzeige & Einheiten</h4>
                         <div class="space-y-3">
+                             <!-- ... toggles ... -->
                              <div class="flex items-center justify-between bg-black/20 p-2 rounded">
                                  <span class="text-sm">Betriebsmodus: <b>${state.settings.mode === 'gps' ? 'GPS LIVE' : 'SIMULATION'}</b></span>
                                  <label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="set-mode-toggle" class="sr-only peer" ${state.settings.mode === 'gps' ? 'checked' : ''} onchange="ui.saveSettings(true)"><div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div></label>
@@ -1727,11 +1763,11 @@
                                  <span class="text-sm">Zeiten in UTC anzeigen</span>
                                  <label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="set-use-utc" class="sr-only peer" ${state.settings.useUTC ? 'checked' : ''} onchange="ui.saveSettings(true)"><div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div></label>
                              </div>
+                             <!-- ... styles ... -->
                              <div class="grid grid-cols-2 gap-2">
                                 <div><label>Kartenstil</label><select id="set-map-style" onchange="ui.saveSettings(true)"><option value="dark" ${state.settings.mapStyle==='dark'?'selected':''}>Dark Matter (Dunkel)</option><option value="light" ${state.settings.mapStyle==='light'?'selected':''}>OpenStreetMap (Hell)</option><option value="sat" ${state.settings.mapStyle==='sat'?'selected':''}>Satellit</option></select></div>
                                 <div><label>Track Farbe</label><input type="color" id="set-track-color" value="${state.settings.trackColor}" onchange="ui.saveSettings(true)"></div>
                              </div>
-                             <div class="pt-2"><label>Gemini API Key</label><input type="password" id="set-api-key" value="${state.settings.apiKey || ''}" placeholder="..." onchange="ui.saveSettings(true)"></div>
                         </div>
                     </div>
 
@@ -1747,13 +1783,19 @@
                         </div>
                     </div>
 
-                    <!-- SECTION 3.5: AI SETTINGS -->
+                    <!-- SECTION 3.5: AI SETTINGS (Moved API Key here) -->
                     <div class="bg-white/5 p-4 rounded-lg mt-4">
                         <h4 class="text-purple-400 font-bold mb-3 border-b border-white/10 pb-1">KI Konfiguration</h4>
-                        <div class="flex items-end gap-2">
-                            <div class="flex-1">
-                                <label class="text-[10px]">Maximale Wortanzahl für Taufnamen</label>
-                                <input type="number" id="set-baptism-words" value="${state.settings.baptismMaxWords || 15}" onchange="ui.saveSettings(true)" class="bg-slate-800 border border-slate-600 rounded p-2 text-sm w-full">
+                        <div class="space-y-3">
+                            <div>
+                                <label class="text-xs text-purple-200">Gemini API Key</label>
+                                <input type="password" id="set-api-key" value="${state.settings.apiKey || ''}" placeholder="AI Key eingeben..." onchange="ui.saveSettings(true)" class="border-purple-500/30 focus:border-purple-500">
+                            </div>
+                            <div class="flex items-end gap-2">
+                                <div class="flex-1">
+                                    <label class="text-[10px]">Max. Wörter (Taufname)</label>
+                                    <input type="number" id="set-baptism-words" value="${state.settings.baptismMaxWords || 15}" onchange="ui.saveSettings(true)" class="bg-slate-800 border border-slate-600 rounded p-2 text-sm w-full">
+                                </div>
                             </div>
                         </div>
                     </div>
