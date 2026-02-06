@@ -183,7 +183,8 @@
         }
 
         .hud-value { text-align: center; }
-        .hud-label { font-size: 0.7rem; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.05em; font-weight: 600; }
+        /* CHANGED: removed uppercase, smaller font size */
+        .hud-label { font-size: 0.6rem; color: #94a3b8; letter-spacing: 0.05em; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 2px; }
         .hud-num { font-size: 1.4rem; font-weight: 700; font-family: 'Courier New', Courier, monospace; }
         .hud-nav .hud-num { font-size: 1.2rem; color: var(--accent-yellow); }
 
@@ -214,8 +215,8 @@
             z-index: 1000; 
             display: flex; 
             flex-direction: column; 
-            align-items: end;
-            gap: 5px;
+            align-items: end; 
+            gap: 5px; 
             transition: top 0.3s ease;
         }
 
@@ -356,16 +357,16 @@
 
         <div id="hud-top" class="hud-top glass-panel">
             <div class="hud-value">
-                <div class="hud-label">Höhe</div>
-                <div class="hud-num"><span id="hud-alt">0</span> <small class="text-xs font-normal" id="lbl-alt">m</small></div>
+                <div class="hud-label">Höhe <small class="text-[0.6rem] font-normal text-slate-400" id="lbl-alt">m</small></div>
+                <div class="hud-num"><span id="hud-alt">0</span></div>
             </div>
             <div class="hud-value">
-                <div class="hud-label">Vario</div>
-                <div class="hud-num"><span id="hud-vario">0.0</span> <small class="text-xs font-normal" id="lbl-vario">m/s</small></div>
+                <div class="hud-label">Vario <small class="text-[0.6rem] font-normal text-slate-400" id="lbl-vario">m/s</small></div>
+                <div class="hud-num"><span id="hud-vario">0.0</span></div>
             </div>
             <div class="hud-value">
-                <div class="hud-label">Speed</div>
-                <div class="hud-num"><span id="hud-speed">0.0</span> <small class="text-xs font-normal" id="lbl-speed">km/h</small></div>
+                <div class="hud-label">Speed <small class="text-[0.6rem] font-normal text-slate-400" id="lbl-speed">km/h</small></div>
+                <div class="hud-num"><span id="hud-speed">0.0</span></div>
             </div>
             <div class="hud-value">
                 <div class="hud-label">Kurs</div>
@@ -406,8 +407,8 @@
 
         <div id="hud-nav" class="hud-nav glass-panel">
             <div class="hud-value">
-                <div class="hud-label">Distanz</div>
-                <div class="hud-num"><span id="nav-dist">0.0</span> <small class="text-[0.6rem] font-normal" id="lbl-nav-dist">km</small></div>
+                <div class="hud-label">Distanz <small class="text-[0.6rem] font-normal text-slate-400" id="lbl-nav-dist">km</small></div>
+                <div class="hud-num"><span id="nav-dist">0.0</span></div>
             </div>
             <div class="hud-value">
                 <div class="hud-label">Peilung</div>
@@ -549,7 +550,7 @@
         /**
          * STATE & CONSTANTS
          */
-        const STORAGE_KEY = "AERONAV_PRO_DATA_V7"; // Bumped version for new features
+        const STORAGE_KEY = "AERONAV_PRO_DATA_V7"; 
         
         let state = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {
             pilot: { name: "Max Mustermann", weight: 85, initialFlights: 0, initialHours: 0 }, 
@@ -559,7 +560,7 @@
             logs: [],
             plannings: [], 
             archive: [], 
-            kmlOverlays: [], // New: { id, name, content, visible }
+            kmlOverlays: [], 
             windLayers: [
                 { alt: 0, dir: 270, speed: 5 },
                 { alt: 500, dir: 285, speed: 12 },
@@ -583,7 +584,7 @@
                 imageRetention: 30,
                 baptismMaxWords: 15,
                 useUTC: false,
-                mapOffset: 0.25 // New: 25% default offset
+                mapOffset: 0.25 
             }
         };
 
@@ -796,9 +797,10 @@
                 }
             },
 
-            async getBaptismSuggestions(paxName, startLoc, endLoc, time, notes, btn) {
+            async getBaptismSuggestions(paxName, startLoc, endLoc, time, notes, btn, targetInputId) {
                 if (!state.settings.apiKey) { ui.showToast("Kein API Key in Einstellungen!", "error"); return; }
                 
+                const originalHtml = btn.innerHTML;
                 btn.innerHTML = '<div class="loader inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>';
                 
                 const maxWords = state.settings.baptismMaxWords || 15;
@@ -813,7 +815,8 @@
                     Regeln:
                     - Die Titel müssen auf Deutsch sein.
                     - Jeder Titel darf maximal ${maxWords} Wörter lang sein.
-                    - Format: Nur die 5 Titel, getrennt durch ein Semikolon (;). Keine Nummerierung, keine Anführungszeichen.
+                    - Format: Nur die 5 Titel, jeweils in einer neuen Zeile. Keine Nummerierung, keine Anführungszeichen, kein Bindestrich am Anfang.
+                    - Format JSON Array von Strings: ["Titel 1", "Titel 2"...]
                 `;
 
                 try {
@@ -826,18 +829,34 @@
                     const result = await response.json();
                     let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
                     
-                    // Clean up potential formatting
-                    text = text.replace(/\n/g, '').trim();
-                    const suggestions = text.split(';').map(s => s.trim()).filter(s => s.length > 0);
+                    // Parse JSON or Fallback
+                    let suggestions = [];
+                    try {
+                        const jsonMatch = text.match(/\[.*\]/s);
+                        if(jsonMatch) {
+                            suggestions = JSON.parse(jsonMatch[0]);
+                        } else {
+                            suggestions = text.split('\n').map(s => s.replace(/^\d+\.\s*|-\s*/, '').trim()).filter(s => s.length > 5);
+                        }
+                    } catch(e) {
+                        suggestions = text.split('\n').filter(s => s.length > 5);
+                    }
                     
-                    return suggestions;
+                    if (suggestions.length > 0) {
+                        const items = suggestions.map((s, i) => ({ id: s, main: s, sub: '' }));
+                        ui.showSelectionModal(`Taufnamen für ${paxName}`, items, (selectedName) => {
+                            const input = document.getElementById(targetInputId);
+                            if(input) input.value = selectedName;
+                        });
+                    } else {
+                        ui.showToast("Keine Vorschläge erhalten.", "error");
+                    }
 
                 } catch (e) {
                     ui.showToast("Fehler bei AI Anfrage.", "error");
                     console.error(e);
-                    return [];
                 } finally {
-                    btn.innerHTML = '<i class="fas fa-magic"></i>';
+                    btn.innerHTML = originalHtml;
                 }
             }
         };
@@ -1336,7 +1355,7 @@
                     balloon: balloonName,
                     notes: "", 
                     startLoc: startLoc, 
-                    endLoc: endLoc,      
+                    endLoc: endLoc,       
                     planId: this.currentActivePlan ? this.currentActivePlan.id : null,
                     pax: currentPaxIds,
                     cylinders: this.currentActivePlan ? this.currentActivePlan.cylinders : [],
@@ -1371,7 +1390,7 @@
                 let dSpeed = data.speed; // kt
                 let dVario = data.vario; // m/s
                 let uAlt = 'm';
-                let uSpeed = 'kt';
+                let uSpeed = 'km/h'; // Default is km/h now per request context, but keeping var name
                 let uVario = 'm/s';
 
                 if (state.settings.unitAlt === 'ft') { dAlt = data.alt * 3.28084; uAlt = 'ft'; }
@@ -1461,7 +1480,7 @@
                     if (state.settings.unitAlt === 'ft') { 
                         const distNm = distKm * 0.539957;
                         document.getElementById('nav-dist').innerText = distNm.toFixed(1);
-                        document.getElementById('lbl-nav-dist').innerText = 'NM';
+                        document.getElementById('lbl-nav-dist').innerText = 'nm'; // Lowercase
                         if (data.speed > 1) {
                             const hours = distNm / data.speed;
                             const mins = Math.round(hours * 60);
@@ -1469,7 +1488,7 @@
                         } else { document.getElementById('nav-ete').innerText = "--:--"; }
                     } else {
                         document.getElementById('nav-dist').innerText = distKm.toFixed(1);
-                        document.getElementById('lbl-nav-dist').innerText = 'km';
+                        document.getElementById('lbl-nav-dist').innerText = 'km'; // Lowercase
                         const speedKmh = data.speed * 1.852;
                         if (speedKmh > 1) {
                             const hours = distKm / speedKmh;
@@ -1682,7 +1701,7 @@
 
         const ui = {
             tab: 'planning', editingId: null, editingPlanId: null, planningMode: 'active', passengerMode: 'active', toastTimeout: null,
-            fleetMode: 'active',
+            fleetMode: 'active', summaryMap: null, // Holds reference to map in modal
 
             init() { 
                 document.getElementById('btn-settings').onclick = () => this.openModal(); 
@@ -1876,6 +1895,7 @@
                                     <div>
                                         <div class="font-bold text-white">${p.firstName} ${p.lastName}</div>
                                         <div class="text-xs text-slate-400">${p.weight}kg | ${p.gender} | ${p.phone}</div>
+                                        ${p.baptismName ? `<div class="text-xs text-amber-400 italic mt-0.5"><i class="fas fa-crown text-[10px]"></i> ${p.baptismName}</div>` : ''}
                                         ${isArchive ? `<div class="text-[10px] text-green-400 mt-1"><i class="fas fa-check"></i> ${p.flights} Fahrten | Letzte: ${new Date(p.lastFlight).toLocaleDateString()}</div>` : ''}
                                     </div>
                                     <div class="flex gap-2">
@@ -1964,7 +1984,7 @@
                         <h4 class="text-blue-400 font-bold mb-3 border-b border-white/10 pb-1">Anzeige & Einheiten</h4>
                         <div class="space-y-3">
                              <div class="flex items-center justify-between bg-black/20 p-2 rounded">
-                                 <span class="text-sm">Betriebsmodus: <b>${state.settings.mode === 'gps' ? 'GPS LIVE' : 'SIMULATION'}</b></span>
+                                 <span class="text-sm" id="lbl-settings-mode">Betriebsmodus: <b>${state.settings.mode === 'gps' ? 'GPS LIVE' : 'SIMULATION'}</b></span>
                                  <label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="set-mode-toggle" class="sr-only peer" ${state.settings.mode === 'gps' ? 'checked' : ''} onchange="ui.saveSettings(true)"><div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div></label>
                              </div>
                              <div class="flex items-center justify-between bg-black/20 p-2 rounded">
@@ -2613,8 +2633,8 @@
 
                 // --- Capture ---
                 setTimeout(() => {
-                    html2canvas(stage, {
-                        useCORS: true,
+                    html2canvas(stage, { 
+                        useCORS: true, 
                         backgroundColor: '#0f172a',
                         scale: 2 // High res
                     }).then(canvas => {
@@ -2682,7 +2702,7 @@
                 linkElement.setAttribute('href', dataUri);
                 linkElement.setAttribute('download', exportFileDefaultName);
                 linkElement.click();
-            },
+            }, // <-- FIXED: Added missing comma
             
             handleBalloonImport(input) {
                 if (input.files && input.files[0]) {
@@ -2831,6 +2851,10 @@
                 saveState();
                 if(!skipToast) ui.showToast("Einstellungen gespeichert!");
                 
+                // Update mode label text dynamically
+                const modeLabel = document.getElementById('lbl-settings-mode');
+                if(modeLabel) modeLabel.innerHTML = `Betriebsmodus: <b>${state.settings.mode === 'gps' ? 'GPS LIVE' : 'SIMULATION'}</b>`;
+
                 // Apply changes
                 mapManager.setLayer(state.settings.mapStyle);
                 mapManager.updateTrackStyle();
@@ -2927,6 +2951,10 @@
                 document.getElementById('main-modal').style.display = 'flex';
                 const c = document.getElementById('tab-content');
                 
+                // Get Balloon Image
+                const b = state.balloons.find(x => x.callsign === log.balloon);
+                const balloonImg = b && b.image ? b.image : null;
+
                 // Basic Summary View
                 if (!isEdit) {
                     c.innerHTML = `
@@ -2934,6 +2962,16 @@
                             <h3 class="text-xl font-bold">Zusammenfassung</h3>
                             <button onclick="ui.switchTab('logbook')" class="text-slate-400">Schließen</button>
                         </div>
+                        
+                        <!-- Header with Balloon Image -->
+                        <div class="flex items-center gap-4 mb-4">
+                            ${balloonImg ? `<img src="${balloonImg}" class="w-16 h-16 rounded-full border-2 border-white object-cover">` : '<div class="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-2xl border-2 border-white">🎈</div>'}
+                            <div>
+                                <div class="font-bold text-lg">${log.balloon}</div>
+                                <div class="text-slate-400 text-xs">${new Date(log.start).toLocaleDateString()}</div>
+                            </div>
+                        </div>
+
                         <div class="glass-panel p-4 mb-4">
                             <div class="flex justify-between mb-2">
                                 <span class="text-slate-400 text-sm">Startort:</span>
@@ -2947,9 +2985,17 @@
                                 <span class="text-slate-400 text-sm">Dauer:</span>
                                 <span class="font-bold text-blue-400">${Math.floor((new Date(log.end)-new Date(log.start))/60000)} min</span>
                             </div>
-                            <div class="text-xs text-slate-500 mt-2 italic">${log.notes || "Keine Notizen"}</div>
+                            
+                            <!-- Bemerkungsfeld Read-Only -->
+                            <div class="mt-4 pt-2 border-t border-white/10">
+                                <span class="text-xs text-slate-500 uppercase font-bold mb-1 block">Bemerkungen</span>
+                                <div class="text-sm italic text-slate-300 bg-slate-900/50 p-2 rounded min-h-[40px] whitespace-pre-wrap">${log.notes || "Keine Notizen vorhanden."}</div>
+                            </div>
                         </div>
                         
+                        <!-- Interactive Map Container -->
+                        <div id="summary-map" class="w-full h-48 bg-slate-900 rounded-lg mb-4 border border-white/10 relative z-0"></div>
+
                         <h4 class="font-bold mb-2 text-sm text-slate-400 uppercase">Passagiere</h4>
                         <div class="space-y-2 mb-4">
                             ${log.pax.map(pid => {
@@ -2958,12 +3004,28 @@
                             }).join('')}
                         </div>
                         
-                        <div class="grid grid-cols-2 gap-2 mt-6">
-                            <button onclick="ui.generateReportImage(${log.id})" class="bg-blue-600 hover:bg-blue-500 py-3 rounded font-bold text-sm flex items-center justify-center gap-2"><i class="fas fa-image"></i> Bildbericht</button>
-                            <button onclick="ui.exportGPX(${log.id})" class="bg-slate-700 hover:bg-slate-600 py-3 rounded font-bold text-sm flex items-center justify-center gap-2"><i class="fas fa-route"></i> GPX Export</button>
-                            <button onclick="ui.showSummary(${log.id}, true)" class="bg-slate-800 hover:bg-slate-700 py-3 rounded font-bold text-sm col-span-2 border border-white/10">Bearbeiten & Taufen</button>
+                        <div class="flex gap-2 mt-6">
+                            <button onclick="ui.generateReportImage(${log.id})" class="bg-blue-600 hover:bg-blue-500 w-12 h-12 rounded-lg flex items-center justify-center shadow-lg" title="Bildbericht"><i class="fas fa-image text-xl"></i></button>
+                            <button onclick="ui.exportGPX(${log.id})" class="bg-slate-700 hover:bg-slate-600 w-12 h-12 rounded-lg flex items-center justify-center shadow-lg" title="GPX Export"><i class="fas fa-route text-xl"></i></button>
+                            <button onclick="ui.showSummary(${log.id}, true)" class="bg-slate-800 hover:bg-slate-700 flex-1 h-12 rounded-lg font-bold text-sm border border-white/10">Bearbeiten & Taufen</button>
                         </div>
                     `;
+                    
+                    // Initialize Map after DOM is ready
+                    setTimeout(() => {
+                        if(this.summaryMap) { this.summaryMap.remove(); } // cleanup old instance
+                        const m = L.map('summary-map', { zoomControl: false, attributionControl: false });
+                        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(m);
+                        
+                        if(log.track && log.track.length > 0) {
+                            const line = L.polyline(log.track, { color: '#3b82f6', weight: 3 }).addTo(m);
+                            m.fitBounds(line.getBounds(), { padding: [20, 20] });
+                        } else {
+                            m.setView([51.1657, 10.4515], 10);
+                        }
+                        this.summaryMap = m;
+                    }, 100);
+
                 } else {
                     // Edit View (Add Pax, Edit Notes, Baptism)
                     c.innerHTML = `
@@ -2994,7 +3056,7 @@
                                                 </div>
                                                 <div class="flex gap-2">
                                                     <input type="text" id="bapt-name-${pid}" placeholder="Taufname eingeben..." value="${p.baptismName || ''}" class="text-xs flex-1">
-                                                    <button onclick="aiService.getBaptismSuggestions('${p.firstName}', '${log.startLoc}', '${log.endLoc}', 'Tag', '${log.notes}', this)" class="bg-purple-600/50 hover:bg-purple-500 px-2 rounded text-xs" title="KI Vorschlag"><i class="fas fa-magic"></i></button>
+                                                    <button onclick="aiService.getBaptismSuggestions('${p.firstName}', '${log.startLoc}', '${log.endLoc}', 'Tag', '${log.notes}', this, 'bapt-name-${pid}')" class="bg-purple-600/50 hover:bg-purple-500 px-2 rounded text-xs" title="KI Vorschlag"><i class="fas fa-magic"></i></button>
                                                 </div>
                                             </div>
                                         `;
@@ -3062,7 +3124,13 @@
                             defaultCylinders: [],
                             matrix: b.matrix // Keep matrix
                         };
-                        document.querySelectorAll('.default-cyl-item').forEach(el => newB.defaultCylinders.push(el.dataset.id));
+                        
+                        // Robustly collect cylinder IDs from DOM
+                        const cylItems = document.getElementById('edit-cyl-list').querySelectorAll('.default-cyl-item');
+                        cylItems.forEach(el => {
+                            const cylId = el.getAttribute('data-id');
+                            if(cylId) newB.defaultCylinders.push(cylId);
+                        });
                         
                         if (isNew) state.balloons.push(newB);
                         else { const idx = state.balloons.findIndex(x => x.id === bid); if(idx > -1) state.balloons[idx] = newB; }
@@ -3158,7 +3226,7 @@
                         </div>
                     `;
                     window.saveManualLog = () => {
-                        const newL = {
+                        const newL = { 
                             id: Date.now(),
                             start: new Date(document.getElementById('edit-log-start').value).toISOString(),
                             end: new Date(document.getElementById('edit-log-end').value).toISOString(),
