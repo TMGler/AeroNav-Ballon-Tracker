@@ -285,7 +285,7 @@
         #photo-overlay { position: fixed; inset: 0; z-index: 7000; background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; padding: 20px; }
         #photo-overlay img { max-width: 95%; max-height: 95%; border-radius: 8px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
         
-        /* SELECTION OVERLAY - Z-INDEX 10001 (Above main modal) */
+        /* SELECTION OVERLAY */
         #selection-overlay { position: fixed; inset: 0; z-index: 10001; background: rgba(0,0,0,0.8); display: none; justify-content: center; align-items: center; padding: 20px; backdrop-filter: blur(4px); }
         .selection-box { background: #1e293b; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; width: 100%; max-width: 400px; max-height: 80vh; display: flex; flex-direction: column; shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
 
@@ -295,6 +295,10 @@
         input:focus { border-color: var(--accent-blue) !important; outline: none; }
         label { font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px; display: block; }
         .perf-grid input { padding: 4px; text-align: center; font-size: 0.8rem; }
+        
+        /* MAIN MODAL */
+        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(6px); z-index: 9999; display: none; padding: 20px; overflow-y: auto; }
+        .modal-content { max-width: 1000px; margin: auto; min-height: 85vh; display: flex; flex-direction: column; }
 
     </style>
 </head>
@@ -1740,12 +1744,14 @@
                         <h4 class="text-blue-400 font-bold mb-3 border-b border-white/10 pb-1">Pilot & Basisdaten</h4>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div><label>Name des Piloten</label><input type="text" id="set-pilot-name" value="${state.pilot.name}" onchange="ui.saveSettings(true)"></div>
-                            <div><label>Gewicht (kg)</label><input type="number" id="set-pilot-weight" value="${state.pilot.weight}" onchange="ui.saveSettings(true)"></div>
-                            
-                            <!-- Combined Row for Experience -->
-                            <div class="md:col-span-2 grid grid-cols-2 gap-4 bg-slate-800/50 p-3 rounded border border-white/5">
-                                <div><label class="text-xs text-slate-400">Bisherige Fahrten</label><input type="number" id="set-pilot-flights" value="${state.pilot.initialFlights || 0}" onchange="ui.saveSettings(true)"></div>
-                                <div><label class="text-xs text-slate-400">Stunden (hh:mm)</label><input type="text" id="set-pilot-hours" value="${initTimeStr}" placeholder="hh:mm" onchange="ui.saveSettings(true)"></div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div><label>Gewicht (kg)</label><input type="number" id="set-pilot-weight" value="${state.pilot.weight}" onchange="ui.saveSettings(true)"></div>
+                                
+                                <!-- Combined Row for Experience -->
+                                <div class="col-span-1 grid grid-cols-2 gap-2">
+                                    <div><label>Stunden</label><input type="text" id="set-pilot-hours" value="${initTimeStr}" placeholder="hh:mm" onchange="ui.saveSettings(true)"></div>
+                                    <div><label>Fahrten</label><input type="number" id="set-pilot-flights" value="${state.pilot.initialFlights || 0}" onchange="ui.saveSettings(true)"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1754,7 +1760,6 @@
                     <div class="bg-white/5 p-4 rounded-lg">
                         <h4 class="text-blue-400 font-bold mb-3 border-b border-white/10 pb-1">Anzeige & Einheiten</h4>
                         <div class="space-y-3">
-                             <!-- ... toggles ... -->
                              <div class="flex items-center justify-between bg-black/20 p-2 rounded">
                                  <span class="text-sm">Betriebsmodus: <b>${state.settings.mode === 'gps' ? 'GPS LIVE' : 'SIMULATION'}</b></span>
                                  <label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="set-mode-toggle" class="sr-only peer" ${state.settings.mode === 'gps' ? 'checked' : ''} onchange="ui.saveSettings(true)"><div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div></label>
@@ -1763,11 +1768,11 @@
                                  <span class="text-sm">Zeiten in UTC anzeigen</span>
                                  <label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="set-use-utc" class="sr-only peer" ${state.settings.useUTC ? 'checked' : ''} onchange="ui.saveSettings(true)"><div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div></label>
                              </div>
-                             <!-- ... styles ... -->
                              <div class="grid grid-cols-2 gap-2">
                                 <div><label>Kartenstil</label><select id="set-map-style" onchange="ui.saveSettings(true)"><option value="dark" ${state.settings.mapStyle==='dark'?'selected':''}>Dark Matter (Dunkel)</option><option value="light" ${state.settings.mapStyle==='light'?'selected':''}>OpenStreetMap (Hell)</option><option value="sat" ${state.settings.mapStyle==='sat'?'selected':''}>Satellit</option></select></div>
                                 <div><label>Track Farbe</label><input type="color" id="set-track-color" value="${state.settings.trackColor}" onchange="ui.saveSettings(true)"></div>
                              </div>
+                             <div class="pt-2"><label>Gemini API Key</label><input type="password" id="set-api-key" value="${state.settings.apiKey || ''}" placeholder="..." onchange="ui.saveSettings(true)"></div>
                         </div>
                     </div>
 
@@ -2400,7 +2405,262 @@
             taufe(name) { 
                  // Simple toast notification instead of alert
                  this.showToast(`${name} wurde erfolgreich getauft!`, 'success');
-            }
+            },
+
+            saveSettings(silent = false) {
+                state.pilot.name = document.getElementById('set-pilot-name').value;
+                state.pilot.weight = parseFloat(document.getElementById('set-pilot-weight').value);
+                
+                const timeStr = document.getElementById('set-pilot-hours').value;
+                const parts = timeStr.split(':');
+                if (parts.length >= 2) { const h = parseInt(parts[0]) || 0; const m = parseInt(parts[1]) || 0; state.pilot.initialHours = h + (m / 60); } 
+                else { state.pilot.initialHours = parseFloat(timeStr) || 0; }
+                
+                state.settings.apiKey = document.getElementById('set-api-key').value;
+                state.settings.unitAlt = 'm'; // Hidden fallback
+                state.settings.unitSpeed = 'kmh'; // Hidden fallback
+                state.settings.unitVario = 'ms'; // Hidden fallback
+                state.settings.trackColor = document.getElementById('set-track-color').value;
+                state.settings.mapStyle = document.getElementById('set-map-style').value;
+                const modeToggle = document.getElementById('set-mode-toggle');
+                state.settings.mode = modeToggle.checked ? 'gps' : 'sim';
+                state.settings.windThreshold = parseFloat(document.getElementById('set-wind-threshold')?.value) || 5;
+                state.settings.imageRetention = parseInt(document.getElementById('set-image-retention')?.value) || 30;
+                state.settings.baptismMaxWords = parseInt(document.getElementById('set-baptism-words')?.value) || 15;
+                state.settings.useUTC = document.getElementById('set-use-utc').checked;
+                
+                // NEW: Pilot Flights
+                const flights = parseInt(document.getElementById('set-pilot-flights').value);
+                if (!isNaN(flights)) {
+                     state.pilot.initialFlights = flights;
+                }
+                
+                saveState();
+                mapManager.updateTrackStyle();
+                mapManager.setLayer(state.settings.mapStyle);
+                mapManager.updateIcon(); 
+                simulation.applyMode();
+                this.renderWind();
+                
+                if (!silent) ui.showToast("Einstellungen gespeichert!", "success");
+                
+                // IMPORTANT: Re-render to update UI text (e.g. Mode)
+                this.render();
+            },
+            
+            // --- Helper for Edit Form ---
+            handleImageUpload(input) {
+                if (input.files && input.files[0]) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const img = document.getElementById('preview-balloon-img');
+                        img.src = e.target.result;
+                        img.classList.remove('hidden');
+                        img.nextElementSibling.classList.add('hidden');
+                    }
+                    reader.readAsDataURL(input.files[0]);
+                }
+            },
+            addEditCylinder() { 
+                const sel = document.getElementById('edit-cyl-select'); 
+                const id = sel.value; 
+                if (!id) return; 
+                const list = document.getElementById('edit-cyl-list'); 
+                if (list.querySelector(`[data-id="${id}"]`)) return; 
+                if(list.innerHTML.includes('Keine Standard')) list.innerHTML = ''; 
+                const cyl = state.cylinders.find(c => c.id === id); 
+                const div = document.createElement('div'); 
+                div.className = "flex justify-between items-center bg-slate-800 p-2 rounded mb-1 text-xs default-cyl-item"; 
+                div.setAttribute('data-id', id); 
+                div.innerHTML = `<span>${cyl.label} (${cyl.type})</span> <button onclick="ui.removeEditCylinder(this)" class="text-red-400 hover:text-red-300"><i class="fas fa-times"></i></button>`; 
+                list.appendChild(div); 
+                sel.value = ""; // Reset after adding
+            },
+            removeEditCylinder(btn) { btn.parentElement.remove(); },
+            
+            // --- RE-ADDED MISSING EDIT/RENDER ---
+            edit(id) { this.editingId = id; this.render(); },
+            renderForm(c) {
+                if (this.tab === 'fleet') this.formBalloon(c);
+                if (this.tab === 'cylinders') this.formCylinder(c);
+                if (this.tab === 'passengers') this.formPassenger(c);
+                if (this.tab === 'logbook') this.formLogManual(c);
+            },
+            formBalloon(c) {
+                const b = state.balloons.find(x => x.id === this.editingId) || { callsign: "", volume: 3000, weight: 400, mtom: 1100, maxClimb: 5, maxDescent: 3, defaultCylinders: [], matrix: [[0.320, 0.280, 0.240],[0.280, 0.240, 0.200],[0.240, 0.200, 0.160],[0.200, 0.160, 0.120]], image: null };
+                const defCyls = b.defaultCylinders || [];
+                // Helper to render default cylinder list items
+                const renderDefaultList = () => defCyls.map(id => { 
+                    const cyl = state.cylinders.find(cx => cx.id === id); 
+                    if (!cyl) return ''; 
+                    return `<div class="flex justify-between items-center bg-slate-800 p-2 rounded mb-1 text-xs default-cyl-item" data-id="${id}"><span>${cyl.label} (${cyl.type})</span> <button onclick="ui.removeEditCylinder(this)" class="text-red-400 hover:text-red-300"><i class="fas fa-times"></i></button></div>`; 
+                }).join('');
+                
+                const isFt = state.settings.unitVario === 'fts';
+                const climbUnit = isFt ? '1000 ft/min' : 'm/s';
+                let valClimb = b.maxClimb || 5;
+                let valDescent = b.maxDescent || 3;
+                
+                c.innerHTML = `
+                    <h3 class="text-xl font-bold mb-4">${this.editingId === 'new' ? 'Neuer Ballon' : 'Ballon bearbeiten'}</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="space-y-4">
+                            <div><label>Kennung</label><input type="text" id="f-callsign" value="${b.callsign}" placeholder="z.B. D-OAAA"></div>
+                            
+                            <!-- Bild Upload -->
+                            <div>
+                                <label>Ballon Bild (für Karte)</label>
+                                <div class="flex items-center gap-4 bg-white/5 p-2 rounded border border-white/10">
+                                    <div class="w-12 h-12 bg-slate-800 rounded-full border border-white/20 flex items-center justify-center overflow-hidden shrink-0">
+                                        <img id="preview-balloon-img" src="${b.image || ''}" class="w-full h-full object-cover ${b.image ? '' : 'hidden'}">
+                                        <span class="${b.image ? 'hidden' : ''} text-[8px] text-slate-500 uppercase">Kein Bild</span>
+                                    </div>
+                                    <div class="flex-1">
+                                        <input type="file" id="f-image" accept="image/*" class="text-xs w-full file:mr-2 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700" onchange="ui.handleImageUpload(this)">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <div><label>Volumen (m³)</label><input type="number" id="f-volume" value="${b.volume}"></div>
+                                <div><label>Leergewicht (kg)</label><input type="number" id="f-weight" value="${b.weight}"></div>
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-2 bg-slate-800/50 p-2 rounded border border-white/5">
+                                <div>
+                                    <label class="text-green-400">Max Steigen (${climbUnit})</label>
+                                    <input type="number" step="0.1" id="f-maxClimb" value="${valClimb}">
+                                </div>
+                                <div>
+                                    <label class="text-red-400">Max Sinken (${climbUnit})</label>
+                                    <input type="number" step="0.1" id="f-maxDescent" value="${valDescent}">
+                                </div>
+                                <div class="col-span-2 text-[10px] text-slate-500 italic text-center">
+                                   ${isFt ? 'Eingabe in m/s (wird intern umgerechnet)' : 'Werte in m/s'}
+                                </div>
+                            </div>
+
+                            <div><label>MTOM (kg)</label><input type="number" id="f-mtom" value="${b.mtom}"></div>
+                            
+                            <div class="border-t border-white/10 pt-4 mt-2">
+                                <label class="text-blue-400 font-bold mb-2">Standard-Flaschenbestückung</label>
+                                <div class="glass-panel p-3 border border-white/5 bg-slate-900/40">
+                                    <div id="edit-cyl-list" class="mb-3 max-h-32 overflow-y-auto">${defCyls.length > 0 ? renderDefaultList() : '<div class="text-xs text-slate-500 italic">Keine Standard-Flaschen</div>'}</div>
+                                    <div class="w-full">
+                                        <select id="edit-cyl-select" class="text-xs bg-slate-800 border-none w-full" onchange="ui.addEditCylinder()">
+                                            <option value="">+ Flasche hinzufügen</option>
+                                            ${state.cylinders.map(c => `<option value="${c.id}">${c.label} (${c.type})</option>`).join('')}
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <!-- Collapseable Matrix -->
+                            <details class="bg-slate-800/50 rounded border border-white/5 open:bg-slate-800/80 transition group">
+                                <summary class="p-2 cursor-pointer text-xs font-bold text-slate-400 hover:text-white select-none list-none flex items-center justify-between">
+                                    <span>Tragkraft-Matrix (Erweitert)</span>
+                                    <i class="fas fa-chevron-down group-open:rotate-180 transition-transform"></i>
+                                </summary>
+                                <div class="p-2 border-t border-white/5">
+                                    <label class="mb-2 block text-[10px] text-slate-500">Werte in kg/m³</label>
+                                    <div class="perf-grid grid grid-cols-4 gap-1 text-[10px] text-center">
+                                        <div></div><div>0°C</div><div>15°C</div><div>30°C</div><div>0m</div>${b.matrix.map((row, i) => `${i > 0 ? `<div>${i*1000}m</div>` : ''}${row.map((val, j) => `<input type="number" step="0.001" class="matrix-input" data-row="${i}" data-col="${j}" value="${val}">`).join('')}`).join('')}
+                                    </div>
+                                    <p class="text-[9px] text-slate-500 mt-2">Werte: Netto-Tragkraft in kg pro 1m³ Hülle.</p>
+                                </div>
+                            </details>
+                        </div>
+                    </div>
+                    <div class="flex gap-2 mt-6"><button onclick="ui.saveBalloon()" class="bg-blue-600 px-6 py-2 rounded">Speichern</button><button onclick="ui.switchTab('fleet')" class="bg-slate-700 px-6 py-2 rounded">Abbrechen</button></div>
+                `;
+            },
+            formCylinder(c) {
+                const cyl = state.cylinders.find(x => x.id === this.editingId) || { label: "", type: "V40", sn: "", tare: 15, gas: 20, tuv: "2028-12-31" };
+                c.innerHTML = `<h3 class="text-xl font-bold mb-4">Gasflasche Details</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div class="col-span-1 md:col-span-2"><label>Bezeichnung</label><input type="text" id="f-label" value="${cyl.label}"></div><div><label>Typ</label><input type="text" id="f-type" value="${cyl.type}"></div><div><label>Seriennummer</label><input type="text" id="f-sn" value="${cyl.sn}"></div><div><label>Tara (kg)</label><input type="number" id="f-tare" value="${cyl.tare}"></div><div><label>Gasfüllung (kg)</label><input type="number" id="f-gas" value="${cyl.gas}"></div><div class="col-span-1 md:col-span-2"><label>Nächster TÜV</label><input type="date" id="f-tuv" value="${cyl.tuv}"></div></div><div class="flex gap-2 mt-6"><button onclick="ui.saveCylinder()" class="bg-blue-600 px-6 py-2 rounded">Speichern</button><button onclick="ui.switchTab('cylinders')" class="bg-slate-700 px-6 py-2 rounded">Abbrechen</button></div>`;
+            },
+            formPassenger(c) {
+                const p = state.passengers.find(x => x.id === this.editingId) || { firstName: "", lastName: "", weight: 80, gender: "n/a", phone: "", baptism: false, baptismName: "" };
+                c.innerHTML = `<h3 class="text-xl font-bold mb-4">Passagier Details</h3>
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div><label>Vorname</label><input type="text" id="f-firstName" value="${p.firstName || ''}"></div>
+                            <div><label>Nachname</label><input type="text" id="f-lastName" value="${p.lastName || ''}"></div>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div><label>Gewicht (kg)</label><input type="number" id="f-p-weight" value="${p.weight}"></div>
+                            <div><label>Geschlecht</label><select id="f-gender"><option value="n/a" ${p.gender==='n/a'?'selected':''}>n/a</option><option value="m" ${p.gender==='m'?'selected':''}>Männlich</option><option value="w" ${p.gender==='w'?'selected':''}>Weiblich</option><option value="d" ${p.gender==='d'?'selected':''}>Divers</option></select></div>
+                        </div>
+                        <div><label>Telefonnummer</label><input type="tel" id="f-phone" value="${p.phone}"></div>
+                        <div class="bg-amber-900/20 p-3 rounded border border-amber-600/30">
+                            <label class="flex items-center gap-2 mb-2 cursor-pointer font-bold text-amber-500">
+                                <input type="checkbox" id="f-baptism" class="w-4 h-4 rounded border-amber-500 text-amber-600 focus:ring-amber-500" ${p.baptism ? 'checked' : ''}>
+                                Ballonfahrertaufe erfolgt
+                            </label>
+                            <div><label>Adelstitel / Taufname</label><input type="text" id="f-baptism-name" value="${p.baptismName || ''}" placeholder="z.B. Graf von..."></div>
+                        </div>
+                    </div>
+                    <div class="flex gap-2 mt-6"><button onclick="ui.savePassenger()" class="bg-blue-600 px-6 py-2 rounded">Speichern</button><button onclick="ui.switchTab('passengers')" class="bg-slate-700 px-6 py-2 rounded">Abbrechen</button></div>`;
+            },
+            formLogManual(c) {
+                c.innerHTML = `<h3 class="text-xl font-bold mb-4">Manueller Log-Eintrag</h3><div class="space-y-4"><div><label>Datum</label><input type="date" id="f-l-date" value="${new Date().toISOString().split('T')[0]}"></div><div class="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label>Startzeit</label><input type="time" id="f-l-start" value="08:00"></div><div><label>Landezeit</label><input type="time" id="f-l-end" value="09:30"></div></div><div><label>Ballon</label><select id="f-l-balloon">${state.balloons.map(b=>`<option>${b.callsign}</option>`).join('')}</select></div><div><label>Notizen / Ort</label><textarea id="f-l-notes" rows="3"></textarea></div></div><div class="flex gap-2 mt-6"><button onclick="ui.saveLogManual()" class="bg-blue-600 px-6 py-2 rounded">Speichern</button><button onclick="ui.switchTab('logbook')" class="bg-slate-700 px-6 py-2 rounded">Abbrechen</button></div>`;
+            },
+            
+            // --- Save Functions ---
+            saveBalloon() {
+                const matrix = [[],[],[],[]];
+                document.querySelectorAll('.matrix-input').forEach(el => { matrix[el.dataset.row][el.dataset.col] = parseFloat(el.value); });
+                const defaultCylinders = [];
+                document.querySelectorAll('.default-cyl-item').forEach(el => { defaultCylinders.push(el.dataset.id); });
+                const data = { 
+                    id: this.editingId === 'new' ? Date.now().toString() : this.editingId, 
+                    callsign: document.getElementById('f-callsign').value, 
+                    volume: parseFloat(document.getElementById('f-volume').value), 
+                    weight: parseFloat(document.getElementById('f-weight').value), 
+                    mtom: parseFloat(document.getElementById('f-mtom').value), 
+                    maxClimb: parseFloat(document.getElementById('f-maxClimb').value) || 5, 
+                    maxDescent: parseFloat(document.getElementById('f-maxDescent').value) || 3, 
+                    matrix: matrix, 
+                    defaultCylinders: defaultCylinders, 
+                    image: state.balloons.find(b=>b.id === this.editingId)?.image 
+                };
+                const imgPreview = document.getElementById('preview-balloon-img');
+                if (!imgPreview.classList.contains('hidden') && imgPreview.src.length > 100) { data.image = imgPreview.src; }
+                if (this.editingId === 'new') state.balloons.push(data); else state.balloons = state.balloons.map(x => x.id === this.editingId ? data : x);
+                saveState(); this.switchTab('fleet');
+            },
+            saveCylinder() { 
+                const data = { id: this.editingId === 'new' ? Date.now().toString() : this.editingId, label: document.getElementById('f-label').value, type: document.getElementById('f-type').value, sn: document.getElementById('f-sn').value, tare: parseFloat(document.getElementById('f-tare').value), gas: parseFloat(document.getElementById('f-gas').value), tuv: document.getElementById('f-tuv').value }; 
+                if (this.editingId === 'new') state.cylinders.push(data); else state.cylinders = state.cylinders.map(x => x.id === this.editingId ? data : x); 
+                saveState(); this.switchTab('cylinders'); 
+            },
+            savePassenger() { 
+                const data = { 
+                    id: this.editingId === 'new' ? Date.now().toString() : this.editingId, 
+                    firstName: document.getElementById('f-firstName').value,
+                    lastName: document.getElementById('f-lastName').value,
+                    weight: parseFloat(document.getElementById('f-p-weight').value), 
+                    gender: document.getElementById('f-gender').value, 
+                    phone: document.getElementById('f-phone').value,
+                    baptism: document.getElementById('f-baptism').checked,
+                    baptismName: document.getElementById('f-baptism-name').value
+                }; 
+                if (this.editingId === 'new') state.passengers.push(data); else state.passengers = state.passengers.map(x => x.id === this.editingId ? data : x); 
+                saveState(); this.switchTab('passengers'); 
+            },
+            saveLogManual() { 
+                const date = document.getElementById('f-l-date').value; 
+                state.logs.push({ id: Date.now(), start: date + "T" + document.getElementById('f-l-start').value, end: date + "T" + document.getElementById('f-l-end').value, balloon: document.getElementById('f-l-balloon').value, notes: document.getElementById('f-l-notes').value, track: [], pax: [], cylinders: [] }); 
+                saveState(); this.switchTab('logbook'); 
+            },
+            delete(collection, id) { 
+                if (confirm("Löschen?")) { 
+                    state[collection] = state[collection].filter(x => x.id != id); 
+                    saveState(); 
+                    if(collection.includes('plannings') || collection.includes('archive')) this.switchTab('planning');
+                    else this.render(); 
+                } 
+            },
         };
 
         // --- INIT ---
