@@ -12,8 +12,8 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="BallonNav">
 
-    <!-- Generated Favicon based on description (Moon/Stars Balloon) -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2245%22 fill=%22%23312e81%22 stroke=%22white%22 stroke-width=%222%22/><path d=%22M55,30 Q70,50 55,70 Q45,50 55,30%22 fill=%22%23fbbf24%22/><text x=%2230%22 y=%2240%22 fill=%22white%22 font-size=%2210%22>*</text><text x=%2270%22 y=%2260%22 fill=%22white%22 font-size=%2210%22>*</text><text x=%2225%22 y=%2265%22 fill=%22white%22 font-size=%2210%22>*</text></svg>">
+    <!-- Generated Favicon: Purple Balloon with Moon & Stars -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><path d=%22M50,95 C20,70 5,45 5,35 A45,45 0 0,1 95,35 C95,45 80,70 50,95 Z%22 fill=%22%234c1d95%22 stroke=%22white%22 stroke-width=%221%22/><path d=%22M65,30 Q80,50 65,70 Q55,50 65,30%22 fill=%22%23fbbf24%22/><text x=%2225%22 y=%2230%22 fill=%22%23fbbf24%22 font-size=%2210%22>★</text><text x=%2235%22 y=%2250%22 fill=%22%23fbbf24%22 font-size=%228%22>★</text><text x=%2220%22 y=%2260%22 fill=%22%23fbbf24%22 font-size=%2212%22>★</text><text x=%2280%22 y=%2235%22 fill=%22%23fbbf24%22 font-size=%229%22>★</text></svg>">
 
     <!-- Frameworks & Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -225,7 +225,7 @@
 
         /* --- WIND PANEL UPDATED FOR HORIZONTAL SLIDE --- */
         #wind-panel {
-            width: 110px; 
+            width: 120px; 
             display: flex;
             flex-direction: column;
             overflow: hidden;
@@ -234,11 +234,13 @@
         
         #wind-panel.collapsed {
             width: 0;
+            padding: 0;
             border: none;
+            opacity: 0;
         }
         
         #wind-content-wrapper {
-            width: 110px; /* Fixed width to prevent content squishing */
+            width: 120px; /* Fixed width to prevent content squishing */
         }
 
         .btn-round { width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; transition: all 0.2s; cursor: pointer; }
@@ -601,6 +603,7 @@
          * STATE & CONSTANTS
          */
         const STORAGE_KEY = "AERONAV_PRO_DATA_V8"; 
+        const DEFAULT_BALLOON_IMG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50,95 C20,70 5,45 5,35 A45,45 0 0,1 95,35 C95,45 80,70 50,95 Z' fill='%234c1d95' stroke='white' stroke-width='1'/%3E%3Cpath d='M65,30 Q80,50 65,70 Q55,50 65,30' fill='%23fbbf24'/%3E%3Ctext x='25' y='30' fill='%23fbbf24' font-size='10'%3E★%3C/text%3E%3Ctext x='35' y='50' fill='%23fbbf24' font-size='8'%3E★%3C/text%3E%3Ctext x='20' y='60' fill='%23fbbf24' font-size='12'%3E★%3C/text%3E%3Ctext x='80' y='35' fill='%23fbbf24' font-size='9'%3E★%3C/text%3E%3C/svg%3E";
         
         let state = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {
             pilot: { name: "Max Mustermann", weight: 85, initialFlights: 0, initialHours: 0 }, 
@@ -861,6 +864,12 @@
                 light: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
                 sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}')
             },
+            
+            getTileUrl(style) {
+                 if (style === 'light') return 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+                 if (style === 'sat') return 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+                 return 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'; // Default dark
+            },
 
             init() {
                 this.map = L.map('map', { zoomControl: false }).setView([51.1657, 10.4515], 13);
@@ -975,7 +984,6 @@
 
             // --- KML HANDLING ---
             renderKMLs() {
-                // ... same as before
                 state.kmlOverlays.forEach(overlay => {
                     if (overlay.visible && !this.activeKmlLayers[overlay.id]) {
                         try {
@@ -1880,7 +1888,7 @@
 
                         // HIGHLIGHT CURRENT ALTITUDE
                         const isCurrentAlt = Math.abs(layer.alt - simulation.alt) < 25;
-                        const activeClass = isCurrentAlt ? 'bg-green-500/20 border-l-2 border-green-500' : 'bg-slate-800/40';
+                        const activeClass = isCurrentAlt ? 'active-altitude' : 'bg-slate-800/40';
                         
                         // Direction calculations
                         const windFrom = Math.round(layer.dir);
@@ -1954,7 +1962,7 @@
                 const maxLift = b.volume * liftFactor;
 
                 const res = document.getElementById('wb-result');
-                const isOverMTOM = totalWeight > b.mtom;
+                // REMOVED MTOM DISPLAY AS REQUESTED
                 const isOverLift = totalWeight > maxLift;
 
                 res.innerHTML = `
@@ -1967,9 +1975,10 @@
                         <hr class="border-white/10 my-1">
                         <div class="flex justify-between font-bold text-lg"><span>Gesamt:</span> <span>${Math.round(totalWeight)} kg</span></div>
                     </div>
-                    <div class="grid grid-cols-2 gap-2 text-xs">
-                        <div class="p-2 rounded ${isOverMTOM ? 'bg-red-900/40 text-red-300 border border-red-500/50' : 'bg-green-900/40 text-green-300 border border-green-500/50'}">MTOM: ${b.mtom}kg<br><b>${isOverMTOM ? 'ÜBERSCHRITTEN' : 'OK'}</b></div>
-                        <div class="p-2 rounded ${isOverLift ? 'bg-red-900/40 text-red-300 border border-red-500/50' : 'bg-green-900/40 text-green-300 border border-green-500/50'}">TRAGKRAFT: ${Math.round(maxLift)}kg<br><b>${isOverLift ? 'ZU SCHWER' : 'OK'}</b></div>
+                    <div class="flex justify-center text-xs">
+                         <div class="p-2 rounded w-full max-w-[200px] text-center ${isOverLift ? 'bg-red-900/40 text-red-300 border border-red-500/50' : 'bg-green-900/40 text-green-300 border border-green-500/50'}">
+                            TRAGKRAFT: ${Math.round(maxLift)}kg<br><b>${isOverLift ? 'ZU SCHWER' : 'OK'}</b>
+                         </div>
                     </div>
                     <div class="mt-4 text-xs italic text-slate-500">Berechnet für ${cAlt}m AMSL bei ${cTemp}°C<br>(Tragkraftfaktor: ${liftFactor.toFixed(4)} kg/m³)</div>
                 `;
@@ -2397,11 +2406,9 @@
                     preferCanvas: true // Critical for html2canvas
                 });
                 
-                // Style logic for report map
+                // Style logic for report map - always use current setting
                 const style = state.settings.mapStyle || 'dark';
-                let tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-                if (style === 'light') tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-                else if (style === 'sat') tileUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+                const tileUrl = mapManager.getTileUrl(style);
                 
                 // Use canvas renderer for tiles if possible (Leaflet doesn't support canvas tiles natively easily, but setting crossOrigin is key)
                 L.tileLayer(tileUrl, { crossOrigin: true }).addTo(reportMap);
@@ -2666,6 +2673,8 @@
                 state.settings.apiKey = document.getElementById('set-api-key').value;
                 state.settings.imageRetention = parseInt(document.getElementById('set-image-retention').value);
                 state.settings.baptismMaxWords = parseInt(document.getElementById('set-baptism-words').value);
+                state.settings.windMeasInterval = parseInt(document.getElementById('set-wind-interval').value);
+                state.settings.windThreshold = parseInt(document.getElementById('set-wind-threshold').value);
                 
                 saveState();
                 if(!skipToast) ui.showToast("Einstellungen gespeichert!");
@@ -2861,7 +2870,12 @@
                     setTimeout(() => {
                         if(this.summaryMap) { this.summaryMap.remove(); } // cleanup old instance
                         const m = L.map('summary-map', { zoomControl: false, attributionControl: false });
-                        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(m);
+                        
+                        // FIX: Use map style from settings
+                        const style = state.settings.mapStyle || 'dark';
+                        const tileUrl = mapManager.getTileUrl(style);
+                        
+                        L.tileLayer(tileUrl).addTo(m);
                         
                         if(log.track && log.track.length > 0) {
                             const line = L.polyline(log.track, { color: '#3b82f6', weight: 3 }).addTo(m);
@@ -2935,7 +2949,7 @@
                         <div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold">${isNew ? 'Neuer Ballon' : 'Ballon bearbeiten'}</h3><button onclick="ui.switchTab('fleet')" class="text-slate-400">Abbrechen</button></div>
                         <div class="space-y-4">
                             <div class="flex justify-center mb-4 relative group">
-                                <img src="${b.image || 'https://via.placeholder.com/100?text=Balloon'}" id="preview-balloon-img" class="w-24 h-24 rounded-full border-2 border-white object-cover bg-white">
+                                <img src="${b.image || DEFAULT_BALLOON_IMG}" id="preview-balloon-img" class="w-24 h-24 rounded-full border-2 border-white object-cover bg-white">
                                 <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"><button onclick="document.getElementById('edit-balloon-img').click()" class="bg-black/70 text-white rounded-full p-2"><i class="fas fa-camera"></i></button></div>
                                 <input type="file" id="edit-balloon-img" class="hidden" accept="image/*" onchange="ui.handleImageUpload(this)">
                             </div>
