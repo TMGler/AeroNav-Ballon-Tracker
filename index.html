@@ -222,7 +222,7 @@
 
         /* --- WIND PANEL --- */
         #wind-panel {
-            width: 90px;
+            width: 90px; /* Reduced width again as requested */
             display: flex;
             flex-direction: column;
             overflow: hidden;
@@ -315,6 +315,13 @@
             top: 0; 
             z-index: -5000; 
             visibility: hidden; 
+        }
+
+        /* Updated Wind Layer Style */
+        .wind-layer {
+            background: rgba(0,0,0,0.3);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            transition: all 0.3s;
         }
 
     </style>
@@ -2204,7 +2211,7 @@
                 </div>`; 
             },
             
-            viewEnvironment(c) { c.innerHTML = `<h3 class="text-xl font-bold mb-4">Wetter & Wind Simulation</h3><div class="glass-panel p-6 border-white/10 border"><div class="flex justify-between items-start mb-4"><p class="text-sm text-slate-400">Hier definierst du die Windschichten für die Simulation. Der Ballon bewegt sich basierend auf der aktuellen Höhe und diesen Werten.</p><button onclick="weatherService.fetchLiveWind()" class="bg-green-600/20 text-green-400 border border-green-500/50 px-3 py-1 rounded text-xs whitespace-nowrap hover:bg-green-600 hover:text-white transition"><i class="fas fa-satellite-dish mr-1"></i> Live-Daten laden</button></div><div class="grid grid-cols-4 gap-2 text-xs uppercase text-slate-500 font-bold mb-2"><div>Höhe (m)</div><div>Richtung (°)</div><div>Speed (kt)</div><div></div></div><div id="wind-rows" class="space-y-2 mb-4">${state.windLayers.sort((a,b)=>a.alt-b.alt).map((w, idx) => `<div class="grid grid-cols-4 gap-2 items-center"><input type="number" class="wind-edit-alt" value="${w.alt}" placeholder="Höhe"><input type="number" class="wind-edit-dir" value="${w.dir}" placeholder="Dir"><input type="number" class="wind-edit-spd" value="${w.speed}" placeholder="Knots"><button onclick="ui.removeWindLayer(${idx})" class="text-red-400 hover:text-red-300"><i class="fas fa-trash"></i></button></div>`).join('')}</div><button onclick="ui.addWindLayer()" class="bg-slate-700 px-4 py-2 rounded text-xs mb-6">+ Schicht hinzufügen</button><button onclick="ui.saveEnvironment()" class="bg-blue-600 w-full py-3 rounded font-bold shadow-lg">Wetterdaten Speichern</button><div class="mt-4"><p class="text-[10px] text-slate-500 mt-2 text-center">Live-Daten bereitgestellt durch Open-Meteo.com (Kein Key erforderlich)</p></div></div>`; },
+            viewEnvironment(c) { c.innerHTML = `<h3 class="text-xl font-bold mb-4">Wetter & Wind Simulation</h3><div class="glass-panel p-6 border-white/10 border"><div class="flex justify-between items-start mb-4"><p class="text-sm text-slate-400">Hier definierst du die Windschichten für die Simulation. Der Ballon bewegt sich basierend auf der aktuellen Höhe und diesen Werten.</p><button onclick="weatherService.fetchLiveWind()" class="bg-green-600/20 text-green-400 border border-green-500/50 px-3 py-1 rounded text-xs whitespace-nowrap hover:bg-green-600 hover:text-white transition"><i class="fas fa-satellite-dish mr-1"></i> Live-Daten laden</button></div><div class="grid grid-cols-4 gap-2 text-xs uppercase text-slate-500 font-bold mb-2"><div>Höhe (m)</div><div>Richtung (°)</div><div>Speed (kt)</div><div></div></div><div id="wind-rows" class="space-y-2 mb-4">${state.windLayers.sort((a,b)=>a.alt-b.alt).map((w, idx) => `<div class="grid grid-cols-4 gap-2 items-center"><input type="number" class="wind-edit-alt" value="${w.alt}" placeholder="Höhe"><input type="number" class="wind-edit-dir" value="${w.dir}" placeholder="Dir"><input type="number" class="wind-edit-spd" value="${w.speed}" placeholder="Knots"><button onclick="ui.removeWindLayer(${idx})" class="text-red-400 hover:text-red-300"><i class="fas fa-trash"></i></button></div>`).join('')}</div><button onclick="ui.addWindLayer()" class="bg-slate-700 px-4 py-2 rounded text-xs mb-6">+ Schicht hinzufügen</button><button onclick="ui.saveEnvironment()" class="bg-blue-600 w-full py-3 rounded font-bold shadow-lg">Wetterdaten Speichern</button><div class="mt-4"><label class="text-xs uppercase text-slate-500 font-bold mb-1 block">Wind-Filter (Grad)</label><div class="flex items-center gap-2"><input type="number" id="set-wind-threshold" class="w-20 bg-slate-800 text-sm p-1 rounded" value="${state.settings.windThreshold || 5}"><span class="text-xs text-slate-400">Nur Änderungen > X° anzeigen</span></div></div><p class="text-[10px] text-slate-500 mt-2 text-center">Live-Daten bereitgestellt durch Open-Meteo.com (Kein Key erforderlich)</p></div>`; },
             
             // --- WIND FILTER LOGIC ---
             renderWind() { 
@@ -2253,11 +2260,35 @@
                         // HIGHLIGHT CURRENT ALTITUDE
                         const isCurrentAlt = Math.abs(layer.alt - simulation.alt) < 25;
                         const activeClass = isCurrentAlt ? 'active-altitude' : '';
+                        
+                        // Direction calculations
+                        const windFrom = Math.round(layer.dir);
+                        const windTo = (windFrom + 180) % 360;
 
                         const div = document.createElement('div'); 
-                        div.className = `wind-layer ${activeClass}`; 
-                        div.dataset.alt = layer.alt; // Added dataset
-                        div.innerHTML = `<div class="${colorClass}">${layer.alt}m</div><div class="${arrowClass}" style="transform: rotate(${layer.dir}deg)"></div><div class="${labelClass}">${speed.toFixed(1)}${unitLabel}</div>`; 
+                        div.className = `wind-layer p-1 mb-1 rounded flex flex-col items-center justify-center transition-all ${activeClass}`; 
+                        div.dataset.alt = layer.alt;
+                        
+                        // New Vertical Stack Layout
+                        div.innerHTML = `
+                            <div class="text-center w-full">
+                                <!-- Altitude Row -->
+                                <div class="font-bold text-xs text-white border-b border-white/10 pb-0.5 mb-1 flex justify-center items-center gap-1">
+                                    ${layer.alt}m ${layer.isMeasured ? '<i class="fas fa-wifi text-[8px] text-green-500"></i>' : ''}
+                                </div>
+                                
+                                <!-- Direction Row -->
+                                <div class="flex items-center justify-center gap-1 mb-0.5">
+                                     <div class="w-5 h-5 rounded-full bg-white/5 flex items-center justify-center">
+                                        <i class="fas fa-long-arrow-alt-up ${layer.isMeasured ? 'text-green-400' : 'text-blue-400'}" style="transform: rotate(${windTo}deg); font-size: 0.7rem;"></i>
+                                     </div>
+                                     <span class="text-[0.65rem] font-mono text-slate-300">${windFrom}°</span>
+                                </div>
+                                
+                                <!-- Speed Row -->
+                                <div class="text-[0.7rem] font-bold ${colorClass}">${speed.toFixed(1)} <span class="text-[0.6rem] font-normal text-slate-400">${unitLabel}</span></div>
+                            </div>
+                        `;
                         container.appendChild(div);
                         
                         lastKeptDir = layer.dir;
@@ -2288,41 +2319,17 @@
                 const totalPaxWeight = selectedPax.reduce((sum, p) => sum + p.weight, 0);
                 const totalWeight = b.weight + state.pilot.weight + totalCylWeight + totalPaxWeight;
 
-                // --- NEW INTERPOLATION LOGIC ---
-                // Grid: Rows (Alt: 0, 1000, 2000, 3000), Cols (Temp: 0, 15, 30)
-                // b.matrix is array of arrays [row0, row1, row2, row3]
-                
                 const altSteps = [0, 1000, 2000, 3000];
                 const tempSteps = [0, 15, 30];
-                
-                // Clamp inputs
                 const cAlt = Math.max(0, Math.min(3000, alt));
                 const cTemp = Math.max(0, Math.min(30, temp));
-                
-                // Find lower bound indices
                 let i = 0; while (i < altSteps.length - 2 && cAlt > altSteps[i+1]) i++;
                 let j = 0; while (j < tempSteps.length - 2 && cTemp > tempSteps[j+1]) j++;
-                
-                // Ratios (0..1)
                 const rAlt = (cAlt - altSteps[i]) / (altSteps[i+1] - altSteps[i]);
                 const rTemp = (cTemp - tempSteps[j]) / (tempSteps[j+1] - tempSteps[j]);
-                
-                // Bilinear Interpolation
-                // Q11 = matrix[i][j]     Q12 = matrix[i][j+1]
-                // Q21 = matrix[i+1][j]   Q22 = matrix[i+1][j+1]
-                
-                const q11 = parseFloat(b.matrix[i][j]);
-                const q12 = parseFloat(b.matrix[i][j+1]);
-                const q21 = parseFloat(b.matrix[i+1][j]);
-                const q22 = parseFloat(b.matrix[i+1][j+1]);
-                
-                // Interpolate Temp (Horizontal) first
-                const r1 = q11 + (q12 - q11) * rTemp;
-                const r2 = q21 + (q22 - q21) * rTemp;
-                
-                // Interpolate Alt (Vertical)
+                const q11 = b.matrix[i][j]; const q12 = b.matrix[i][j+1]; const q21 = b.matrix[i+1][j]; const q22 = b.matrix[i+1][j+1];
+                const r1 = q11 + (q12 - q11) * rTemp; const r2 = q21 + (q22 - q21) * rTemp;
                 const liftFactor = r1 + (r2 - r1) * rAlt;
-                
                 const maxLift = b.volume * liftFactor;
 
                 const res = document.getElementById('wb-result');
@@ -2343,7 +2350,7 @@
                         <div class="p-2 rounded ${isOverMTOM ? 'bg-red-900/40 text-red-300 border border-red-500/50' : 'bg-green-900/40 text-green-300 border border-green-500/50'}">MTOM: ${b.mtom}kg<br><b>${isOverMTOM ? 'ÜBERSCHRITTEN' : 'OK'}</b></div>
                         <div class="p-2 rounded ${isOverLift ? 'bg-red-900/40 text-red-300 border border-red-500/50' : 'bg-green-900/40 text-green-300 border border-green-500/50'}">TRAGKRAFT: ${Math.round(maxLift)}kg<br><b>${isOverLift ? 'ZU SCHWER' : 'OK'}</b></div>
                     </div>
-                    <div class="mt-4 text-xs italic text-slate-500">Berechnet für ${cAlt}m AMSL bei ${cTemp}°C<br>(Faktor: ${liftFactor.toFixed(4)} kg/m³)</div>
+                    <div class="mt-4 text-xs italic text-slate-500">Berechnet für ${cAlt}m AMSL bei ${cTemp}°C<br>(Tragkraftfaktor: ${liftFactor.toFixed(4)} kg/m³)</div>
                 `;
             },
             
