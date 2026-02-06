@@ -183,10 +183,8 @@
         }
 
         .hud-value { text-align: center; }
-        /* CHANGED: Increased font size for label, specific font size for unit */
         .hud-label { font-size: 0.75rem; color: #94a3b8; letter-spacing: 0.05em; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 2px; }
         .hud-label small { font-size: 0.55rem; opacity: 0.7; font-weight: normal; margin-left: 2px; }
-        
         .hud-num { font-size: 1.4rem; font-weight: 700; font-family: 'Courier New', Courier, monospace; }
         .hud-nav .hud-num { font-size: 1.2rem; color: var(--accent-yellow); }
 
@@ -258,38 +256,27 @@
         }
 
         .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(6px); z-index: 9999; display: none; padding: 20px; overflow-y: auto; }
-        .modal-content { max-width: 1000px; margin: auto; min-height: 85vh; display: flex; flex-direction: column; }
-
-        .tab-btn { padding: 12px 15px; border-bottom: 2px solid transparent; font-weight: 500; opacity: 0.6; white-space: nowrap; font-size: 0.9rem; }
-        .tab-btn.active { border-color: var(--accent-blue); color: var(--accent-blue); opacity: 1; }
-
-        .wind-layer { display: flex; flex-direction: column; align-items: center; font-size: 0.7rem; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.1); transition: background-color 0.3s; }
-        .wind-layer.active-altitude {
-            background-color: rgba(34, 197, 94, 0.3);
-            border-radius: 6px;
-            border: 1px solid rgba(34, 197, 94, 0.5);
+        
+        /* RESPONSIVE MODAL CONTENT */
+        .modal-content { 
+            max-width: 1000px; 
+            margin: auto; 
+            min-height: 85vh; 
+            display: flex; 
+            flex-direction: column; 
+        }
+        @media (max-width: 768px) {
+            .modal-content {
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                min-height: 100vh;
+                border-radius: 0;
+                border: none;
+            }
+            .overlay { padding: 0; }
         }
 
-        .leaflet-tile { filter: brightness(0.85); }
-        .satellite-layer .leaflet-tile { filter: none; }
-
-        .compass-arrow { width: 0; height: 0; border-left: 5px solid solid transparent; border-right: 5px solid transparent; border-bottom: 10px solid var(--accent-blue); transition: transform 0.3s; }
-        .arrow-green { border-bottom-color: #4ade80 !important; }
-
-        .balloon-marker-img { width: 44px; height: 44px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.5); object-fit: cover; background: #fff; }
-
-        #report-stage { background: #0f172a; color: #f8fafc; width: 800px; padding: 30px; position: fixed; left: -9999px; top: 0; z-index: 9999; }
-
-        /* Status Bar (Right Edge) */
-        .status-area { position: absolute; top: 10px; right: 0px; display: flex; flex-direction: column; gap: 5px; align-items: flex-end; z-index: 2000; }
-        .status-badge { background: rgba(15, 23, 42, 0.95); border-left: 4px solid #ccc; border-top-left-radius: 8px; border-bottom-left-radius: 8px; padding: 6px; color: white; font-size: 0.7rem; font-weight: bold; box-shadow: -2px 2px 8px rgba(0,0,0,0.3); display: flex; align-items: center; gap: 8px; cursor: pointer; width: 12px; overflow: hidden; transition: width 0.3s ease, padding 0.3s ease; white-space: nowrap; }
-        .status-badge:hover, .status-badge.active { width: auto; padding: 6px 12px 6px 8px; }
-        .status-badge.red { border-color: #ef4444; } .status-badge.green { border-color: #22c55e; } .status-badge.blue { border-color: #3b82f6; } .status-badge.yellow { border-color: #eab308; }
-
-        #ai-nav-overlay { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 600px; background: rgba(15, 23, 42, 0.95); border: 1px solid var(--accent-blue); box-shadow: 0 0 20px rgba(59, 130, 246, 0.3); border-radius: 12px; padding: 12px; z-index: 1000; display: none; backdrop-filter: blur(8px); }
-        #photo-overlay { position: fixed; inset: 0; z-index: 7000; background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; padding: 20px; }
-        #photo-overlay img { max-width: 95%; max-height: 95%; border-radius: 8px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
-        
         /* LAYERS MENU */
         #layers-menu { position: absolute; bottom: 90px; left: 10px; width: 220px; z-index: 2000; display: none; flex-direction: column; gap: 1px; }
         .layer-btn { text-align: left; padding: 12px; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center; color: #cbd5e1; transition: background 0.2s; }
@@ -316,6 +303,19 @@
         .kml-item { background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; transition: background 0.2s; }
         .kml-item:hover { background: rgba(30, 41, 59, 0.9); }
         .kml-item.active { border-left: 3px solid var(--accent-green); }
+
+        /* Report Stage Fix for html2canvas */
+        #report-stage { 
+            background: #0f172a; 
+            color: #f8fafc; 
+            width: 800px; 
+            padding: 30px; 
+            position: fixed; 
+            left: 0; 
+            top: 0; 
+            z-index: -5000; 
+            visibility: hidden; 
+        }
 
     </style>
 </head>
@@ -593,7 +593,9 @@
                 mapStyle: 'dark',
                 mode: 'sim', 
                 activeBalloonId: null,
-                windThreshold: 5,
+                windThreshold: 5,         // Existing setting for 5° deviation in display
+                windMeasInterval: 50,     // NEW: 50m Interval for recording
+                windMeasurementMinDeviation: 5, // NEW: Min deviation for recording
                 imageRetention: 30,
                 baptismMaxWords: 15,
                 useUTC: false,
@@ -613,11 +615,20 @@
         if(!state.archive) state.archive = [];
         if(!state.kmlOverlays) state.kmlOverlays = [];
         if(state.settings.mapOffset === undefined) state.settings.mapOffset = 0.25;
+        if(state.settings.windMeasInterval === undefined) state.settings.windMeasInterval = 50;
+        if(state.settings.windMeasurementMinDeviation === undefined) state.settings.windMeasurementMinDeviation = 5;
 
         // Ensure archived property exists on balloons
         if (state.balloons) {
             state.balloons.forEach(b => {
                 if (b.archived === undefined) b.archived = false;
+                // Ensure matrix exists if old data
+                if (!b.matrix) b.matrix = [
+                    [0.3, 0.28, 0.26], // 0m: 0C, 15C, 30C
+                    [0.28, 0.26, 0.24], // 1000m
+                    [0.26, 0.24, 0.22], // 2000m
+                    [0.24, 0.22, 0.20]  // 3000m
+                ];
             });
         }
 
@@ -1450,7 +1461,9 @@
                 }
                 
                 if (this.recording && data.speed > 1) { 
-                    const bucketAlt = Math.round(data.alt / 50) * 50;
+                    // Bucket by configured interval
+                    const interval = state.settings.windMeasInterval || 50;
+                    const bucketAlt = Math.round(data.alt / interval) * interval;
                     const existingIdx = state.measuredWindLayers.findIndex(l => l.alt === bucketAlt);
                     const newLayer = { alt: bucketAlt, dir: data.course, speed: data.speed, isMeasured: true };
                     if (existingIdx >= 0) { state.measuredWindLayers[existingIdx] = newLayer; } else { state.measuredWindLayers.push(newLayer); }
@@ -1897,23 +1910,54 @@
                              ${balloons.map(b => {
                                  const defaultCount = b.defaultCylinders ? b.defaultCylinders.length : 0;
                                  return `
-                                    <div class="glass-panel p-4 flex justify-between items-center ${isArchive ? 'opacity-75' : ''}">
-                                        <div>
-                                            <div class="font-bold text-lg text-white">${b.callsign}</div>
-                                            <div class="text-xs text-slate-400">${b.volume}m³ | Std-Flaschen: ${defaultCount} | MTOM: ${b.mtom}kg</div>
+                                    <div class="glass-panel p-4 ${isArchive ? 'opacity-75' : ''}">
+                                        <div class="flex justify-between items-center">
+                                            <div>
+                                                <div class="font-bold text-lg text-white">${b.callsign}</div>
+                                                <div class="text-xs text-slate-400">${b.volume}m³ | Std-Flaschen: ${defaultCount} | MTOM: ${b.mtom}kg</div>
+                                            </div>
+                                            <div class="flex gap-2">
+                                                <button onclick="ui.exportBalloon('${b.id}')" class="bg-slate-700/50 text-slate-300 px-3 py-1 rounded hover:bg-slate-700 transition" title="Exportieren"><i class="fas fa-file-export"></i></button>
+                                                
+                                                ${!isArchive ? `
+                                                    <button onclick="ui.archiveBalloon('${b.id}')" class="bg-amber-900/30 text-amber-500 px-3 py-1 rounded hover:bg-amber-900/50 transition" title="Archivieren"><i class="fas fa-archive"></i></button>
+                                                    <button onclick="ui.edit('${b.id}')" class="bg-slate-700 px-3 py-1 rounded hover:bg-slate-600 transition">Edit</button>
+                                                ` : `
+                                                    <button onclick="ui.restoreBalloon('${b.id}')" class="bg-green-900/30 text-green-500 px-3 py-1 rounded hover:bg-green-900/50 transition" title="Wiederherstellen"><i class="fas fa-trash-restore"></i></button>
+                                                `}
+                                                
+                                                <button onclick="ui.deleteBalloon('${b.id}')" class="text-red-400 p-1 hover:text-red-300 transition" title="Löschen"><i class="fas fa-trash"></i></button>
+                                            </div>
                                         </div>
-                                        <div class="flex gap-2">
-                                            <button onclick="ui.exportBalloon('${b.id}')" class="bg-slate-700/50 text-slate-300 px-3 py-1 rounded hover:bg-slate-700 transition" title="Exportieren"><i class="fas fa-file-export"></i></button>
-                                            
-                                            ${!isArchive ? `
-                                                <button onclick="ui.archiveBalloon('${b.id}')" class="bg-amber-900/30 text-amber-500 px-3 py-1 rounded hover:bg-amber-900/50 transition" title="Archivieren"><i class="fas fa-archive"></i></button>
-                                                <button onclick="ui.edit('${b.id}')" class="bg-slate-700 px-3 py-1 rounded hover:bg-slate-600 transition">Edit</button>
-                                            ` : `
-                                                <button onclick="ui.restoreBalloon('${b.id}')" class="bg-green-900/30 text-green-500 px-3 py-1 rounded hover:bg-green-900/50 transition" title="Wiederherstellen"><i class="fas fa-trash-restore"></i></button>
-                                            `}
-                                            
-                                            <button onclick="ui.deleteBalloon('${b.id}')" class="text-red-400 p-1 hover:text-red-300 transition" title="Löschen"><i class="fas fa-trash"></i></button>
-                                        </div>
+                                        <details class="mt-2 text-xs text-slate-400 border-t border-white/10 pt-2">
+                                            <summary class="cursor-pointer hover:text-white mb-2 font-bold text-[10px] uppercase">Tragkraft-Tabelle anzeigen</summary>
+                                            <div class="grid grid-cols-4 gap-1 text-center bg-slate-900/50 p-2 rounded">
+                                                <div class="font-bold text-slate-500 text-[10px]">Alt/Temp</div>
+                                                <div class="font-bold text-blue-300">0°C</div>
+                                                <div class="font-bold text-blue-300">15°C</div>
+                                                <div class="font-bold text-blue-300">30°C</div>
+                                                
+                                                <div class="text-slate-500">0m</div>
+                                                <div>${b.matrix[0][0]}</div>
+                                                <div>${b.matrix[0][1]}</div>
+                                                <div>${b.matrix[0][2]}</div>
+                                                
+                                                <div class="text-slate-500">1000m</div>
+                                                <div>${b.matrix[1][0]}</div>
+                                                <div>${b.matrix[1][1]}</div>
+                                                <div>${b.matrix[1][2]}</div>
+
+                                                <div class="text-slate-500">2000m</div>
+                                                <div>${b.matrix[2][0]}</div>
+                                                <div>${b.matrix[2][1]}</div>
+                                                <div>${b.matrix[2][2]}</div>
+
+                                                <div class="text-slate-500">3000m</div>
+                                                <div>${b.matrix[3][0]}</div>
+                                                <div>${b.matrix[3][1]}</div>
+                                                <div>${b.matrix[3][2]}</div>
+                                            </div>
+                                       </details>
                                     </div>`;
                              }).join('')}
                         </div>
@@ -2100,15 +2144,34 @@
                         <div class="text-[10px] text-slate-500 mt-2">Hinweis: Große KML-Dateien können den Speicher verlangsamen.</div>
                     </div>
 
-                    <!-- SECTION 3: STORAGE -->
+                    <!-- SECTION 3: STORAGE & WIND CONFIG -->
                     <div class="bg-white/5 p-4 rounded-lg">
-                        <h4 class="text-amber-400 font-bold mb-3 border-b border-white/10 pb-1">Speicher & Bereinigung</h4>
-                        <div class="flex items-end gap-2">
-                            <div class="flex-1">
-                                <label class="text-[10px]">Fotos aufbewahren (Tage)</label>
-                                <input type="number" id="set-image-retention" value="${state.settings.imageRetention || 30}" onchange="ui.saveSettings(true)" class="bg-slate-800 border border-slate-600 rounded p-2 text-sm w-full">
+                        <h4 class="text-amber-400 font-bold mb-3 border-b border-white/10 pb-1">Speicher & Wind-Konfig</h4>
+                        <div class="space-y-3">
+                            <div class="flex items-end gap-2">
+                                <div class="flex-1">
+                                    <label class="text-[10px]">Fotos aufbewahren (Tage)</label>
+                                    <input type="number" id="set-image-retention" value="${state.settings.imageRetention || 30}" onchange="ui.saveSettings(true)" class="bg-slate-800 border border-slate-600 rounded p-2 text-sm w-full">
+                                </div>
+                                <button onclick="flightManager.cleanOldPhotosNow()" class="bg-amber-700/50 hover:bg-amber-600 text-amber-100 p-2 rounded text-sm mb-[1px]">Jetzt bereinigen</button>
                             </div>
-                            <button onclick="flightManager.cleanOldPhotosNow()" class="bg-amber-700/50 hover:bg-amber-600 text-amber-100 p-2 rounded text-sm mb-[1px]">Jetzt bereinigen</button>
+                            
+                            <div class="grid grid-cols-2 gap-2 pt-2 border-t border-white/5">
+                                <div>
+                                    <label class="text-[10px] text-blue-300">Mess-Intervall (Höhe)</label>
+                                    <div class="flex items-center gap-1">
+                                        <input type="number" id="set-wind-interval" value="${state.settings.windMeasInterval || 50}" onchange="ui.saveSettings(true)" class="bg-slate-800 border border-slate-600 rounded p-2 text-sm w-full">
+                                        <span class="text-xs text-slate-500">m</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="text-[10px] text-blue-300">Mess-Abweichung (Min)</label>
+                                    <div class="flex items-center gap-1">
+                                        <input type="number" id="set-wind-threshold" value="${state.settings.windThreshold || 5}" onchange="ui.saveSettings(true)" class="bg-slate-800 border border-slate-600 rounded p-2 text-sm w-full">
+                                        <span class="text-xs text-slate-500">°</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -2141,7 +2204,7 @@
                 </div>`; 
             },
             
-            viewEnvironment(c) { c.innerHTML = `<h3 class="text-xl font-bold mb-4">Wetter & Wind Simulation</h3><div class="glass-panel p-6 border-white/10 border"><div class="flex justify-between items-start mb-4"><p class="text-sm text-slate-400">Hier definierst du die Windschichten für die Simulation. Der Ballon bewegt sich basierend auf der aktuellen Höhe und diesen Werten.</p><button onclick="weatherService.fetchLiveWind()" class="bg-green-600/20 text-green-400 border border-green-500/50 px-3 py-1 rounded text-xs whitespace-nowrap hover:bg-green-600 hover:text-white transition"><i class="fas fa-satellite-dish mr-1"></i> Live-Daten laden</button></div><div class="grid grid-cols-4 gap-2 text-xs uppercase text-slate-500 font-bold mb-2"><div>Höhe (m)</div><div>Richtung (°)</div><div>Speed (kt)</div><div></div></div><div id="wind-rows" class="space-y-2 mb-4">${state.windLayers.sort((a,b)=>a.alt-b.alt).map((w, idx) => `<div class="grid grid-cols-4 gap-2 items-center"><input type="number" class="wind-edit-alt" value="${w.alt}" placeholder="Höhe"><input type="number" class="wind-edit-dir" value="${w.dir}" placeholder="Dir"><input type="number" class="wind-edit-spd" value="${w.speed}" placeholder="Knots"><button onclick="ui.removeWindLayer(${idx})" class="text-red-400 hover:text-red-300"><i class="fas fa-trash"></i></button></div>`).join('')}</div><button onclick="ui.addWindLayer()" class="bg-slate-700 px-4 py-2 rounded text-xs mb-6">+ Schicht hinzufügen</button><button onclick="ui.saveEnvironment()" class="bg-blue-600 w-full py-3 rounded font-bold shadow-lg">Wetterdaten Speichern</button><div class="mt-4"><label class="text-xs uppercase text-slate-500 font-bold mb-1 block">Wind-Filter (Grad)</label><div class="flex items-center gap-2"><input type="number" id="set-wind-threshold" class="w-20 bg-slate-800 text-sm p-1 rounded" value="${state.settings.windThreshold || 5}"><span class="text-xs text-slate-400">Nur Änderungen > X° anzeigen</span></div></div><p class="text-[10px] text-slate-500 mt-2 text-center">Live-Daten bereitgestellt durch Open-Meteo.com (Kein Key erforderlich)</p></div>`; },
+            viewEnvironment(c) { c.innerHTML = `<h3 class="text-xl font-bold mb-4">Wetter & Wind Simulation</h3><div class="glass-panel p-6 border-white/10 border"><div class="flex justify-between items-start mb-4"><p class="text-sm text-slate-400">Hier definierst du die Windschichten für die Simulation. Der Ballon bewegt sich basierend auf der aktuellen Höhe und diesen Werten.</p><button onclick="weatherService.fetchLiveWind()" class="bg-green-600/20 text-green-400 border border-green-500/50 px-3 py-1 rounded text-xs whitespace-nowrap hover:bg-green-600 hover:text-white transition"><i class="fas fa-satellite-dish mr-1"></i> Live-Daten laden</button></div><div class="grid grid-cols-4 gap-2 text-xs uppercase text-slate-500 font-bold mb-2"><div>Höhe (m)</div><div>Richtung (°)</div><div>Speed (kt)</div><div></div></div><div id="wind-rows" class="space-y-2 mb-4">${state.windLayers.sort((a,b)=>a.alt-b.alt).map((w, idx) => `<div class="grid grid-cols-4 gap-2 items-center"><input type="number" class="wind-edit-alt" value="${w.alt}" placeholder="Höhe"><input type="number" class="wind-edit-dir" value="${w.dir}" placeholder="Dir"><input type="number" class="wind-edit-spd" value="${w.speed}" placeholder="Knots"><button onclick="ui.removeWindLayer(${idx})" class="text-red-400 hover:text-red-300"><i class="fas fa-trash"></i></button></div>`).join('')}</div><button onclick="ui.addWindLayer()" class="bg-slate-700 px-4 py-2 rounded text-xs mb-6">+ Schicht hinzufügen</button><button onclick="ui.saveEnvironment()" class="bg-blue-600 w-full py-3 rounded font-bold shadow-lg">Wetterdaten Speichern</button><div class="mt-4"><p class="text-[10px] text-slate-500 mt-2 text-center">Live-Daten bereitgestellt durch Open-Meteo.com (Kein Key erforderlich)</p></div></div>`; },
             
             // --- WIND FILTER LOGIC ---
             renderWind() { 
@@ -2225,17 +2288,41 @@
                 const totalPaxWeight = selectedPax.reduce((sum, p) => sum + p.weight, 0);
                 const totalWeight = b.weight + state.pilot.weight + totalCylWeight + totalPaxWeight;
 
+                // --- NEW INTERPOLATION LOGIC ---
+                // Grid: Rows (Alt: 0, 1000, 2000, 3000), Cols (Temp: 0, 15, 30)
+                // b.matrix is array of arrays [row0, row1, row2, row3]
+                
                 const altSteps = [0, 1000, 2000, 3000];
                 const tempSteps = [0, 15, 30];
+                
+                // Clamp inputs
                 const cAlt = Math.max(0, Math.min(3000, alt));
                 const cTemp = Math.max(0, Math.min(30, temp));
+                
+                // Find lower bound indices
                 let i = 0; while (i < altSteps.length - 2 && cAlt > altSteps[i+1]) i++;
                 let j = 0; while (j < tempSteps.length - 2 && cTemp > tempSteps[j+1]) j++;
+                
+                // Ratios (0..1)
                 const rAlt = (cAlt - altSteps[i]) / (altSteps[i+1] - altSteps[i]);
                 const rTemp = (cTemp - tempSteps[j]) / (tempSteps[j+1] - tempSteps[j]);
-                const q11 = b.matrix[i][j]; const q12 = b.matrix[i][j+1]; const q21 = b.matrix[i+1][j]; const q22 = b.matrix[i+1][j+1];
-                const r1 = q11 + (q12 - q11) * rTemp; const r2 = q21 + (q22 - q21) * rTemp;
+                
+                // Bilinear Interpolation
+                // Q11 = matrix[i][j]     Q12 = matrix[i][j+1]
+                // Q21 = matrix[i+1][j]   Q22 = matrix[i+1][j+1]
+                
+                const q11 = parseFloat(b.matrix[i][j]);
+                const q12 = parseFloat(b.matrix[i][j+1]);
+                const q21 = parseFloat(b.matrix[i+1][j]);
+                const q22 = parseFloat(b.matrix[i+1][j+1]);
+                
+                // Interpolate Temp (Horizontal) first
+                const r1 = q11 + (q12 - q11) * rTemp;
+                const r2 = q21 + (q22 - q21) * rTemp;
+                
+                // Interpolate Alt (Vertical)
                 const liftFactor = r1 + (r2 - r1) * rAlt;
+                
                 const maxLift = b.volume * liftFactor;
 
                 const res = document.getElementById('wb-result');
@@ -2256,7 +2343,7 @@
                         <div class="p-2 rounded ${isOverMTOM ? 'bg-red-900/40 text-red-300 border border-red-500/50' : 'bg-green-900/40 text-green-300 border border-green-500/50'}">MTOM: ${b.mtom}kg<br><b>${isOverMTOM ? 'ÜBERSCHRITTEN' : 'OK'}</b></div>
                         <div class="p-2 rounded ${isOverLift ? 'bg-red-900/40 text-red-300 border border-red-500/50' : 'bg-green-900/40 text-green-300 border border-green-500/50'}">TRAGKRAFT: ${Math.round(maxLift)}kg<br><b>${isOverLift ? 'ZU SCHWER' : 'OK'}</b></div>
                     </div>
-                    <div class="mt-4 text-xs italic text-slate-500">Berechnet für ${cAlt}m AMSL bei ${cTemp}°C<br>(Tragkraftfaktor: ${liftFactor.toFixed(4)} kg/m³)</div>
+                    <div class="mt-4 text-xs italic text-slate-500">Berechnet für ${cAlt}m AMSL bei ${cTemp}°C<br>(Faktor: ${liftFactor.toFixed(4)} kg/m³)</div>
                 `;
             },
             
@@ -2517,7 +2604,10 @@
     <trkseg>`;
     
                 log.track.forEach(pt => {
-                    gpx += `\n      <trkpt lat="${pt[0]}" lon="${pt[1]}"><ele>${pt[2]}</ele></trkpt>`;
+                    // pt[0]: lat, pt[1]: lng, pt[2]: alt
+                    // Ensure altitude is formatted correctly
+                    const ele = pt[2] !== undefined ? pt[2].toFixed(1) : 0;
+                    gpx += `\n      <trkpt lat="${pt[0]}" lon="${pt[1]}"><ele>${ele}</ele></trkpt>`;
                 });
                 
                 gpx += `\n    </trkseg>\n  </trk>\n</gpx>`;
@@ -2541,7 +2631,13 @@
                 
                 const stage = document.getElementById('report-stage');
                 // Ensure stage is visible to renderer but offscreen
-                stage.style.display = 'block'; 
+                // Changed from display: block/none to visibility to keep layout flow for html2canvas
+                // Positioned at 0,0 with negative z-index to be "behind" everything but technically in view
+                stage.style.visibility = 'visible';
+                stage.style.zIndex = '-5000';
+                stage.style.top = '0';
+                stage.style.left = '0';
+                stage.style.position = 'fixed';
                 
                 // Data prep
                 const balloon = state.balloons.find(b => b.callsign === log.balloon);
@@ -2559,9 +2655,24 @@
                     return `<div class="bg-white/5 p-2 rounded text-sm text-slate-300"><div>${p.firstName} ${p.lastName}</div>${baptism}</div>`;
                 }).join('');
 
+                // Photos Grid for Report
+                let photosHtml = '';
+                if (log.photos && log.photos.length > 0) {
+                    photosHtml = `
+                        <div class="mt-8">
+                            <h4 class="text-slate-500 text-xs uppercase mb-2">Impressionen</h4>
+                            <div class="grid grid-cols-4 gap-2">
+                                ${log.photos.slice(0, 4).map(p => `
+                                    <div class="aspect-square bg-cover bg-center rounded-lg border border-white/10" style="background-image: url('${p.src}')"></div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                }
+
                 // HTML Structure for Report
                 stage.innerHTML = `
-                    <div class="border border-white/20 rounded-xl overflow-hidden bg-slate-900 shadow-2xl relative">
+                    <div class="border border-white/20 rounded-xl overflow-hidden bg-slate-900 shadow-2xl relative w-[800px]">
                         <!-- Header Banner -->
                         <div class="h-40 relative bg-slate-800 overflow-hidden">
                             ${balloonImg ? `<div class="absolute inset-0 bg-cover bg-center opacity-60" style="background-image: url('${balloonImg}')"></div>` : `<div class="absolute inset-0 bg-gradient-to-r from-blue-900 to-slate-900"></div>`}
@@ -2630,12 +2741,15 @@
 
                             <!-- Map & Profile -->
                             <div class="grid grid-cols-3 gap-6 h-64">
+                                <!-- Using simple ID for map container -->
                                 <div class="col-span-2 bg-black rounded-lg border border-white/20 overflow-hidden relative" id="report-map-container" style="height: 100%;"></div>
                                 <div class="col-span-1 bg-slate-800/50 rounded-lg border border-white/5 p-2 flex flex-col">
                                     <div class="text-xs text-slate-500 mb-2 text-center uppercase">Höhenprofil</div>
                                     <div class="flex-1 relative"><canvas id="report-altitude-chart"></canvas></div>
                                 </div>
                             </div>
+
+                            ${photosHtml}
                         </div>
                         
                         <!-- Footer -->
@@ -2647,8 +2761,13 @@
                 `;
 
                 // --- Init Report Map ---
+                // Using Canvas renderer for better html2canvas support
                 const mapContainer = document.getElementById('report-map-container');
-                const reportMap = L.map(mapContainer, { zoomControl: false, attributionControl: false });
+                const reportMap = L.map(mapContainer, { 
+                    zoomControl: false, 
+                    attributionControl: false,
+                    preferCanvas: true // Critical for html2canvas
+                });
                 
                 // Style logic for report map
                 const style = state.settings.mapStyle || 'dark';
@@ -2656,10 +2775,11 @@
                 if (style === 'light') tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
                 else if (style === 'sat') tileUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
                 
-                L.tileLayer(tileUrl).addTo(reportMap);
+                // Use canvas renderer for tiles if possible (Leaflet doesn't support canvas tiles natively easily, but setting crossOrigin is key)
+                L.tileLayer(tileUrl, { crossOrigin: true }).addTo(reportMap);
 
                 if (log.track && log.track.length > 0) {
-                    const line = L.polyline(log.track, { color: '#3b82f6', weight: 4 }).addTo(reportMap);
+                    const line = L.polyline(log.track, { color: '#3b82f6', weight: 4, renderer: L.canvas() }).addTo(reportMap);
                     reportMap.fitBounds(line.getBounds(), { padding: [30, 30] });
                 } else {
                     reportMap.setView([51.1657, 10.4515], 6);
@@ -2696,11 +2816,14 @@
                 });
 
                 // --- Capture ---
+                // Increased timeout to allow tiles to load
                 setTimeout(() => {
                     html2canvas(stage, { 
                         useCORS: true, 
                         backgroundColor: '#0f172a',
-                        scale: 2 // High res
+                        scale: 2, // High res
+                        allowTaint: true,
+                        scrollY: -window.scrollY // Fix for scrolling offsets
                     }).then(canvas => {
                         loader.classList.add('hidden');
                         const link = document.createElement('a');
@@ -2708,14 +2831,18 @@
                         link.href = canvas.toDataURL('image/png');
                         link.click();
                         ui.showToast("Bericht erstellt!");
-                        stage.innerHTML = ''; // Clean up
-                        stage.style.display = 'none'; // Hide again
+                        
+                        // Cleanup
+                        stage.style.visibility = 'hidden'; 
+                        stage.style.zIndex = '-5000';
+                        stage.innerHTML = '';
                     }).catch(err => {
                         loader.classList.add('hidden');
                         console.error(err);
                         ui.showToast("Fehler beim Export", "error");
+                        stage.style.visibility = 'hidden';
                     });
-                }, 1500); // Wait for map tiles
+                }, 2000); // 2 seconds wait for map tiles
             },
 
             // --- KML ACTIONS ---
@@ -2911,6 +3038,8 @@
                 state.settings.apiKey = document.getElementById('set-api-key').value;
                 state.settings.imageRetention = parseInt(document.getElementById('set-image-retention').value);
                 state.settings.baptismMaxWords = parseInt(document.getElementById('set-baptism-words').value);
+                state.settings.windMeasInterval = parseInt(document.getElementById('set-wind-interval').value);
+                state.settings.windThreshold = parseInt(document.getElementById('set-wind-threshold').value);
                 
                 saveState();
                 if(!skipToast) ui.showToast("Einstellungen gespeichert!");
@@ -3021,6 +3150,21 @@
 
                 // Basic Summary View
                 if (!isEdit) {
+                    // Display Photos Grid
+                    let photosHtml = '';
+                    if (log.photos && log.photos.length > 0) {
+                        photosHtml = `
+                            <h4 class="font-bold mb-2 text-sm text-slate-400 uppercase mt-4">Fotos</h4>
+                            <div class="grid grid-cols-4 gap-2 mb-4">
+                                ${log.photos.map(p => `
+                                    <div class="aspect-square bg-cover bg-center rounded-lg border border-white/10 cursor-pointer hover:opacity-80 transition" onclick="ui.showPhoto('${p.src}')" style="background-image: url('${p.src}')"></div>
+                                `).join('')}
+                            </div>
+                        `;
+                    } else {
+                        photosHtml = '<div class="text-xs text-slate-500 italic mt-4 mb-4">Keine Fotos vorhanden.</div>';
+                    }
+
                     c.innerHTML = `
                         <div class="flex items-center justify-between mb-4">
                             <h3 class="text-xl font-bold">Zusammenfassung</h3>
@@ -3058,6 +3202,10 @@
                                 <span class="text-slate-400 text-sm">Dauer:</span>
                                 <span class="font-bold text-blue-400">${Math.floor((new Date(log.end)-new Date(log.start))/60000)} min</span>
                             </div>
+                             <div class="flex justify-between mb-2">
+                                <span class="text-slate-400 text-sm">Max Höhe:</span>
+                                <span class="font-bold text-blue-400">${Math.round(log.maxAlt || 0)} m</span>
+                            </div>
 
                             <!-- Notes -->
                             <div class="mt-4 pt-2 border-t border-white/10">
@@ -3073,6 +3221,8 @@
                                 return p ? `<div class="bg-slate-800 p-2 rounded flex justify-between items-center text-sm"><span>${p.firstName} ${p.lastName}</span> ${p.baptism ? '<span class="text-[10px] bg-amber-900/50 text-amber-500 px-1 rounded">Getauft</span>' : ''}</div>` : '';
                             }).join('')}
                         </div>
+                        
+                        ${photosHtml}
                         
                         <div class="flex gap-2 mt-6">
                             <button onclick="ui.generateReportImage(${log.id})" class="bg-blue-600 hover:bg-blue-500 w-12 h-12 rounded-lg flex items-center justify-center shadow-lg" title="Bildbericht"><i class="fas fa-image text-xl"></i></button>
@@ -3147,7 +3297,14 @@
                 let html = '';
                 
                 if (this.tab === 'fleet') {
-                    const b = isNew ? { id: Date.now().toString(), callsign: '', volume: 3000, mtom: 1000, weight: 200, image: '', defaultCylinders: [], matrix: Array(4).fill(Array(3).fill(0.3)) } : state.balloons.find(x => x.id === id);
+                    const b = isNew ? { 
+                        id: Date.now().toString(), 
+                        callsign: '', volume: 3000, mtom: 1000, weight: 200, image: '', defaultCylinders: [], 
+                        matrix: [ [0.3,0.28,0.26], [0.28,0.26,0.24], [0.26,0.24,0.22], [0.24,0.22,0.20] ] // Default matrix
+                    } : state.balloons.find(x => x.id === id);
+                    
+                    if(!b.matrix) b.matrix = [ [0.3,0.28,0.26], [0.28,0.26,0.24], [0.26,0.24,0.22], [0.24,0.22,0.20] ];
+
                     html = `
                         <div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold">${isNew ? 'Neuer Ballon' : 'Ballon bearbeiten'}</h3><button onclick="ui.switchTab('fleet')" class="text-slate-400">Abbrechen</button></div>
                         <div class="space-y-4">
@@ -3157,7 +3314,7 @@
                                 <input type="file" id="edit-balloon-img" class="hidden" accept="image/*" onchange="ui.handleImageUpload(this)">
                             </div>
                             <div><label>Kennzeichen</label><input type="text" id="edit-callsign" value="${b.callsign}"></div>
-                            <div class="grid grid-cols-3 gap-2">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
                                 <div><label>Volumen (m³)</label><input type="number" id="edit-vol" value="${b.volume}"></div>
                                 <div><label>MTOM (kg)</label><input type="number" id="edit-mtom" value="${b.mtom}"></div>
                                 <div><label>Leergewicht (kg)</label><input type="number" id="edit-weight" value="${b.weight}"></div>
@@ -3175,6 +3332,42 @@
                                     <select id="edit-cyl-select" onchange="ui.addEditCylinder()" class="text-xs"><option value="">+ Flasche wählen (Auto-Add)</option>${state.cylinders.map(cyl => `<option value="${cyl.id}">${cyl.label} (${cyl.type})</option>`).join('')}</select>
                                 </div>
                             </div>
+                            
+                            <!-- Lift Matrix Editor -->
+                            <div class="border-t border-white/10 pt-4">
+                                <label class="mb-2 block">Tragkraft-Faktoren (kg/m³)</label>
+                                <div class="grid grid-cols-4 gap-2 text-xs items-center mb-2">
+                                     <div class="text-right text-slate-500 font-bold">Alt / T</div>
+                                     <div class="text-center text-blue-300 font-bold">0°C</div>
+                                     <div class="text-center text-blue-300 font-bold">15°C</div>
+                                     <div class="text-center text-blue-300 font-bold">30°C</div>
+                                </div>
+                                <div class="grid grid-cols-4 gap-2 text-xs items-center">
+                                     <!-- 0m -->
+                                     <div class="text-right text-slate-500 font-bold">0m</div>
+                                     <input type="number" step="0.001" id="mx-0-0" value="${b.matrix[0][0]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
+                                     <input type="number" step="0.001" id="mx-0-1" value="${b.matrix[0][1]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
+                                     <input type="number" step="0.001" id="mx-0-2" value="${b.matrix[0][2]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
+
+                                     <!-- 1000m -->
+                                     <div class="text-right text-slate-500 font-bold">1000m</div>
+                                     <input type="number" step="0.001" id="mx-1-0" value="${b.matrix[1][0]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
+                                     <input type="number" step="0.001" id="mx-1-1" value="${b.matrix[1][1]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
+                                     <input type="number" step="0.001" id="mx-1-2" value="${b.matrix[1][2]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
+
+                                     <!-- 2000m -->
+                                     <div class="text-right text-slate-500 font-bold">2000m</div>
+                                     <input type="number" step="0.001" id="mx-2-0" value="${b.matrix[2][0]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
+                                     <input type="number" step="0.001" id="mx-2-1" value="${b.matrix[2][1]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
+                                     <input type="number" step="0.001" id="mx-2-2" value="${b.matrix[2][2]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
+
+                                     <!-- 3000m -->
+                                     <div class="text-right text-slate-500 font-bold">3000m</div>
+                                     <input type="number" step="0.001" id="mx-3-0" value="${b.matrix[3][0]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
+                                     <input type="number" step="0.001" id="mx-3-1" value="${b.matrix[3][1]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
+                                     <input type="number" step="0.001" id="mx-3-2" value="${b.matrix[3][2]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
+                                </div>
+                            </div>
 
                             <button onclick="saveBalloon('${b.id}')" class="bg-green-600 w-full py-3 rounded font-bold mt-4">Speichern</button>
                         </div>
@@ -3183,6 +3376,17 @@
                     window.saveBalloon = (bid) => {
                         const callsign = document.getElementById('edit-callsign').value;
                         if(!callsign) return;
+                        
+                        // Collect Matrix
+                        const matrix = [];
+                        for(let i=0; i<4; i++) {
+                            const row = [];
+                            for(let j=0; j<3; j++) {
+                                row.push(parseFloat(document.getElementById(`mx-${i}-${j}`).value) || 0);
+                            }
+                            matrix.push(row);
+                        }
+
                         const newB = {
                             id: bid,
                             callsign: callsign,
@@ -3191,7 +3395,7 @@
                             weight: parseFloat(document.getElementById('edit-weight').value),
                             image: document.getElementById('preview-balloon-img').src,
                             defaultCylinders: [],
-                            matrix: b.matrix // Keep matrix
+                            matrix: matrix 
                         };
                         
                         // Robustly collect cylinder IDs from DOM
@@ -3211,11 +3415,11 @@
                         <div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold">${isNew ? 'Neue Flasche' : 'Flasche bearbeiten'}</h3><button onclick="ui.switchTab('cylinders')" class="text-slate-400">Abbrechen</button></div>
                         <div class="space-y-4">
                             <div><label>Bezeichnung / Label</label><input type="text" id="edit-cyl-label" value="${cy.label}" placeholder="z.B. Blau 1"></div>
-                            <div class="grid grid-cols-2 gap-2">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
                                 <div><label>Typ</label><select id="edit-cyl-type"><option value="VA50" ${cy.type==='VA50'?'selected':''}>VA50</option><option value="VA70" ${cy.type==='VA70'?'selected':''}>VA70</option><option value="Master" ${cy.type==='Master'?'selected':''}>Master</option><option value="Standard" ${cy.type==='Standard'?'selected':''}>Standard</option></select></div>
                                 <div><label>Seriennummer</label><input type="text" id="edit-cyl-sn" value="${cy.sn}"></div>
                             </div>
-                            <div class="grid grid-cols-2 gap-2">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
                                 <div><label>Tara (kg)</label><input type="number" id="edit-cyl-tare" value="${cy.tare}"></div>
                                 <div><label>Füllung (kg)</label><input type="number" id="edit-cyl-gas" value="${cy.gas}"></div>
                             </div>
@@ -3244,11 +3448,11 @@
                     html = `
                         <div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold">${isNew ? 'Neuer Passagier' : 'Passagier bearbeiten'}</h3><button onclick="ui.switchTab('passengers')" class="text-slate-400">Abbrechen</button></div>
                         <div class="space-y-4">
-                            <div class="grid grid-cols-2 gap-2">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
                                 <div><label>Vorname</label><input type="text" id="edit-pax-first" value="${p.firstName}"></div>
                                 <div><label>Nachname</label><input type="text" id="edit-pax-last" value="${p.lastName}"></div>
                             </div>
-                            <div class="grid grid-cols-2 gap-2">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
                                 <div><label>Gewicht (kg)</label><input type="number" id="edit-pax-weight" value="${p.weight}"></div>
                                 <div><label>Geschlecht</label><select id="edit-pax-gender"><option value="m" ${p.gender==='m'?'selected':''}>Männlich</option><option value="w" ${p.gender==='w'?'selected':''}>Weiblich</option><option value="d" ${p.gender==='d'?'selected':''}>Divers</option></select></div>
                             </div>
@@ -3281,12 +3485,12 @@
                     html = `
                         <div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold">Manueller Logbuch-Eintrag</h3><button onclick="ui.switchTab('logbook')" class="text-slate-400">Abbrechen</button></div>
                         <div class="space-y-4">
-                            <div class="grid grid-cols-2 gap-2">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
                                 <div><label>Startzeit</label><input type="datetime-local" id="edit-log-start" value="${l.start}"></div>
                                 <div><label>Landung</label><input type="datetime-local" id="edit-log-end" value="${l.end}"></div>
                             </div>
                             <div><label>Ballon</label><input type="text" id="edit-log-balloon" placeholder="Kennzeichen"></div>
-                            <div class="grid grid-cols-2 gap-2">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
                                 <div><label>Startort</label><input type="text" id="edit-log-sloc"></div>
                                 <div><label>Landeort</label><input type="text" id="edit-log-eloc"></div>
                             </div>
