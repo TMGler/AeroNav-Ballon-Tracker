@@ -89,7 +89,7 @@
         .hud-top {
             pointer-events: auto;
             display: grid;
-            grid-template-columns: repeat(5, 1fr); /* Time column */
+            grid-template-columns: 1fr 1fr 1fr 1fr 0.7fr; /* Time column smaller */
             gap: 4px;
             padding: 8px;
             width: 100%;
@@ -193,7 +193,7 @@
         .text-blink-red { animation: blink-red 0.8s infinite ease-in-out; }
 
         /* Time Display Style */
-        #hud-time { font-size: 1.1rem; color: #cbd5e1; font-family: 'Inter', sans-serif; font-weight: 600; margin-top: 2px; }
+        #hud-time { font-size: 1.0rem; color: #cbd5e1; font-family: 'Inter', sans-serif; font-weight: 600; margin-top: 4px; }
 
         .sidebar-left { 
             position: absolute; 
@@ -240,6 +240,16 @@
             padding: 0;
         }
 
+        .wind-layer { display: flex; flex-direction: column; align-items: center; font-size: 0.7rem; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.1); transition: background-color 0.3s; }
+        .wind-layer.active-altitude {
+            background-color: rgba(34, 197, 94, 0.3);
+            border-radius: 6px;
+            border: 1px solid rgba(34, 197, 94, 0.5);
+        }
+
+        .compass-arrow { width: 0; height: 0; border-left: 5px solid solid transparent; border-right: 5px solid transparent; border-bottom: 10px solid var(--accent-blue); transition: transform 0.3s; }
+        .arrow-green { border-bottom-color: #4ade80 !important; }
+
         .btn-round { width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; transition: all 0.2s; cursor: pointer; }
         .btn-round:active { transform: scale(0.9); }
         .btn-round.active { background: var(--accent-blue); color: white; }
@@ -258,33 +268,13 @@
         .tab-btn { padding: 12px 15px; border-bottom: 2px solid transparent; font-weight: 500; opacity: 0.6; white-space: nowrap; font-size: 0.9rem; }
         .tab-btn.active { border-color: var(--accent-blue); color: var(--accent-blue); opacity: 1; }
 
-        .wind-layer { display: flex; flex-direction: column; align-items: center; font-size: 0.7rem; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.1); transition: background-color 0.3s; }
-        .wind-layer.active-altitude {
-            background-color: rgba(34, 197, 94, 0.3);
-            border-radius: 6px;
-            border: 1px solid rgba(34, 197, 94, 0.5);
-        }
-
         .leaflet-tile { filter: brightness(0.85); }
         .satellite-layer .leaflet-tile { filter: none; }
-
-        .compass-arrow { width: 0; height: 0; border-left: 5px solid solid transparent; border-right: 5px solid transparent; border-bottom: 10px solid var(--accent-blue); transition: transform 0.3s; }
-        .arrow-green { border-bottom-color: #4ade80 !important; }
 
         .balloon-marker-img { width: 44px; height: 44px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.5); object-fit: cover; background: #fff; }
 
         #report-stage { background: #0f172a; color: #f8fafc; width: 800px; padding: 30px; position: fixed; left: -9999px; top: 0; z-index: 9999; }
 
-        /* Status Bar (Right Edge) */
-        .status-area { position: absolute; top: 10px; right: 0px; display: flex; flex-direction: column; gap: 5px; align-items: flex-end; z-index: 2000; }
-        .status-badge { background: rgba(15, 23, 42, 0.95); border-left: 4px solid #ccc; border-top-left-radius: 8px; border-bottom-left-radius: 8px; padding: 6px; color: white; font-size: 0.7rem; font-weight: bold; box-shadow: -2px 2px 8px rgba(0,0,0,0.3); display: flex; align-items: center; gap: 8px; cursor: pointer; width: 12px; overflow: hidden; transition: width 0.3s ease, padding 0.3s ease; white-space: nowrap; }
-        .status-badge:hover, .status-badge.active { width: auto; padding: 6px 12px 6px 8px; }
-        .status-badge.red { border-color: #ef4444; } .status-badge.green { border-color: #22c55e; } .status-badge.blue { border-color: #3b82f6; } .status-badge.yellow { border-color: #eab308; }
-
-        #ai-nav-overlay { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 600px; background: rgba(15, 23, 42, 0.95); border: 1px solid var(--accent-blue); box-shadow: 0 0 20px rgba(59, 130, 246, 0.3); border-radius: 12px; padding: 12px; z-index: 1000; display: none; backdrop-filter: blur(8px); }
-        #photo-overlay { position: fixed; inset: 0; z-index: 7000; background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; padding: 20px; }
-        #photo-overlay img { max-width: 95%; max-height: 95%; border-radius: 8px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
-        
         /* SELECTION OVERLAY */
         #selection-overlay { position: fixed; inset: 0; z-index: 3000; background: rgba(0,0,0,0.8); display: none; justify-content: center; align-items: center; padding: 20px; backdrop-filter: blur(4px); }
         .selection-box { background: #1e293b; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; width: 100%; max-width: 400px; max-height: 80vh; display: flex; flex-direction: column; shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
@@ -302,25 +292,34 @@
 
     <div id="map"></div>
     
+    <!-- Fullscreen Loading Overlay for Report Gen -->
     <div id="loading-overlay" class="fixed inset-0 z-[6000] bg-slate-900/95 flex flex-col items-center justify-center hidden backdrop-blur-sm">
         <div class="loader mb-4" style="width: 40px; height: 40px; border-width: 4px;"></div>
         <div class="text-white font-bold text-lg">Erstelle Bericht...</div>
         <div class="text-slate-400 text-sm">Bitte warten, Karte wird gerendert</div>
     </div>
     
+    <!-- Photo View Overlay -->
     <div id="photo-overlay" onclick="this.style.display='none'">
         <img id="photo-overlay-img" src="">
     </div>
     
+    <!-- SELECTION OVERLAY -->
     <div id="selection-overlay">
         <div class="selection-box">
             <div class="p-4 border-b border-white/10 flex justify-between items-center bg-slate-900/50 rounded-t-xl">
                 <h3 id="sel-title" class="font-bold text-white">Auswahl</h3>
                 <button onclick="document.getElementById('selection-overlay').style.display='none'" class="text-slate-400 hover:text-white px-2"><i class="fas fa-times"></i></button>
             </div>
-            <div id="sel-content" class="overflow-y-auto p-2 flex-1 space-y-1 max-h-[60vh]"></div>
+            <div id="sel-content" class="overflow-y-auto p-2 flex-1 space-y-1 max-h-[60vh]">
+                <!-- Items injected here -->
+            </div>
         </div>
     </div>
+
+    <!-- Hidden Inputs -->
+    <input type="file" id="cam-input" accept="image/*" capture="environment" class="hidden" onchange="flightManager.handlePhotoInput(this)">
+    <input type="file" id="import-input" accept=".json" class="hidden" onchange="system.importData(this)">
 
     <!-- HUD TOP CONTAINER -->
     <div id="hud-top-container" class="hud-top-container hud-container-anim">
@@ -1659,6 +1658,7 @@
             }); },
 
             viewPlanning(c) { if (!state.plannings) { state.plannings = []; saveState(); } if (!state.archive) { state.archive = []; saveState(); } const isArchive = this.planningMode === 'archive'; const listData = isArchive ? state.archive : state.plannings; const listTitle = isArchive ? 'Archiv / Vorlagen' : 'Aktive Planungen'; c.innerHTML = `<h3 class="text-xl font-bold mb-4">Weight & Balance Planung</h3><div class="mb-6 p-4 glass-panel border border-white/10"><div class="flex gap-4 border-b border-white/10 pb-2 mb-2 text-sm"><button onclick="ui.setPlanView('active')" class="${!isArchive ? 'text-blue-400 font-bold border-b-2 border-blue-400' : 'text-slate-500 hover:text-slate-300'} pb-1 transition">Aktive Planungen</button><button onclick="ui.setPlanView('archive')" class="${isArchive ? 'text-blue-400 font-bold border-b-2 border-blue-400' : 'text-slate-500 hover:text-slate-300'} pb-1 transition">Archiv</button></div><div class="flex justify-between items-center mb-2"><h4 class="text-xs uppercase text-slate-400 font-bold">${listTitle}</h4>${!isArchive ? '<button onclick="ui.clearPlanForm()" class="text-xs bg-slate-700 px-3 py-1 rounded hover:bg-slate-600 transition">+ Neue Planung</button>' : ''}</div><div class="max-h-32 overflow-y-auto space-y-1" id="saved-plans-list">${listData.length === 0 ? `<div class="text-xs text-slate-500 italic p-2">${isArchive ? 'Archiv ist leer' : 'Keine aktiven Planungen'}</div>` : listData.sort((a,b) => b.id - a.id).map(p => `<div class="flex justify-between items-center bg-slate-800 p-2 rounded text-xs group hover:bg-slate-700/50 transition"><div class="cursor-pointer flex-1" onclick="${isArchive ? `ui.loadTemplate('${p.id}')` : `ui.loadPlan('${p.id}')`}" title="${isArchive ? 'Als Vorlage laden' : 'Bearbeiten'}"><div class="font-bold text-white flex items-center gap-2">${isArchive ? '<i class="fas fa-history text-slate-500"></i>' : ''} ${p.name}</div><div class="text-slate-400 text-[10px]">${p.date} | ${p.balloonName}</div></div><div class="flex gap-1">${!isArchive ? `<button onclick="ui.archivePlan(${p.id})" class="text-blue-400 hover:text-blue-300 p-1 px-2 bg-slate-900/50 rounded" title="Ins Archiv verschieben"><i class="fas fa-box-archive"></i></button>` : `<button onclick="ui.unarchivePlan(${p.id})" class="text-green-400 hover:text-green-300 p-1 px-2 bg-slate-900/50 rounded" title="Wiederherstellen"><i class="fas fa-box-open"></i></button>`}<button onclick="ui.delete('${isArchive ? 'archive' : 'plannings'}', ${p.id})" class="text-red-400 hover:text-red-300 p-1 px-2 bg-slate-900/50 rounded"><i class="fas fa-trash"></i></button></div></div>`).join('')}</div></div><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div class="space-y-4"><div><label>Bezeichnung der Planung</label><input type="text" id="plan-name" placeholder="z.B. Morgenfahrt Alpen" class="bg-slate-800 border-slate-600 focus:border-blue-500"></div><div><label>Ballon wählen</label><select id="plan-balloon" onchange="ui.selectBalloon()"><option value="">-- Wählen --</option>${state.balloons.map(b => `<option value="${b.id}">${b.callsign}</option>`).join('')}</select></div><div><label>Gasflaschen für diese Fahrt</label><div class="glass-panel p-3 border border-white/5 bg-slate-900/40"><div id="plan-cyl-list" class="space-y-2 mb-3"><div class="text-xs text-slate-500 italic">Keine Flaschen ausgewählt</div></div><div class="flex gap-2 pt-2 border-t border-white/10"><select id="plan-cyl-add-select" class="text-xs bg-slate-800 border-none w-full"><option value="">+ Flasche wählen</option>${state.cylinders.map(c => `<option value="${c.id}">${c.label} (${c.type}) - ${c.gas+c.tare}kg</option>`).join('')}</select><button onclick="ui.addPlanCylinder()" class="bg-blue-600 px-3 rounded text-xs hover:bg-blue-500 shrink-0"><i class="fas fa-plus"></i></button></div></div></div><div><label>Passagiere wählen</label><div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 border border-white/5 rounded" id="plan-pax">${state.passengers.sort((a,b) => (a.flights||0) - (b.flights||0)).map(p => { const isFlown = p.flights > 0; const badge = isFlown ? `<span class="text-green-400 text-[9px] ml-1">✓ ${p.flights}</span>` : ''; return `<label class="flex items-center gap-2 bg-slate-800 p-2 rounded text-[10px] hover:bg-slate-700 cursor-pointer ${isFlown ? 'opacity-75' : ''}"><input type="checkbox" value="${p.id}" onchange="ui.recalcWB()" class="w-4 h-4 shrink-0"> <span class="flex-1 truncate">${p.firstName} ${p.lastName}${badge}</span> <span class="text-slate-400">${p.weight}kg</span></label>`; }).join('')}</div></div></div><div class="space-y-4"><div class="grid grid-cols-1 sm:grid-cols-2 gap-2"><div><label>Startort Temp (°C)</label><input type="number" id="plan-temp" value="15" onchange="ui.recalcWB()"></div><div><label>Zielhöhe (m)</label><input type="number" id="plan-alt" value="1000" onchange="ui.recalcWB()"></div></div><div id="wb-result" class="glass-panel p-6 border-blue-500/30 border min-h-[200px] flex flex-col justify-center text-center"><div class="text-slate-500 italic">Bitte Ballon und Zuladung wählen...</div></div><button onclick="ui.savePlan()" id="btn-save-plan" class="bg-green-600 hover:bg-green-500 w-full py-3 rounded font-bold shadow-lg shadow-green-900/20 mt-4 transition transform active:scale-95 flex items-center justify-center gap-2"><i class="fas fa-save"></i> Planung Speichern</button></div></div>`; },
+            
             viewSettings(c) { const initHrs = Math.floor(state.pilot.initialHours || 0); const initMins = Math.round(((state.pilot.initialHours || 0) - initHrs) * 60); const initTimeStr = `${initHrs}:${initMins.toString().padStart(2, '0')}`; c.innerHTML = `
                 <div class="space-y-6">
                     <!-- SECTION 1: PILOT -->
