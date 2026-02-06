@@ -994,19 +994,63 @@
                 state.kmlOverlays.forEach(overlay => {
                     // Check if already active
                     if (overlay.visible && !this.activeKmlLayers[overlay.id]) {
-                        // Parse and Add
                         try {
-                            // Leaflet-Omnivore parse string
-                            const layer = omnivore.kml.parse(overlay.content);
-                            // Set generic style for airspaces
-                            layer.setStyle({ 
-                                color: '#ef4444', 
-                                weight: 2, 
-                                opacity: 0.8, 
-                                fillOpacity: 0.15 
+                            // Custom Layer to handle styling and Popups for Areas
+                            const customLayer = L.geoJson(null, {
+                                style: (feature) => {
+                                    // Default Color: Blue (CTR, RMZ, TMZ, etc.)
+                                    let color = '#3b82f6'; 
+                                    
+                                    if (feature && feature.properties) {
+                                        // Combine name and description for search (uppercase for case-insensitive check)
+                                        const text = ((feature.properties.name || '') + ' ' + (feature.properties.description || '')).toUpperCase();
+                                        
+                                        // Check for Restricted (ED-R), Prohibited (ED-P) or Danger (ED-D) areas
+                                        // LOGIC UPDATE: 
+                                        // 1. Match explicit hyphenated types: ED-R, ED-P, ED-D
+                                        // 2. Match non-hyphenated ONLY if followed by a digit (EDR116) to avoid airports like EDRY
+                                        // 3. Match explicit keywords like RESTRICTED
+                                        
+                                        const isRestricted = 
+                                            text.includes('ED-R') || text.includes('ED-P') || text.includes('ED-D') || 
+                                            /ED[RPD]\s*\d/.test(text) || // EDR/EDP/EDD followed by digit (e.g. EDR116)
+                                            text.includes('RESTRICTED') || 
+                                            text.includes('PROHIBITED') || 
+                                            text.includes('DANGER');
+
+                                        if (isRestricted) {
+                                            color = '#ef4444'; // Red
+                                        }
+                                    }
+
+                                    return { 
+                                        color: color, 
+                                        weight: 2, 
+                                        opacity: 0.8, 
+                                        fillColor: color,
+                                        fillOpacity: 0.2 
+                                    };
+                                },
+                                onEachFeature: (feature, layer) => {
+                                    if (feature.properties) {
+                                        let popupContent = '<div class="text-slate-900">';
+                                        if (feature.properties.name) popupContent += `<div class="font-bold border-b border-slate-300 mb-1">${feature.properties.name}</div>`;
+                                        if (feature.properties.description) popupContent += `<div class="text-xs">${feature.properties.description}</div>`;
+                                        popupContent += '</div>';
+                                        
+                                        // Only bind if there is content
+                                        if (feature.properties.name || feature.properties.description) {
+                                            layer.bindPopup(popupContent);
+                                        }
+                                    }
+                                }
                             });
+
+                            // Leaflet-Omnivore parse string
+                            const layer = omnivore.kml.parse(overlay.content, null, customLayer);
                             layer.addTo(this.map);
                             this.activeKmlLayers[overlay.id] = layer;
+                            
                         } catch (e) {
                             console.error("KML Parse Error", e);
                         }
@@ -1044,6 +1088,14 @@
                             this.renderKMLs();
                             ui.render(); // Update Settings List
                             ui.showToast(`KML "${file.name}" geladen!`);
+                            
+                            // Zoom to new layer
+                            setTimeout(() => {
+                                if (this.activeKmlLayers[newOverlay.id]) {
+                                    const bounds = this.activeKmlLayers[newOverlay.id].getBounds();
+                                    if(bounds.isValid()) this.map.fitBounds(bounds);
+                                }
+                            }, 500);
                         };
                         reader.readAsText(file);
                     });
