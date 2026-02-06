@@ -334,6 +334,7 @@
     <!-- Hidden Inputs -->
     <input type="file" id="cam-input" accept="image/*" capture="environment" class="hidden" onchange="flightManager.handlePhotoInput(this)">
     <input type="file" id="import-input" accept=".json" class="hidden" onchange="system.importData(this)">
+    <input type="file" id="balloon-import-input" accept=".json" class="hidden" onchange="ui.handleBalloonImport(this)">
 
     <!-- HUD TOP CONTAINER -->
     <div id="hud-top-container" class="hud-top-container hud-container-anim">
@@ -595,6 +596,13 @@
         if(state.settings.imageRetention === undefined) state.settings.imageRetention = 30;
         if(state.settings.baptismMaxWords === undefined) state.settings.baptismMaxWords = 15;
         if(state.settings.useUTC === undefined) state.settings.useUTC = false;
+
+        // Ensure archived property exists on balloons
+        if (state.balloons) {
+            state.balloons.forEach(b => {
+                if (b.archived === undefined) b.archived = false;
+            });
+        }
 
         // Passagier Migration: Split Name in Vor/Nachname wenn nötig
         state.passengers.forEach(p => {
@@ -1538,6 +1546,8 @@
 
         const ui = {
             tab: 'planning', editingId: null, editingPlanId: null, planningMode: 'active', passengerMode: 'active', toastTimeout: null,
+            fleetMode: 'active', // Default fleet mode
+
             init() { 
                 document.getElementById('btn-settings').onclick = () => this.openModal(); 
                 this.renderWind(); 
@@ -1633,10 +1643,66 @@
                 this.render(); 
             },
 
+            setFleetView(mode) {
+                this.fleetMode = mode;
+                this.render();
+            },
+
             render() { const c = document.getElementById('tab-content'); c.innerHTML = ''; if (this.editingId) { this.renderForm(c); return; } switch(this.tab) { case 'planning': this.viewPlanning(c); break; case 'fleet': this.viewFleet(c); break; case 'cylinders': this.viewCylinders(c); break; case 'passengers': this.viewPassengers(c); break; case 'logbook': this.viewLogbook(c); break; case 'settings': this.viewSettings(c); break; case 'environment': this.viewEnvironment(c); break; } },
             
             // ... existing view functions (viewFleet, viewCylinders etc) remain same ...
-            viewFleet(c) { c.innerHTML = `<div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold">Ballon-Flotte</h3><button onclick="ui.edit('new')" class="bg-blue-600 px-4 py-2 rounded text-sm">+ Ballon hinzufügen</button></div>`; state.balloons.forEach(b => { const defaultCount = b.defaultCylinders ? b.defaultCylinders.length : 0; c.innerHTML += `<div class="glass-panel p-4 mb-2 flex justify-between items-center"><div><div class="font-bold text-lg">${b.callsign}</div><div class="text-xs text-slate-400">${b.volume}m³ | Std-Flaschen: ${defaultCount} | MTOM: ${b.mtom}kg</div></div><div class="flex gap-2"><button onclick="ui.edit('${b.id}')" class="bg-slate-700 px-3 py-1 rounded">Edit</button><button onclick="ui.delete('balloons','${b.id}')" class="text-red-400 p-1"><i class="fas fa-trash"></i></button></div></div>`; }); },
+            viewFleet(c) { 
+                const isArchive = this.fleetMode === 'archive';
+                const listTitle = isArchive ? 'Archivierte Ballone' : 'Aktive Flotte';
+                
+                // Filter balloons based on archive status
+                // If archived property is missing, assume false (active)
+                const balloons = state.balloons.filter(b => !!b.archived === isArchive);
+
+                c.innerHTML = `
+                    <h3 class="text-xl font-bold mb-4">Ballon-Flotte</h3>
+                    <div class="mb-4 glass-panel border border-white/10 p-4">
+                        <div class="flex gap-4 border-b border-white/10 pb-2 mb-4 text-sm">
+                            <button onclick="ui.setFleetView('active')" class="${!isArchive ? 'text-blue-400 font-bold border-b-2 border-blue-400' : 'text-slate-500 hover:text-slate-300'} pb-1 transition">Aktiv</button>
+                            <button onclick="ui.setFleetView('archive')" class="${isArchive ? 'text-blue-400 font-bold border-b-2 border-blue-400' : 'text-slate-500 hover:text-slate-300'} pb-1 transition">Archiv</button>
+                        </div>
+
+                        <div class="flex justify-between items-center mb-4">
+                            <h4 class="text-xs uppercase text-slate-400 font-bold">${listTitle}</h4>
+                            <div class="flex gap-2">
+                                <button onclick="document.getElementById('balloon-import-input').click()" class="bg-slate-700 px-3 py-1 rounded text-xs hover:bg-slate-600 transition" title="Ballon Importieren"><i class="fas fa-file-import"></i> Import</button>
+                                ${!isArchive ? '<button onclick="ui.edit(\'new\')" class="bg-blue-600 px-4 py-2 rounded text-sm hover:bg-blue-500 transition">+ Ballon hinzufügen</button>' : ''}
+                            </div>
+                        </div>
+                        
+                        <div class="space-y-2">
+                             ${balloons.length === 0 ? `<div class="text-center text-slate-500 italic py-4">Keine Einträge in dieser Liste</div>` : ''}
+                             ${balloons.map(b => {
+                                 const defaultCount = b.defaultCylinders ? b.defaultCylinders.length : 0;
+                                 return `
+                                    <div class="glass-panel p-4 flex justify-between items-center ${isArchive ? 'opacity-75' : ''}">
+                                        <div>
+                                            <div class="font-bold text-lg text-white">${b.callsign}</div>
+                                            <div class="text-xs text-slate-400">${b.volume}m³ | Std-Flaschen: ${defaultCount} | MTOM: ${b.mtom}kg</div>
+                                        </div>
+                                        <div class="flex gap-2">
+                                            <button onclick="ui.exportBalloon('${b.id}')" class="bg-slate-700/50 text-slate-300 px-3 py-1 rounded hover:bg-slate-700 transition" title="Exportieren"><i class="fas fa-file-export"></i></button>
+                                            
+                                            ${!isArchive ? `
+                                                <button onclick="ui.archiveBalloon('${b.id}')" class="bg-amber-900/30 text-amber-500 px-3 py-1 rounded hover:bg-amber-900/50 transition" title="Archivieren"><i class="fas fa-archive"></i></button>
+                                                <button onclick="ui.edit('${b.id}')" class="bg-slate-700 px-3 py-1 rounded hover:bg-slate-600 transition">Edit</button>
+                                            ` : `
+                                                <button onclick="ui.restoreBalloon('${b.id}')" class="bg-green-900/30 text-green-500 px-3 py-1 rounded hover:bg-green-900/50 transition" title="Wiederherstellen"><i class="fas fa-trash-restore"></i></button>
+                                            `}
+                                            
+                                            <button onclick="ui.deleteBalloon('${b.id}')" class="text-red-400 p-1 hover:text-red-300 transition" title="Löschen"><i class="fas fa-trash"></i></button>
+                                        </div>
+                                    </div>`;
+                             }).join('')}
+                        </div>
+                    </div>
+                `; 
+            },
             viewCylinders(c) { c.innerHTML = `<div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold">Gasflaschen-Inventar</h3><button onclick="ui.edit('new')" class="bg-blue-600 px-4 py-2 rounded text-sm">+ Flasche hinzufügen</button></div>`; state.cylinders.forEach(cyl => { const isTuvExpired = new Date(cyl.tuv) < new Date(); c.innerHTML += `<div class="glass-panel p-4 mb-2 flex justify-between items-center ${isTuvExpired ? 'border-red-500/50 border' : ''}"><div><div class="font-bold">${cyl.label} (${cyl.type})</div><div class="text-xs text-slate-400">SN: ${cyl.sn} | Tara: ${cyl.tare}kg | Gas: ${cyl.gas}kg | TÜV: <span class="${isTuvExpired ? 'text-red-400 font-bold' : ''}">${cyl.tuv}</span></div></div><div class="flex gap-2"><button onclick="ui.edit('${cyl.id}')" class="bg-slate-700 px-3 py-1 rounded">Edit</button><button onclick="ui.delete('cylinders','${cyl.id}')" class="text-red-400 p-1"><i class="fas fa-trash"></i></button></div></div>`; }); },
             
             setPassengerView(mode) {
@@ -2298,7 +2364,7 @@
                                 </div>
                                 <div>
                                     <h4 class="text-slate-500 text-xs uppercase mb-2">Gästeliste</h4>
-                                    <div class="grid grid-cols-1 gap-2 max-h-[120px] overflow-hidden">
+                                    <div class="grid grid-cols-1 gap-2 max-h-[80px] overflow-hidden">
                                         ${paxListHtml || '<div class="text-slate-500 italic text-sm">Keine Passagiere</div>'}
                                     </div>
                                 </div>
@@ -2486,6 +2552,125 @@
                 if (this.tab === 'passengers') this.formPassenger(c);
                 if (this.tab === 'logbook') this.formLogManual(c);
             },
+            
+            // --- BALLOON MANAGEMENT ---
+            exportBalloon(id) {
+                const b = state.balloons.find(x => x.id === id);
+                if (!b) return;
+                
+                // Collect balloon and its associated cylinders
+                const exportData = {
+                    balloon: b,
+                    cylinders: []
+                };
+                
+                if (b.defaultCylinders && b.defaultCylinders.length > 0) {
+                    exportData.cylinders = state.cylinders.filter(c => b.defaultCylinders.includes(c.id));
+                }
+                
+                const dataStr = JSON.stringify(exportData, null, 2);
+                const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+                const exportFileDefaultName = `balloon-${b.callsign.replace(/\s+/g, '_')}.json`;
+                
+                const linkElement = document.createElement('a');
+                linkElement.setAttribute('href', dataUri);
+                linkElement.setAttribute('download', exportFileDefaultName);
+                linkElement.click();
+            },
+            
+            handleBalloonImport(input) {
+                if (input.files && input.files[0]) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        try {
+                            const data = JSON.parse(e.target.result);
+                            if (!data.balloon) throw new Error("Ungültiges Format: Kein Ballon gefunden.");
+                            
+                            // 1. Process Cylinders
+                            if (data.cylinders && Array.isArray(data.cylinders)) {
+                                let addedCyls = 0;
+                                data.cylinders.forEach(importedCyl => {
+                                    if (!state.cylinders.some(c => c.id === importedCyl.id)) {
+                                        state.cylinders.push(importedCyl);
+                                        addedCyls++;
+                                    }
+                                });
+                                if (addedCyls > 0) ui.showToast(`${addedCyls} fehlende Flaschen hinzugefügt.`);
+                            }
+                            
+                            // 2. Process Balloon
+                            const existingBalloon = state.balloons.find(b => b.id === data.balloon.id);
+                            
+                            if (existingBalloon) {
+                                // Conflict resolution: Generate new ID for import (Copy) or Overwrite?
+                                // Safest approach: Generate new ID and append "(Import)" to callsign
+                                if (confirm(`Ballon ${data.balloon.callsign} existiert bereits.\nAls Kopie importieren?`)) {
+                                    data.balloon.id = Date.now().toString(); // New ID
+                                    data.balloon.callsign += " (Import)";
+                                    state.balloons.push(data.balloon);
+                                    ui.showToast("Ballon als Kopie importiert.", "success");
+                                }
+                            } else {
+                                state.balloons.push(data.balloon);
+                                ui.showToast("Ballon erfolgreich importiert.", "success");
+                            }
+                            
+                            saveState();
+                            ui.render(); // Refresh list
+                            
+                        } catch (err) {
+                            ui.showToast("Import fehlgeschlagen: " + err.message, "error");
+                        }
+                        // Reset input
+                        input.value = '';
+                    };
+                    reader.readAsText(input.files[0]);
+                }
+            },
+            
+            archiveBalloon(id) {
+                const b = state.balloons.find(x => x.id === id);
+                if (b) {
+                    b.archived = true;
+                    saveState();
+                    this.render();
+                    this.showToast("Ballon archiviert.");
+                }
+            },
+            
+            restoreBalloon(id) {
+                const b = state.balloons.find(x => x.id === id);
+                if (b) {
+                    b.archived = false;
+                    saveState();
+                    this.render();
+                    this.showToast("Ballon wiederhergestellt.");
+                }
+            },
+            
+            deleteBalloon(id) {
+                const b = state.balloons.find(x => x.id === id);
+                if (!b) return;
+                
+                if (confirm(`Möchtest du den Ballon ${b.callsign} wirklich löschen?`)) {
+                    // Check for standard cylinders
+                    if (b.defaultCylinders && b.defaultCylinders.length > 0) {
+                        if (confirm(`Sollen auch die ${b.defaultCylinders.length} zugeordneten Standard-Flaschen aus dem Inventar gelöscht werden?`)) {
+                            // Remove associated cylinders
+                            state.cylinders = state.cylinders.filter(c => !b.defaultCylinders.includes(c.id));
+                            this.showToast("Zugehörige Flaschen gelöscht.");
+                        }
+                    }
+                    
+                    // Remove balloon
+                    state.balloons = state.balloons.filter(x => x.id !== id);
+                    saveState();
+                    this.render();
+                    this.showToast("Ballon gelöscht.", "success");
+                }
+            },
+
+            // --- Updated formBalloon with collapsed matrix and direct cylinder adding ---
             formBalloon(c) {
                 const b = state.balloons.find(x => x.id === this.editingId) || { callsign: "", volume: 3000, weight: 400, mtom: 1100, maxClimb: 5, maxDescent: 3, defaultCylinders: [], matrix: [[0.320, 0.280, 0.240],[0.280, 0.240, 0.200],[0.240, 0.200, 0.160],[0.200, 0.160, 0.120]], image: null };
                 const defCyls = b.defaultCylinders || [];
