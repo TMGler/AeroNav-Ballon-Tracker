@@ -131,6 +131,7 @@
             max-width: 600px;
             min-height: 75px; 
             display: flex;
+            flex-direction: column; /* Changed for AI instruction below */
             align-items: center;
             padding-left: 40px;
             pointer-events: none;
@@ -139,6 +140,7 @@
         .hud-nav-container.docked {
             left: 10px;
             transform: translateX(0);
+            align-items: flex-start; /* Align left when docked */
             width: auto;
         }
 
@@ -154,6 +156,7 @@
             transition: opacity 0.3s ease, transform 0.3s ease;
             opacity: 1;
             transform: translateX(0);
+            position: relative;
         }
         
         .hud-nav.minimized {
@@ -163,11 +166,36 @@
             position: absolute;
         }
 
+        /* AI Car-Style Instruction */
+        #ai-nav-instruction {
+            pointer-events: auto;
+            margin-top: 5px;
+            background: rgba(30, 58, 138, 0.9); /* Dark Blue */
+            border: 1px solid rgba(96, 165, 250, 0.5);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            transition: all 0.3s ease;
+            opacity: 0;
+            transform: translateY(-10px);
+            max-width: 100%;
+        }
+        
+        #ai-nav-instruction.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
         #btn-nav-toggle-wrapper {
             position: absolute;
             left: 0;
-            top: 50%;
-            transform: translateY(-50%);
+            top: 28px; /* Adjusted top alignment */
             z-index: 991;
             pointer-events: auto;
         }
@@ -288,7 +316,7 @@
         }
 
         /* Expanded State (Hover or Class) */
-        .status-badge:hover,
+        /* REMOVED HOVER EXPANSION AS REQUESTED */
         .status-badge.expanded {
             transform: translateX(0);
         }
@@ -447,6 +475,21 @@
         .toast-notification.error { border-color: #ef4444; }
         .toast-notification.info { border-color: #3b82f6; }
 
+        /* Loader inside AI Nav */
+        .ai-pulse {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #60a5fa;
+            animation: ai-pulse 1.5s infinite;
+        }
+        @keyframes ai-pulse {
+            0% { transform: scale(0.8); opacity: 0.5; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(0.8); opacity: 0.5; }
+        }
+
     </style>
 </head>
 <body>
@@ -524,21 +567,21 @@
     </div>
 
     <!-- STATUS AREA (COLLAPSIBLE SIDE BADGES) -->
-    <!-- Updated for "Line on Right" behavior with hover expansion -->
+    <!-- Updated for "Line on Right" behavior with hover expansion REMOVED - Click Only -->
     <div class="status-area">
-        <div id="sb-rec" class="status-badge red hidden" onclick="this.classList.toggle('expanded')" onmouseleave="this.classList.remove('expanded')">
+        <div id="sb-rec" class="status-badge red hidden" onclick="this.classList.toggle('expanded')">
              <i class="fas fa-circle text-[8px]"></i> <span>REC</span>
         </div>
-        <div id="sb-gps" class="status-badge blue" onclick="this.classList.toggle('expanded')" onmouseleave="this.classList.remove('expanded')">
+        <div id="sb-gps" class="status-badge blue" onclick="this.classList.toggle('expanded')">
              <i class="fas fa-satellite-dish text-[10px]"></i> <span id="sb-gps-text">NO GPS</span>
         </div>
-        <div id="sb-baro" class="status-badge green hidden" onclick="this.classList.toggle('expanded')" onmouseleave="this.classList.remove('expanded')">
+        <div id="sb-baro" class="status-badge green hidden" onclick="this.classList.toggle('expanded')">
              <i class="fas fa-tachometer-alt text-[10px]"></i> <span>BARO ON</span>
         </div>
-        <div id="sb-screen" class="status-badge yellow hidden" onclick="this.classList.toggle('expanded')" onmouseleave="this.classList.remove('expanded')">
+        <div id="sb-screen" class="status-badge yellow hidden" onclick="this.classList.toggle('expanded')">
              <i class="fas fa-sun text-[10px]"></i> <span>SCREEN ON</span>
         </div>
-        <div id="sb-net" class="status-badge green" onclick="this.classList.toggle('expanded')" onmouseleave="this.classList.remove('expanded')">
+        <div id="sb-net" class="status-badge green" onclick="this.classList.toggle('expanded')">
              <i class="fas fa-wifi text-[10px]"></i> <span id="sb-net-text">ONLINE</span>
         </div>
     </div>
@@ -566,21 +609,16 @@
                 <div class="hud-num" id="nav-ete">--:--</div>
             </div>
             
-            <button onclick="aiService.getNavigationAdvice()" id="btn-ai-nav" class="absolute -right-2 top-8 bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-xs shadow border border-white/20 hidden" title="KI Ratschlag"><i class="fas fa-magic"></i></button>
+            <!-- Removed standard AI button, added toggle in separate wrapper or logic -->
+            <button onclick="aiService.toggleAutoNav()" id="btn-ai-nav" class="absolute -right-2 top-8 bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-xs shadow border border-white/20 hidden" title="Auto-Navi"><i class="fas fa-magic"></i></button>
             <button onclick="ui.clearTarget()" class="absolute -right-2 -top-2 bg-slate-800 text-slate-400 hover:text-white rounded-full w-6 h-6 flex items-center justify-center text-xs shadow border border-white/20"><i class="fas fa-times"></i></button>
         </div>
-    </div>
-
-    <!-- AI NAV ADVICE OVERLAY -->
-    <div id="ai-nav-overlay" class="hidden absolute top-[180px] left-1/2 -translate-x-1/2 w-[90%] max-w-[400px] glass-panel p-4 z-[2000] border border-blue-500/30 shadow-2xl">
-        <div class="flex justify-between items-start mb-2">
-            <h4 class="text-blue-400 font-bold text-xs uppercase flex items-center gap-2"><i class="fas fa-robot"></i> AeroNav AI</h4>
-            <button onclick="document.getElementById('ai-nav-overlay').classList.add('hidden')" class="text-slate-400 hover:text-white"><i class="fas fa-times"></i></button>
+        
+        <!-- NEW: Car Style AI Instruction -->
+        <div id="ai-nav-instruction">
+            <span class="ai-pulse"></span>
+            <span id="ai-nav-text">Berechne...</span>
         </div>
-        <div id="ai-nav-content" class="text-sm text-white font-mono leading-relaxed">
-            Berechne Route...
-        </div>
-        <div class="text-[10px] text-slate-500 mt-2 text-right" id="ai-nav-time"></div>
     </div>
 
     <!-- TOAST CONTAINER IN BODY FOR CSS TARGETING -->
@@ -733,6 +771,7 @@
                 windMeasurementMinDeviation: 5, 
                 imageRetention: 30,
                 baptismMaxWords: 15,
+                aiMaxWords: 10,
                 useUTC: false,
                 mapOffset: 0.25,
                 showPathPrediction: false,
@@ -758,6 +797,7 @@
         if(state.settings.showPathPrediction === undefined) state.settings.showPathPrediction = false;
         if(state.settings.pathPredictionMinutes === undefined) state.settings.pathPredictionMinutes = 5;
         if(state.settings.navMode === undefined) state.settings.navMode = 'direct';
+        if(state.settings.aiMaxWords === undefined) state.settings.aiMaxWords = 10;
 
         // Ensure archived property exists on balloons
         if (state.balloons) {
@@ -935,6 +975,10 @@
          * AI SERVICE (GEMINI)
          */
         const aiService = {
+            autoNavInterval: null,
+            isAutoNavActive: false,
+            lastCheckDir: null, // Track wind direction for auto-update
+
             // Helper to call API
             async callGemini(prompt) {
                 const apiKey = state.settings.apiKey;
@@ -956,45 +1000,94 @@
                 return data.candidates?.[0]?.content?.parts?.[0]?.text || "Keine Antwort";
             },
 
-            async getNavigationAdvice() {
+            toggleAutoNav() {
+                if(this.isAutoNavActive) this.stopAutoNav();
+                else this.startAutoNav();
+            },
+
+            startAutoNav() {
                 if (!state.settings.apiKey) { ui.showToast("Kein API Key!", "error"); return; }
                 if (!state.targetWaypoint) { ui.showToast("Kein Ziel!", "error"); return; }
-
-                const overlay = document.getElementById('ai-nav-overlay');
-                const content = document.getElementById('ai-nav-content');
-                const time = document.getElementById('ai-nav-time');
                 
-                overlay.classList.remove('hidden');
-                content.innerText = "Analysiere Windschichten...";
+                this.isAutoNavActive = true;
+                const btn = document.getElementById('btn-ai-nav');
+                if(btn) { btn.classList.add('text-green-400'); btn.classList.add('animate-pulse'); }
+                
+                this.updateNavAdvice(true); // Force first update
+                
+                // Check every 5 seconds for changes
+                this.autoNavInterval = setInterval(() => {
+                    this.checkConditions();
+                }, 5000);
+            },
+
+            stopAutoNav() {
+                this.isAutoNavActive = false;
+                if(this.autoNavInterval) clearInterval(this.autoNavInterval);
+                const btn = document.getElementById('btn-ai-nav');
+                if(btn) { btn.classList.remove('text-green-400'); btn.classList.remove('animate-pulse'); }
+                document.getElementById('ai-nav-instruction').classList.remove('visible');
+            },
+
+            checkConditions() {
+                if(!state.targetWaypoint) { this.stopAutoNav(); return; }
+                
+                // Check wind change
+                const currentWind = simulation.getWindAtAlt(simulation.alt);
+                const threshold = state.settings.windThreshold || 5;
+                
+                if (this.lastCheckDir !== null) {
+                    let diff = Math.abs(currentWind.dir - this.lastCheckDir);
+                    if(diff > 180) diff = 360 - diff;
+                    
+                    if (diff >= threshold) {
+                        this.updateNavAdvice();
+                    }
+                } else {
+                    this.updateNavAdvice();
+                }
+            },
+
+            async updateNavAdvice(force = false) {
+                const instrBox = document.getElementById('ai-nav-instruction');
+                const textEl = document.getElementById('ai-nav-text');
+                
+                instrBox.classList.add('visible');
+                textEl.innerText = "Berechne...";
                 
                 try {
-                    // Gather Context
                     const pos = simulation.getCurrentState();
                     const target = state.targetWaypoint;
                     const dist = getDistance(pos.lat, pos.lng, target.lat, target.lng).toFixed(2);
                     const bearing = getBearing(pos.lat, pos.lng, target.lat, target.lng).toFixed(0);
+                    const maxWords = state.settings.aiMaxWords || 10;
                     
-                    // Format Wind Layers
-                    const winds = state.windLayers.map(l => 
-                        `${l.alt}m: ${l.dir}°/${l.speed}kt`
-                    ).join('\n');
+                    this.lastCheckDir = simulation.getWindAtAlt(pos.alt).dir; // Update last check
 
-                    const prompt = `Du bist ein Ballonfahrt-Navigator.
-        Aktuelle Position: Lat ${pos.lat.toFixed(4)}, Lng ${pos.lng.toFixed(4)}, Höhe ${pos.alt.toFixed(0)}m.
-        Aktueller Kurs: ${pos.course.toFixed(0)}°, Speed: ${pos.speed.toFixed(1)}kt.
-        Ziel: Lat ${target.lat}, Lng ${target.lng} (Distanz: ${dist}km, Peilung: ${bearing}°).
-        Windschichten:
+                    const winds = state.windLayers.map(l => `${l.alt}m: ${l.dir}°/${l.speed}kt`).join('\n');
+
+                    // Updated Prompt for Conciseness
+                    const prompt = `Du bist ein Auto-Navi für Heißluftballone.
+        Ziel-Peilung: ${bearing}°. Distanz: ${dist}km.
+        Aktueller Wind auf ${Math.round(pos.alt)}m kommt aus ${Math.round(this.lastCheckDir)}°.
+        Verfügbare Winde (Höhe: Richtung):
         ${winds}
 
-        Gib eine kurze, präzise Empfehlung (max 3 Sätze) für den Piloten: Steigen, Sinken oder Höhe halten, um das Ziel zu erreichen? Erkläre kurz warum basierend auf der Windrichtung.`;
+        Gib EIN einziges, extrem kurzes Kommando (maximal ${maxWords} Wörter) im Imperativ. 
+        Beispiele: "Steigen auf 500m", "Sinken auf 100m", "Höhe halten", "Ziel erreicht".
+        Keine Erklärungen.`;
 
                     const text = await this.callGemini(prompt);
-                    content.innerText = text;
-                    time.innerText = new Date().toLocaleTimeString();
+                    textEl.innerText = text.replace(/[*"]/g, ''); // Clean output
 
                 } catch (e) {
-                    content.innerText = "Fehler: " + e.message;
+                    textEl.innerText = "Verbindung verloren";
                 }
+            },
+
+            // Legacy manual call (kept but likely unused if auto is preferred)
+            async getNavigationAdvice() {
+                this.toggleAutoNav(); // Reuse button for auto-toggle
             },
 
             async getBaptismSuggestions(paxName, start, end, date, notes, btn, targetId) {
@@ -1415,7 +1508,11 @@
                             document.getElementById('nav-ete').innerText = mins + " min";
                         } else { document.getElementById('nav-ete').innerText = "--:--"; }
                     }
-                } else { document.getElementById('hud-nav-container').classList.add('hidden'); }
+                } else { 
+                    document.getElementById('hud-nav-container').classList.add('hidden'); 
+                    // Stop Auto Nav if active when target cleared
+                    if(aiService.isAutoNavActive) aiService.stopAutoNav();
+                }
             }
         };
 
@@ -1466,8 +1563,6 @@
                         const c = pos.coords; const now = Date.now();
                         if(badgeGPSText) badgeGPSText.innerText = "GPS OK";
                         badgeGPS.classList.remove('red', 'blue'); badgeGPS.classList.add('green');
-                        // Temporarily expand on fix
-                        badgeGPS.classList.add('expanded'); setTimeout(()=>badgeGPS.classList.remove('expanded'), 3000);
                         
                         this.lat = c.latitude; this.lng = c.longitude;
                         if (c.altitude !== null) {
@@ -1487,7 +1582,6 @@
                         console.warn("GPS Fehler:", err.message);
                         if(badgeGPSText) badgeGPSText.innerText = "NO GPS";
                         badgeGPS.classList.remove('green', 'blue'); badgeGPS.classList.add('red');
-                        badgeGPS.classList.add('expanded'); setTimeout(()=>badgeGPS.classList.remove('expanded'), 3000);
                         ui.showToast("GPS Signal verloren", "error");
                     }, { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 });
                 } else { if(badgeGPSText) badgeGPSText.innerText = "NO SUPP"; badgeGPS.classList.remove('green', 'blue'); badgeGPS.classList.add('red'); }
@@ -1648,9 +1742,6 @@
                         text.innerText = "OFFLINE";
                         this.showToast("Du bist Offline. Karte lädt nicht mehr.", "error");
                     }
-                    // Temporarily expand on change
-                    badge.classList.add('expanded');
-                    setTimeout(() => badge.classList.remove('expanded'), 3000);
                 }
             },
             
@@ -1736,7 +1827,20 @@
             toggleWaypointLock() { state.waypointLocked = !state.waypointLocked; saveState(); this.updateLockBtn(); this.showToast(state.waypointLocked ? "Wegpunkt gesperrt" : "Wegpunkt entsperrt"); },
             updateLockBtn() { const btn = document.getElementById('btn-waypoint-lock'); const icon = document.getElementById('icon-wp-lock'); if (state.waypointLocked) { btn.classList.add('locked'); icon.className = 'fas fa-lock'; } else { btn.classList.remove('locked'); icon.className = 'fas fa-lock-open'; } },
             setTarget(latlng) { if (state.waypointLocked) { this.showToast("Wegpunkt ist gesperrt!", "error"); return; } state.targetWaypoint = { lat: latlng.lat, lng: latlng.lng }; saveState(); mapManager.renderTarget(); this.showToast("Ziel gesetzt", "success"); flightManager.updateHUD(simulation.getCurrentState()); document.getElementById('btn-nav-toggle-wrapper').classList.remove('hidden'); },
-            clearTarget() { if (state.waypointLocked) { this.showToast("Wegpunkt ist gesperrt!", "error"); return; } state.targetWaypoint = null; saveState(); mapManager.renderTarget(); document.getElementById('hud-nav-container').classList.add('hidden'); document.getElementById('btn-nav-toggle-wrapper').classList.add('hidden'); this.showToast("Navigation beendet"); },
+            clearTarget() { 
+                if (state.waypointLocked) { this.showToast("Wegpunkt ist gesperrt!", "error"); return; } 
+                state.targetWaypoint = null; 
+                saveState(); 
+                mapManager.renderTarget(); 
+                document.getElementById('hud-nav-container').classList.add('hidden'); 
+                document.getElementById('btn-nav-toggle-wrapper').classList.add('hidden'); 
+                this.showToast("Navigation beendet");
+                
+                // Stop auto nav if active
+                if(aiService.isAutoNavActive) {
+                    aiService.stopAutoNav();
+                }
+            },
             editWindSettings() { this.openModal(); this.switchTab('environment'); },
             openModal() { document.getElementById('main-modal').style.display = 'flex'; this.switchTab(this.tab); },
             closeModal() { document.getElementById('main-modal').style.display = 'none'; },
@@ -2053,6 +2157,10 @@
                                 <div class="flex-1">
                                     <label class="text-[10px]">Max. Wörter (Taufname)</label>
                                     <input type="number" id="set-baptism-words" value="${state.settings.baptismMaxWords || 15}" onchange="ui.saveSettings(true)" class="bg-slate-800 border border-slate-600 rounded p-2 text-sm w-full">
+                                </div>
+                                <div class="flex-1">
+                                    <label class="text-[10px]">Max. Wörter (Navi)</label>
+                                    <input type="number" id="set-ai-max-words" value="${state.settings.aiMaxWords || 10}" onchange="ui.saveSettings(true)" class="bg-slate-800 border border-slate-600 rounded p-2 text-sm w-full">
                                 </div>
                             </div>
                         </div>
@@ -2935,6 +3043,7 @@
                 state.settings.baptismMaxWords = parseInt(document.getElementById('set-baptism-words').value);
                 state.settings.windMeasInterval = parseInt(document.getElementById('set-wind-interval').value);
                 state.settings.windThreshold = parseInt(document.getElementById('set-wind-threshold').value);
+                state.settings.aiMaxWords = parseInt(document.getElementById('set-ai-max-words').value);
                 
                 saveState();
                 if(!skipToast) ui.showToast("Einstellungen gespeichert!");
