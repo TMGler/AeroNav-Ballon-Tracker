@@ -388,7 +388,7 @@
 
     <!-- Hidden Inputs -->
     <input type="file" id="cam-input" accept="image/*" capture="environment" class="hidden" onchange="flightManager.handlePhotoInput(this)">
-    <input type="file" id="import-input" accept=".json" class="hidden" onchange="system.importData(this)">
+    <input type="file" id="import-input" accept=".json" class="hidden">
     <input type="file" id="balloon-import-input" accept=".json" class="hidden" onchange="ui.handleBalloonImport(this)">
     <input type="file" id="kml-import-input" accept=".kml" class="hidden" onchange="mapManager.handleKmlImport(this)">
 
@@ -1195,9 +1195,27 @@
                 // Wind rows highlight
                 const windRows = document.querySelectorAll('.wind-layer');
                 windRows.forEach(row => {
+                    row.classList.remove('active-altitude'); // Reset all first
                     const rowAlt = parseInt(row.dataset.alt);
-                    if (Math.abs(rowAlt - data.alt) < 25) { row.classList.add('active-altitude'); } else { row.classList.remove('active-altitude'); }
+                    const diff = Math.abs(rowAlt - data.alt);
+                    // Simple highlighting logic: Highlight if within range of layer
+                    if (diff < 25) { 
+                        row.classList.add('active-altitude'); 
+                    } 
                 });
+                // Find closest just in case none were < 25 (e.g. at 75m between 50 and 100)
+                // Actually, let's keep the simple logic to avoid jumping around too much, or implement a "closest" finder if desired.
+                // The user requested continuous: Let's find the absolute closest one and highlight it.
+                let minDiff = Infinity;
+                let closestRow = null;
+                windRows.forEach(row => {
+                    const rowAlt = parseInt(row.dataset.alt);
+                    const diff = Math.abs(rowAlt - data.alt);
+                    if(diff < minDiff) { minDiff = diff; closestRow = row; }
+                });
+                if(closestRow) closestRow.classList.add('active-altitude');
+
+
                 // Nav
                 if (state.targetWaypoint) {
                     const wp = state.targetWaypoint;
@@ -1425,6 +1443,16 @@
                 window.addEventListener('online', () => this.updateNetworkStatus());
                 window.addEventListener('offline', () => this.updateNetworkStatus());
                 this.updateNetworkStatus(); // Initial check
+                
+                // --- NEW: Import Listener Fix ---
+                const importInput = document.getElementById('import-input');
+                if (importInput) {
+                    importInput.addEventListener('change', (e) => system.importData(e.target));
+                }
+                
+                // Expose system globally for inline calls if needed, though listeners are better
+                window.system = system;
+                window.ui = this;
             },
             
             // --- NEW: Network Status Logic ---
@@ -1458,7 +1486,21 @@
                 const panel = document.getElementById('wind-panel');
                 const chevron = document.getElementById('icon-wind-toggle'); 
                 if (panel) panel.classList.toggle('collapsed');
-                if (chevron) chevron.classList.toggle('collapsed');
+                
+                // Toggle Chevron Direction
+                if (chevron) {
+                     // Check current rotation or class state
+                     const isCollapsed = panel.classList.contains('collapsed');
+                     // If collapsed (width 0), we want it to point Left (<) to indicate "Open".
+                     // If open, we want it to point Right (>) to indicate "Close".
+                     // FontAwesome 'fa-chevron-right' points > by default.
+                     // So: Open = > (default). Closed = < (rotate 180).
+                     if (isCollapsed) {
+                         chevron.classList.add('collapsed'); // Rotate 180 -> Points Left
+                     } else {
+                         chevron.classList.remove('collapsed'); // Default -> Points Right
+                     }
+                }
             },
             
             toggleTopHUD() {
@@ -1759,15 +1801,34 @@
                         <div class="text-[10px] text-slate-500 mt-2">Hinweis: Große KML-Dateien können den Speicher verlangsamen.</div>
                     </div>
 
-                    <!-- SECTION 3: STORAGE -->
+                    <!-- SECTION 3: STORAGE & WIND CONFIG -->
                     <div class="bg-white/5 p-4 rounded-lg">
-                        <h4 class="text-amber-400 font-bold mb-3 border-b border-white/10 pb-1">Speicher & Bereinigung</h4>
-                        <div class="flex items-end gap-2">
-                            <div class="flex-1">
-                                <label class="text-[10px]">Fotos aufbewahren (Tage)</label>
-                                <input type="number" id="set-image-retention" value="${state.settings.imageRetention || 30}" onchange="ui.saveSettings(true)" class="bg-slate-800 border border-slate-600 rounded p-2 text-sm w-full">
+                        <h4 class="text-amber-400 font-bold mb-3 border-b border-white/10 pb-1">Speicher & Wind-Konfig</h4>
+                        <div class="space-y-3">
+                            <div class="flex items-end gap-2">
+                                <div class="flex-1">
+                                    <label class="text-[10px]">Fotos aufbewahren (Tage)</label>
+                                    <input type="number" id="set-image-retention" value="${state.settings.imageRetention || 30}" onchange="ui.saveSettings(true)" class="bg-slate-800 border border-slate-600 rounded p-2 text-sm w-full">
+                                </div>
+                                <button onclick="flightManager.cleanOldPhotosNow()" class="bg-amber-700/50 hover:bg-amber-600 text-amber-100 p-2 rounded text-sm mb-[1px]">Jetzt bereinigen</button>
                             </div>
-                            <button onclick="flightManager.cleanOldPhotosNow()" class="bg-amber-700/50 hover:bg-amber-600 text-amber-100 p-2 rounded text-sm mb-[1px]">Jetzt bereinigen</button>
+                            
+                            <div class="grid grid-cols-2 gap-2 pt-2 border-t border-white/5">
+                                <div>
+                                    <label class="text-[10px] text-blue-300">Mess-Intervall (Höhe)</label>
+                                    <div class="flex items-center gap-1">
+                                        <input type="number" id="set-wind-interval" value="${state.settings.windMeasInterval || 50}" onchange="state.settings.windMeasInterval = parseInt(this.value); saveState();" class="bg-slate-800 border border-slate-600 rounded p-2 text-sm w-full">
+                                        <span class="text-xs text-slate-500">m</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="text-[10px] text-blue-300">Mess-Abweichung (Min)</label>
+                                    <div class="flex items-center gap-1">
+                                        <input type="number" id="set-wind-threshold" value="${state.settings.windThreshold || 5}" onchange="state.settings.windThreshold = parseInt(this.value); saveState();" class="bg-slate-800 border border-slate-600 rounded p-2 text-sm w-full">
+                                        <span class="text-xs text-slate-500">°</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
