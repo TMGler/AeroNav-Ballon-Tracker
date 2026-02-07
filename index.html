@@ -226,9 +226,9 @@
         /* --- WIND PANEL UPDATED FOR HORIZONTAL SLIDE --- */
         #wind-panel {
             width: 120px; 
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
+            display: flex; 
+            flex-direction: column; 
+            overflow: hidden; 
             transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
         }
         
@@ -364,24 +364,76 @@
             border-left: 3px solid #22c55e !important;
         }
 
-        /* TOAST CONTAINER FIXED POSITION */
+        /* --- TOAST CONTAINER UPDATED FOR RIGHT SIDE BAR --- */
         #toast-container {
             position: fixed;
-            top: 100px; /* Below HUD */
-            left: 50%;
-            transform: translateX(-50%);
+            top: 90px; /* Below Top HUD */
+            right: 0;
             z-index: 2001;
             display: flex;
             flex-direction: column;
-            gap: 10px;
-            pointer-events: none; /* Allows clicking through empty space */
-            width: 90%;
-            max-width: 400px;
-            align-items: center;
+            gap: 5px;
+            pointer-events: none;
+            width: auto;
+            align-items: flex-end; /* Align right */
+            padding-right: 0;
+            overflow: visible;
         }
+        
         .toast-notification {
-            pointer-events: auto; /* Allows interaction with the toast itself */
+            pointer-events: auto;
+            position: relative;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(8px);
+            border-left: 4px solid;
+            padding: 12px 16px;
+            padding-right: 32px; /* Space for close btn */
+            border-radius: 8px 0 0 8px; /* Round left corners */
+            box-shadow: -4px 4px 12px rgba(0,0,0,0.5);
+            color: white;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transform: translateX(100%); /* Start off-screen */
+            margin-right: 0;
+            min-width: 200px;
+            max-width: 300px;
+            cursor: pointer;
         }
+
+        .toast-notification.show {
+            transform: translateX(0); /* Slide in */
+        }
+
+        .toast-notification.collapsed {
+            transform: translateX(calc(100% - 8px)); /* Collapse to just a line (8px visible) */
+        }
+        
+        /* Expand on hover when collapsed */
+        .toast-notification.collapsed:hover {
+            transform: translateX(0);
+        }
+
+        .toast-close {
+            position: absolute;
+            top: 50%;
+            right: 8px;
+            transform: translateY(-50%);
+            color: #64748b;
+            padding: 4px;
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            font-size: 1.2rem;
+            line-height: 1;
+        }
+        .toast-close:hover { color: white; }
+        
+        .toast-notification.success { border-color: #22c55e; }
+        .toast-notification.error { border-color: #ef4444; }
+        .toast-notification.info { border-color: #3b82f6; }
 
     </style>
 </head>
@@ -667,8 +719,8 @@
                 mapStyle: 'dark',
                 mode: 'sim', 
                 activeBalloonId: null,
-                windThreshold: 5,          
-                windMeasInterval: 50,      
+                windThreshold: 5,           
+                windMeasInterval: 50,       
                 windMeasurementMinDeviation: 5, 
                 imageRetention: 30,
                 baptismMaxWords: 15,
@@ -1030,13 +1082,13 @@
 
                 // PATH PREDICTION
                 if (state.settings.showPathPrediction && pos.speed > 1) {
-                     // Speed in knots -> km/h -> km/min
-                     const speedKmh = pos.speed * 1.852;
-                     const distKm = (speedKmh / 60) * (state.settings.pathPredictionMinutes || 5);
-                     const dest = calculateDestination(pos.lat, pos.lng, pos.course, distKm);
-                     this.predictionLine.setLatLngs([[pos.lat, pos.lng], [dest.lat, dest.lng]]);
+                      // Speed in knots -> km/h -> km/min
+                      const speedKmh = pos.speed * 1.852;
+                      const distKm = (speedKmh / 60) * (state.settings.pathPredictionMinutes || 5);
+                      const dest = calculateDestination(pos.lat, pos.lng, pos.course, distKm);
+                      this.predictionLine.setLatLngs([[pos.lat, pos.lng], [dest.lat, dest.lng]]);
                 } else {
-                     this.predictionLine.setLatLngs([]);
+                      this.predictionLine.setLatLngs([]);
                 }
             },
 
@@ -1588,32 +1640,49 @@
             
             formatTime(isoString) { /* ... */ const date = new Date(isoString); if (state.settings.useUTC) { const h = date.getUTCHours().toString().padStart(2, '0'); const m = date.getUTCMinutes().toString().padStart(2, '0'); return `${h}:${m} (UTC)`; } return date.toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'}); },
 
-            // --- FIXED: AUTO-COLLAPSING TOASTS ---
+            // --- FIXED: AUTO-COLLAPSING TOASTS ON RIGHT EDGE ---
             showToast(msg, type = 'success') {
                 const container = document.getElementById('toast-container');
                 
                 // Create element
                 const t = document.createElement('div');
-                t.className = `transform transition-all duration-500 ease-in-out opacity-0 translate-y-2 bg-slate-800 text-white px-4 py-2 rounded shadow-lg border border-white/10 flex items-center gap-3 toast-notification mb-2 ${type === 'error' ? 'border-red-500 text-red-100' : 'border-green-500 text-green-100'}`;
+                const typeClass = type === 'error' ? 'error' : (type === 'info' ? 'info' : 'success');
+                t.className = `toast-notification ${typeClass}`;
                 
-                const icon = type === 'error' ? '<i class="fas fa-exclamation-circle text-red-400"></i>' : '<i class="fas fa-check-circle text-green-400"></i>';
-                t.innerHTML = `${icon} <span class="font-medium text-sm">${msg}</span>`;
+                const icon = type === 'error' ? '<i class="fas fa-exclamation-circle text-red-400"></i>' : (type === 'info' ? '<i class="fas fa-info-circle text-blue-400"></i>' : '<i class="fas fa-check-circle text-green-400"></i>');
                 
-                // Append to container
+                // Inner HTML with explicit close button and click handler for body expansion
+                t.innerHTML = `
+                    ${icon} 
+                    <span class="font-medium">${msg}</span>
+                    <button class="toast-close" onclick="this.parentElement.remove()">&times;</button>
+                `;
+                
+                // Click handler to expand if collapsed (mobile friendly)
+                t.onclick = (e) => {
+                    if(!e.target.classList.contains('toast-close')) {
+                        t.classList.remove('collapsed');
+                    }
+                };
+
+                // Limit stack size
+                if (container.children.length > 4) {
+                    container.removeChild(container.firstChild);
+                }
+
                 container.appendChild(t);
                 
-                // Trigger animation in next frame
+                // Slide in animation (remove offset)
                 requestAnimationFrame(() => {
-                    t.classList.remove('opacity-0', 'translate-y-2');
+                    t.classList.add('show');
                 });
                 
-                // Remove after 3s
+                // Auto collapse logic
                 setTimeout(() => {
-                    t.classList.add('opacity-0', '-translate-y-2'); // Fade out and move up
-                    setTimeout(() => {
-                        if(t && t.parentElement) t.parentElement.removeChild(t);
-                    }, 500); // Wait for transition before DOM removal
-                }, 3000);
+                    if (t && t.parentElement) {
+                        t.classList.add('collapsed');
+                    }
+                }, 3000); // 3 seconds visible, then collapse
             },
             
             toggleWindPanel() {
@@ -1623,12 +1692,12 @@
                 
                 // Toggle Chevron Direction
                 if (chevron) {
-                     const isCollapsed = panel.classList.contains('collapsed');
-                     if (isCollapsed) {
-                         chevron.classList.add('collapsed'); // Rotate 180
-                     } else {
-                         chevron.classList.remove('collapsed'); // Default
-                     }
+                      const isCollapsed = panel.classList.contains('collapsed');
+                      if (isCollapsed) {
+                          chevron.classList.add('collapsed'); // Rotate 180
+                      } else {
+                          chevron.classList.remove('collapsed'); // Default
+                      }
                 }
             },
             
@@ -1779,7 +1848,7 @@
                                  
                                  return `
                                      <div class="glass-panel p-4 ${isArchive ? 'opacity-75' : ''}">
-                                         <div class="flex justify-between items-center">
+                                        <div class="flex justify-between items-center">
                                              <div>
                                                  <div class="font-bold text-lg text-white">${b.callsign}</div>
                                                  <div class="text-xs text-slate-400">${b.volume}m³ | Std-Flaschen: ${defaultCount} | MTOM: ${b.mtom}kg</div>
@@ -1790,7 +1859,7 @@
                                                  ${!isArchive ? `<button onclick="ui.archiveBalloon('${b.id}')" class="bg-amber-900/30 text-amber-500 px-3 py-1 rounded hover:bg-amber-900/50 transition" title="Archivieren"><i class="fas fa-archive"></i></button><button onclick="ui.edit('${b.id}')" class="bg-slate-700 px-3 py-1 rounded hover:bg-slate-600 transition">Edit</button>` : `<button onclick="ui.restoreBalloon('${b.id}')" class="bg-green-900/30 text-green-500 px-3 py-1 rounded hover:bg-green-900/50 transition" title="Wiederherstellen"><i class="fas fa-trash-restore"></i></button>`}
                                                  <button onclick="ui.deleteBalloon('${b.id}')" class="text-red-400 p-1 hover:text-red-300 transition" title="Löschen"><i class="fas fa-trash"></i></button>
                                              </div>
-                                         </div>
+                                        </div>
                                      </div>`;
                              }).join('')}
                         </div>
@@ -1834,9 +1903,9 @@
                 }
             },
 
-            viewPassengers(c) { /* ... kept as is ... */ c.innerHTML = `<h3 class="text-xl font-bold mb-4">Passagier-Datenbank</h3><div class="mb-4 glass-panel border border-white/10 p-4"><div class="flex gap-4 border-b border-white/10 pb-2 mb-4 text-sm"><button onclick="ui.setPassengerView('active')" class="${this.passengerMode!=='archive'?'text-blue-400 font-bold border-b-2 border-blue-400':'text-slate-500'} pb-1 transition">Warteliste</button><button onclick="ui.setPassengerView('archive')" class="${this.passengerMode==='archive'?'text-blue-400 font-bold border-b-2 border-blue-400':'text-slate-500'} pb-1 transition">Archiv</button></div><div class="flex justify-between items-center mb-4"><h4 class="text-xs uppercase text-slate-400 font-bold">${this.passengerMode==='archive'?'Gäste-Archiv':'Warteliste'}</h4><button onclick="ui.edit('new')" class="bg-blue-600 px-4 py-2 rounded text-sm">+ Passagier hinzufügen</button></div><div class="space-y-2">${(this.passengerMode==='archive'?state.passengers.filter(p=>(p.flights||0)>0):state.passengers.filter(p=>!p.flights)).map(p=>`<div class="glass-panel p-4 flex justify-between items-center"><div><div class="font-bold">${p.firstName} ${p.lastName}</div><div class="text-xs text-slate-400">${p.weight}kg | ${p.gender}</div></div><div class="flex gap-2"><button onclick="ui.edit('${p.id}')" class="bg-slate-700 px-3 py-1 rounded">Edit</button></div></div>`).join('')}</div></div>`; },
-            viewLogbook(c) { /* ... kept as is ... */ const logFlights = state.logs.length; const logDurationMs = state.logs.reduce((acc, log) => acc + (new Date(log.end) - new Date(log.start)), 0); const logHours = logDurationMs / 3600000; const totalFlights = (state.pilot.initialFlights || 0) + logFlights; const totalHoursDec = (state.pilot.initialHours || 0) + logHours; const tHrs = Math.floor(totalHoursDec); const tMins = Math.round((totalHoursDec - tHrs) * 60); const timeString = `${tHrs}h ${tMins.toString().padStart(2, '0')}m`; c.innerHTML = `<div class="flex justify-between items-center mb-4"><div><h3 class="text-xl font-bold">Fahrtenbuch</h3><div class="text-xs text-slate-400 mt-1">Gesamt: <span class="text-white font-bold">${totalFlights}</span> Fahrten | <span class="text-white font-bold">${timeString}</span></div></div><button onclick="ui.edit('new')" class="bg-blue-600 px-4 py-2 rounded text-sm">+ Manueller Eintrag</button></div>`; state.logs.sort((a,b)=>new Date(b.start)-new Date(a.start)).forEach(l => { const startStr = ui.formatTime(l.start); const endStr = ui.formatTime(l.end); c.innerHTML += `<div class="glass-panel p-4 mb-2 flex justify-between items-center"><div><div class="font-bold">${new Date(l.start).toLocaleDateString()} - ${l.balloon}</div><div class="text-xs text-slate-400">${startStr} bis ${endStr} | ${l.notes.substring(0,30)}...</div></div><div class="flex gap-2"><button onclick="ui.showSummary(${l.id})" class="text-blue-400 p-1"><i class="fas fa-eye"></i></button><button onclick="ui.delete('logs',${l.id})" class="text-red-400 p-1"><i class="fas fa-trash"></i></button></div></div>`; }); },
-            viewPlanning(c) { /* ... kept as is ... */ if (!state.plannings) { state.plannings = []; saveState(); } if (!state.archive) { state.archive = []; saveState(); } const isArchive = this.planningMode === 'archive'; const listData = isArchive ? state.archive : state.plannings; c.innerHTML = `<h3 class="text-xl font-bold mb-4">Weight & Balance Planung</h3><div class="mb-6 p-4 glass-panel border border-white/10"><div class="flex gap-4 border-b border-white/10 pb-2 mb-2 text-sm"><button onclick="ui.setPlanView('active')" class="${!isArchive ? 'text-blue-400 font-bold border-b-2 border-blue-400' : 'text-slate-500 hover:text-slate-300'} pb-1 transition">Aktive Planungen</button><button onclick="ui.setPlanView('archive')" class="${isArchive ? 'text-blue-400 font-bold border-b-2 border-blue-400' : 'text-slate-500 hover:text-slate-300'} pb-1 transition">Archiv</button></div><div class="flex justify-between items-center mb-2"><h4 class="text-xs uppercase text-slate-400 font-bold">${isArchive ? 'Archiv / Vorlagen' : 'Aktive Planungen'}</h4>${!isArchive ? '<button onclick="ui.clearPlanForm()" class="text-xs bg-slate-700 px-3 py-1 rounded hover:bg-slate-600 transition">+ Neue Planung</button>' : ''}</div><div class="max-h-32 overflow-y-auto space-y-1" id="saved-plans-list">${listData.sort((a,b) => b.id - a.id).map(p => `<div class="flex justify-between items-center bg-slate-800 p-2 rounded text-xs group hover:bg-slate-700/50 transition"><div class="cursor-pointer flex-1" onclick="${isArchive ? `ui.loadTemplate('${p.id}')` : `ui.loadPlan('${p.id}')`}"><div class="font-bold text-white flex items-center gap-2">${isArchive ? '<i class="fas fa-history text-slate-500"></i>' : ''} ${p.name}</div><div class="text-slate-400 text-[10px]">${p.date} | ${p.balloonName}</div></div><div class="flex gap-1">${!isArchive ? `<button onclick="ui.archivePlan(${p.id})" class="text-blue-400 hover:text-blue-300 p-1 px-2 bg-slate-900/50 rounded"><i class="fas fa-box-archive"></i></button>` : `<button onclick="ui.unarchivePlan(${p.id})" class="text-green-400 hover:text-green-300 p-1 px-2 bg-slate-900/50 rounded"><i class="fas fa-box-open"></i></button>`}<button onclick="ui.delete('${isArchive ? 'archive' : 'plannings'}', ${p.id})" class="text-red-400 hover:text-red-300 p-1 px-2 bg-slate-900/50 rounded"><i class="fas fa-trash"></i></button></div></div>`).join('')}</div></div><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div class="space-y-4"><div><label>Bezeichnung der Planung</label><input type="text" id="plan-name" placeholder="z.B. Morgenfahrt Alpen" class="bg-slate-800 border-slate-600 focus:border-blue-500"></div><div><label>Ballon wählen</label><select id="plan-balloon" onchange="ui.selectBalloon()"><option value="">-- Wählen --</option>${state.balloons.map(b => `<option value="${b.id}">${b.callsign}</option>`).join('')}</select></div><div><label>Gasflaschen für diese Fahrt</label><div class="glass-panel p-3 border border-white/5 bg-slate-900/40"><div id="plan-cyl-list" class="space-y-2 mb-3"><div class="text-xs text-slate-500 italic">Keine Flaschen ausgewählt</div></div><div class="flex gap-2 pt-2 border-t border-white/10"><select id="plan-cyl-add-select" class="text-xs bg-slate-800 border-none w-full"><option value="">+ Flasche wählen</option>${state.cylinders.map(c => `<option value="${c.id}">${c.label} (${c.type}) - ${c.gas+c.tare}kg</option>`).join('')}</select><button onclick="ui.addPlanCylinder()" class="bg-blue-600 px-3 rounded text-xs hover:bg-blue-500 shrink-0"><i class="fas fa-plus"></i></button></div></div></div><div><label>Passagiere wählen</label><div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 border border-white/5 rounded" id="plan-pax">${state.passengers.sort((a,b) => (a.flights||0) - (b.flights||0)).map(p => { const isFlown = p.flights > 0; const badge = isFlown ? `<span class="text-green-400 text-[9px] ml-1">✓ ${p.flights}</span>` : ''; return `<label class="flex items-center gap-2 bg-slate-800 p-2 rounded text-[10px] hover:bg-slate-700 cursor-pointer ${isFlown ? 'opacity-75' : ''}"><input type="checkbox" value="${p.id}" onchange="ui.recalcWB()" class="w-4 h-4 shrink-0"> <span class="flex-1 truncate">${p.firstName} ${p.lastName}${badge}</span> <span class="text-slate-400">${p.weight}kg</span></label>`; }).join('')}</div></div></div><div class="space-y-4"><div class="grid grid-cols-1 sm:grid-cols-2 gap-2"><div><label>Startort Temp (°C)</label><input type="number" id="plan-temp" value="15" onchange="ui.recalcWB()"></div><div><label>Zielhöhe (m)</label><input type="number" id="plan-alt" value="1000" onchange="ui.recalcWB()"></div></div><div id="wb-result" class="glass-panel p-6 border-blue-500/30 border min-h-[200px] flex flex-col justify-center text-center"><div class="text-slate-500 italic">Bitte Ballon und Zuladung wählen...</div></div><button onclick="ui.savePlan()" id="btn-save-plan" class="bg-green-600 hover:bg-green-500 w-full py-3 rounded font-bold shadow-lg shadow-green-900/20 mt-4 transition transform active:scale-95 flex items-center justify-center gap-2"><i class="fas fa-save"></i> Planung Speichern</button></div></div>`; },
+            viewPassengers(c) { c.innerHTML = `<h3 class="text-xl font-bold mb-4">Passagier-Datenbank</h3><div class="mb-4 glass-panel border border-white/10 p-4"><div class="flex gap-4 border-b border-white/10 pb-2 mb-4 text-sm"><button onclick="ui.setPassengerView('active')" class="${this.passengerMode!=='archive'?'text-blue-400 font-bold border-b-2 border-blue-400':'text-slate-500'} pb-1 transition">Warteliste</button><button onclick="ui.setPassengerView('archive')" class="${this.passengerMode==='archive'?'text-blue-400 font-bold border-b-2 border-blue-400':'text-slate-500'} pb-1 transition">Archiv</button></div><div class="flex justify-between items-center mb-4"><h4 class="text-xs uppercase text-slate-400 font-bold">${this.passengerMode==='archive'?'Gäste-Archiv':'Warteliste'}</h4><button onclick="ui.edit('new')" class="bg-blue-600 px-4 py-2 rounded text-sm">+ Passagier hinzufügen</button></div><div class="space-y-2">${(this.passengerMode==='archive'?state.passengers.filter(p=>(p.flights||0)>0):state.passengers.filter(p=>!p.flights)).map(p=>`<div class="glass-panel p-4 flex justify-between items-center"><div><div class="font-bold">${p.firstName} ${p.lastName}</div><div class="text-xs text-slate-400">${p.weight}kg | ${p.gender}</div></div><div class="flex gap-2"><button onclick="ui.edit('${p.id}')" class="bg-slate-700 px-3 py-1 rounded">Edit</button></div></div>`).join('')}</div></div>`; },
+            viewLogbook(c) { const logFlights = state.logs.length; const logDurationMs = state.logs.reduce((acc, log) => acc + (new Date(log.end) - new Date(log.start)), 0); const logHours = logDurationMs / 3600000; const totalFlights = (state.pilot.initialFlights || 0) + logFlights; const totalHoursDec = (state.pilot.initialHours || 0) + logHours; const tHrs = Math.floor(totalHoursDec); const tMins = Math.round((totalHoursDec - tHrs) * 60); const timeString = `${tHrs}h ${tMins.toString().padStart(2, '0')}m`; c.innerHTML = `<div class="flex justify-between items-center mb-4"><div><h3 class="text-xl font-bold">Fahrtenbuch</h3><div class="text-xs text-slate-400 mt-1">Gesamt: <span class="text-white font-bold">${totalFlights}</span> Fahrten | <span class="text-white font-bold">${timeString}</span></div></div><button onclick="ui.edit('new')" class="bg-blue-600 px-4 py-2 rounded text-sm">+ Manueller Eintrag</button></div>`; state.logs.sort((a,b)=>new Date(b.start)-new Date(a.start)).forEach(l => { const startStr = ui.formatTime(l.start); const endStr = ui.formatTime(l.end); c.innerHTML += `<div class="glass-panel p-4 mb-2 flex justify-between items-center"><div><div class="font-bold">${new Date(l.start).toLocaleDateString()} - ${l.balloon}</div><div class="text-xs text-slate-400">${startStr} bis ${endStr} | ${l.notes.substring(0,30)}...</div></div><div class="flex gap-2"><button onclick="ui.showSummary(${l.id})" class="text-blue-400 p-1"><i class="fas fa-eye"></i></button><button onclick="ui.delete('logs',${l.id})" class="text-red-400 p-1"><i class="fas fa-trash"></i></button></div></div>`; }); },
+            viewPlanning(c) { if (!state.plannings) { state.plannings = []; saveState(); } if (!state.archive) { state.archive = []; saveState(); } const isArchive = this.planningMode === 'archive'; const listData = isArchive ? state.archive : state.plannings; c.innerHTML = `<h3 class="text-xl font-bold mb-4">Weight & Balance Planung</h3><div class="mb-6 p-4 glass-panel border border-white/10"><div class="flex gap-4 border-b border-white/10 pb-2 mb-2 text-sm"><button onclick="ui.setPlanView('active')" class="${!isArchive ? 'text-blue-400 font-bold border-b-2 border-blue-400' : 'text-slate-500 hover:text-slate-300'} pb-1 transition">Aktive Planungen</button><button onclick="ui.setPlanView('archive')" class="${isArchive ? 'text-blue-400 font-bold border-b-2 border-blue-400' : 'text-slate-500 hover:text-slate-300'} pb-1 transition">Archiv</button></div><div class="flex justify-between items-center mb-2"><h4 class="text-xs uppercase text-slate-400 font-bold">${isArchive ? 'Archiv / Vorlagen' : 'Aktive Planungen'}</h4>${!isArchive ? '<button onclick="ui.clearPlanForm()" class="text-xs bg-slate-700 px-3 py-1 rounded hover:bg-slate-600 transition">+ Neue Planung</button>' : ''}</div><div class="max-h-32 overflow-y-auto space-y-1" id="saved-plans-list">${listData.sort((a,b) => b.id - a.id).map(p => `<div class="flex justify-between items-center bg-slate-800 p-2 rounded text-xs group hover:bg-slate-700/50 transition"><div class="cursor-pointer flex-1" onclick="${isArchive ? `ui.loadTemplate('${p.id}')` : `ui.loadPlan('${p.id}')`}"><div class="font-bold text-white flex items-center gap-2">${isArchive ? '<i class="fas fa-history text-slate-500"></i>' : ''} ${p.name}</div><div class="text-slate-400 text-[10px]">${p.date} | ${p.balloonName}</div></div><div class="flex gap-1">${!isArchive ? `<button onclick="ui.archivePlan(${p.id})" class="text-blue-400 hover:text-blue-300 p-1 px-2 bg-slate-900/50 rounded"><i class="fas fa-box-archive"></i></button>` : `<button onclick="ui.unarchivePlan(${p.id})" class="text-green-400 hover:text-green-300 p-1 px-2 bg-slate-900/50 rounded"><i class="fas fa-box-open"></i></button>`}<button onclick="ui.delete('${isArchive ? 'archive' : 'plannings'}', ${p.id})" class="text-red-400 hover:text-red-300 p-1 px-2 bg-slate-900/50 rounded"><i class="fas fa-trash"></i></button></div></div>`).join('')}</div></div><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div class="space-y-4"><div><label>Bezeichnung der Planung</label><input type="text" id="plan-name" placeholder="z.B. Morgenfahrt Alpen" class="bg-slate-800 border-slate-600 focus:border-blue-500"></div><div><label>Ballon wählen</label><select id="plan-balloon" onchange="ui.selectBalloon()"><option value="">-- Wählen --</option>${state.balloons.map(b => `<option value="${b.id}">${b.callsign}</option>`).join('')}</select></div><div><label>Gasflaschen für diese Fahrt</label><div class="glass-panel p-3 border border-white/5 bg-slate-900/40"><div id="plan-cyl-list" class="space-y-2 mb-3"><div class="text-xs text-slate-500 italic">Keine Flaschen ausgewählt</div></div><div class="flex gap-2 pt-2 border-t border-white/10"><select id="plan-cyl-add-select" class="text-xs bg-slate-800 border-none w-full"><option value="">+ Flasche wählen</option>${state.cylinders.map(c => `<option value="${c.id}">${c.label} (${c.type}) - ${c.gas+c.tare}kg</option>`).join('')}</select><button onclick="ui.addPlanCylinder()" class="bg-blue-600 px-3 rounded text-xs hover:bg-blue-500 shrink-0"><i class="fas fa-plus"></i></button></div></div></div><div><label>Passagiere wählen</label><div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 border border-white/5 rounded" id="plan-pax">${state.passengers.sort((a,b) => (a.flights||0) - (b.flights||0)).map(p => { const isFlown = p.flights > 0; const badge = isFlown ? `<span class="text-green-400 text-[9px] ml-1">✓ ${p.flights}</span>` : ''; return `<label class="flex items-center gap-2 bg-slate-800 p-2 rounded text-[10px] hover:bg-slate-700 cursor-pointer ${isFlown ? 'opacity-75' : ''}"><input type="checkbox" value="${p.id}" onchange="ui.recalcWB()" class="w-4 h-4 shrink-0"> <span class="flex-1 truncate">${p.firstName} ${p.lastName}${badge}</span> <span class="text-slate-400">${p.weight}kg</span></label>`; }).join('')}</div></div></div><div class="space-y-4"><div class="grid grid-cols-1 sm:grid-cols-2 gap-2"><div><label>Startort Temp (°C)</label><input type="number" id="plan-temp" value="15" onchange="ui.recalcWB()"></div><div><label>Zielhöhe (m)</label><input type="number" id="plan-alt" value="1000" onchange="ui.recalcWB()"></div></div><div id="wb-result" class="glass-panel p-6 border-blue-500/30 border min-h-[200px] flex flex-col justify-center text-center"><div class="text-slate-500 italic">Bitte Ballon und Zuladung wählen...</div></div><button onclick="ui.savePlan()" id="btn-save-plan" class="bg-green-600 hover:bg-green-500 w-full py-3 rounded font-bold shadow-lg shadow-green-900/20 mt-4 transition transform active:scale-95 flex items-center justify-center gap-2"><i class="fas fa-save"></i> Planung Speichern</button></div></div>`; },
             
             viewSettings(c) { const initHrs = Math.floor(state.pilot.initialHours || 0); const initMins = Math.round(((state.pilot.initialHours || 0) - initHrs) * 60); const initTimeStr = `${initHrs}:${initMins.toString().padStart(2, '0')}`; 
                 const offsetPercent = Math.round((state.settings.mapOffset || 0) * 100);
@@ -2414,7 +2483,7 @@
   <trk>
     <name>Flight ${new Date(log.start).toLocaleDateString()}</name>
     <trkseg>`;
-    
+   
                 log.track.forEach(pt => {
                     // pt[0]: lat, pt[1]: lng, pt[2]: alt
                     // Ensure altitude is formatted correctly
@@ -3321,13 +3390,13 @@
                     `;
                     window.saveManualLog = () => {
                         const newL = { 
-                            id: Date.now(),
-                            start: new Date(document.getElementById('edit-log-start').value).toISOString(),
-                            end: new Date(document.getElementById('edit-log-end').value).toISOString(),
-                            balloon: document.getElementById('edit-log-balloon').value,
-                            startLoc: document.getElementById('edit-log-sloc').value,
-                            endLoc: document.getElementById('edit-log-eloc').value,
-                            notes: document.getElementById('edit-log-notes').value,
+                            id: Date.now(), 
+                            start: new Date(document.getElementById('edit-log-start').value).toISOString(), 
+                            end: new Date(document.getElementById('edit-log-end').value).toISOString(), 
+                            balloon: document.getElementById('edit-log-balloon').value, 
+                            startLoc: document.getElementById('edit-log-sloc').value, 
+                            endLoc: document.getElementById('edit-log-eloc').value, 
+                            notes: document.getElementById('edit-log-notes').value, 
                             pax: [], cylinders: [], track: []
                         };
                         state.logs.push(newL);
