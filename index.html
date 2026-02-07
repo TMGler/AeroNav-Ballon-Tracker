@@ -123,7 +123,8 @@
         /* --- NAVIGATION HUD --- */
         .hud-nav-container {
             position: absolute;
-            top: 100px;
+            /* CHANGED: Reduced top distance to close gap to HUD Top */
+            top: 80px; 
             left: 50%;
             transform: translateX(-50%);
             z-index: 990;
@@ -213,7 +214,8 @@
         
         .sidebar-right-container { 
             position: absolute; 
-            top: 190px; 
+            /* CHANGED: Moved up because HUD gap decreased */
+            top: 150px; 
             right: 10px; 
             z-index: 1000; 
             display: flex; 
@@ -242,6 +244,39 @@
         #wind-content-wrapper {
             width: 120px; /* Fixed width to prevent content squishing */
         }
+
+        /* --- STATUS AREA (ADDED MISSING CSS) --- */
+        .status-area {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            align-items: flex-end;
+            pointer-events: none; /* Let clicks pass through, children enable pointer-events */
+        }
+        
+        .status-badge {
+            pointer-events: auto;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.65rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .status-badge.red { color: #f87171; border-color: #f87171; }
+        .status-badge.green { color: #4ade80; border-color: #4ade80; }
+        .status-badge.blue { color: #60a5fa; border-color: #60a5fa; }
+        .status-badge.yellow { color: #facc15; border-color: #facc15; }
 
         .btn-round { width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; transition: all 0.2s; cursor: pointer; }
         .btn-round:active { transform: scale(0.9); }
@@ -426,7 +461,7 @@
         </div>
     </div>
 
-    <!-- STATUS AREA (Right Edge) -->
+    <!-- STATUS AREA (Right Edge) - Now properly CSS positioned -->
     <div class="status-area">
         <div id="sb-rec" class="status-badge red hidden" onclick="this.classList.toggle('active')">
              <i class="fas fa-circle text-[8px]"></i> <span>REC</span>
@@ -526,7 +561,8 @@
             </button>
         </div>
 
-        <div id="wind-panel" class="glass-panel" style="width: auto;">
+        <!-- REMOVED inline width:auto to fix transition -->
+        <div id="wind-panel" class="glass-panel">
             <!-- Header with merged Live Button -->
             <div class="p-2 border-b border-white/10 flex justify-between items-center px-3 gap-2">
                  <i class="fas fa-wind text-blue-400"></i>
@@ -633,8 +669,8 @@
                 mapStyle: 'dark',
                 mode: 'sim', 
                 activeBalloonId: null,
-                windThreshold: 5,         
-                windMeasInterval: 50,     
+                windThreshold: 5,          
+                windMeasInterval: 50,      
                 windMeasurementMinDeviation: 5, 
                 imageRetention: 30,
                 baptismMaxWords: 15,
@@ -1652,20 +1688,20 @@
                                  const startWeight = b.weight + cylWeight;
                                  
                                  return `
-                                    <div class="glass-panel p-4 ${isArchive ? 'opacity-75' : ''}">
-                                        <div class="flex justify-between items-center">
-                                            <div>
-                                                <div class="font-bold text-lg text-white">${b.callsign}</div>
-                                                <div class="text-xs text-slate-400">${b.volume}m³ | Std-Flaschen: ${defaultCount} | MTOM: ${b.mtom}kg</div>
-                                                <div class="text-xs text-green-400 mt-1"><i class="fas fa-weight-hanging"></i> Startgewicht: ${Math.round(startWeight)} kg (inkl. ${Math.round(cylWeight)} kg Gas/Flaschen)</div>
-                                            </div>
-                                            <div class="flex gap-2">
-                                                <button onclick="ui.exportBalloon('${b.id}')" class="bg-slate-700/50 text-slate-300 px-3 py-1 rounded hover:bg-slate-700 transition" title="Exportieren"><i class="fas fa-file-export"></i></button>
-                                                ${!isArchive ? `<button onclick="ui.archiveBalloon('${b.id}')" class="bg-amber-900/30 text-amber-500 px-3 py-1 rounded hover:bg-amber-900/50 transition" title="Archivieren"><i class="fas fa-archive"></i></button><button onclick="ui.edit('${b.id}')" class="bg-slate-700 px-3 py-1 rounded hover:bg-slate-600 transition">Edit</button>` : `<button onclick="ui.restoreBalloon('${b.id}')" class="bg-green-900/30 text-green-500 px-3 py-1 rounded hover:bg-green-900/50 transition" title="Wiederherstellen"><i class="fas fa-trash-restore"></i></button>`}
-                                                <button onclick="ui.deleteBalloon('${b.id}')" class="text-red-400 p-1 hover:text-red-300 transition" title="Löschen"><i class="fas fa-trash"></i></button>
-                                            </div>
-                                        </div>
-                                    </div>`;
+                                     <div class="glass-panel p-4 ${isArchive ? 'opacity-75' : ''}">
+                                         <div class="flex justify-between items-center">
+                                             <div>
+                                                 <div class="font-bold text-lg text-white">${b.callsign}</div>
+                                                 <div class="text-xs text-slate-400">${b.volume}m³ | Std-Flaschen: ${defaultCount} | MTOM: ${b.mtom}kg</div>
+                                                 <div class="text-xs text-green-400 mt-1"><i class="fas fa-weight-hanging"></i> Startgewicht: ${Math.round(startWeight)} kg (inkl. ${Math.round(cylWeight)} kg Gas/Flaschen)</div>
+                                             </div>
+                                             <div class="flex gap-2">
+                                                 <button onclick="ui.exportBalloon('${b.id}')" class="bg-slate-700/50 text-slate-300 px-3 py-1 rounded hover:bg-slate-700 transition" title="Exportieren"><i class="fas fa-file-export"></i></button>
+                                                 ${!isArchive ? `<button onclick="ui.archiveBalloon('${b.id}')" class="bg-amber-900/30 text-amber-500 px-3 py-1 rounded hover:bg-amber-900/50 transition" title="Archivieren"><i class="fas fa-archive"></i></button><button onclick="ui.edit('${b.id}')" class="bg-slate-700 px-3 py-1 rounded hover:bg-slate-600 transition">Edit</button>` : `<button onclick="ui.restoreBalloon('${b.id}')" class="bg-green-900/30 text-green-500 px-3 py-1 rounded hover:bg-green-900/50 transition" title="Wiederherstellen"><i class="fas fa-trash-restore"></i></button>`}
+                                                 <button onclick="ui.deleteBalloon('${b.id}')" class="text-red-400 p-1 hover:text-red-300 transition" title="Löschen"><i class="fas fa-trash"></i></button>
+                                             </div>
+                                         </div>
+                                     </div>`;
                              }).join('')}
                         </div>
                     </div>
@@ -3034,39 +3070,45 @@
                                 </div>
                             </div>
                             
-                            <!-- Lift Matrix Editor -->
+                            <!-- Lift Matrix Editor - COLLAPSED BY DEFAULT -->
                             <div class="border-t border-white/10 pt-4">
-                                <label class="mb-2 block">Tragkraft-Faktoren (kg/m³)</label>
-                                <div class="grid grid-cols-4 gap-2 text-xs items-center mb-2">
-                                     <div class="text-right text-slate-500 font-bold">Alt / T</div>
-                                     <div class="text-center text-blue-300 font-bold">0°C</div>
-                                     <div class="text-center text-blue-300 font-bold">15°C</div>
-                                     <div class="text-center text-blue-300 font-bold">30°C</div>
-                                </div>
-                                <div class="grid grid-cols-4 gap-2 text-xs items-center">
-                                     <!-- 0m -->
-                                     <div class="text-right text-slate-500 font-bold">0m</div>
-                                     <input type="number" step="0.001" id="mx-0-0" value="${b.matrix[0][0]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
-                                     <input type="number" step="0.001" id="mx-0-1" value="${b.matrix[0][1]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
-                                     <input type="number" step="0.001" id="mx-0-2" value="${b.matrix[0][2]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
+                                <button onclick="document.getElementById('matrix-wrapper').classList.toggle('hidden')" class="flex justify-between items-center w-full text-left mb-2 text-slate-400 hover:text-white font-bold">
+                                    <span>Tragkraft-Faktoren (Matrix)</span>
+                                    <i class="fas fa-chevron-down"></i>
+                                </button>
+                                
+                                <div id="matrix-wrapper" class="hidden">
+                                    <div class="grid grid-cols-4 gap-2 text-xs items-center mb-2">
+                                         <div class="text-right text-slate-500 font-bold">Alt / T</div>
+                                         <div class="text-center text-blue-300 font-bold">0°C</div>
+                                         <div class="text-center text-blue-300 font-bold">15°C</div>
+                                         <div class="text-center text-blue-300 font-bold">30°C</div>
+                                    </div>
+                                    <div class="grid grid-cols-4 gap-2 text-xs items-center">
+                                         <!-- 0m -->
+                                         <div class="text-right text-slate-500 font-bold">0m</div>
+                                         <input type="number" step="0.001" id="mx-0-0" value="${b.matrix[0][0]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
+                                         <input type="number" step="0.001" id="mx-0-1" value="${b.matrix[0][1]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
+                                         <input type="number" step="0.001" id="mx-0-2" value="${b.matrix[0][2]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
 
-                                     <!-- 1000m -->
-                                     <div class="text-right text-slate-500 font-bold">1000m</div>
-                                     <input type="number" step="0.001" id="mx-1-0" value="${b.matrix[1][0]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
-                                     <input type="number" step="0.001" id="mx-1-1" value="${b.matrix[1][1]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
-                                     <input type="number" step="0.001" id="mx-1-2" value="${b.matrix[1][2]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
+                                         <!-- 1000m -->
+                                         <div class="text-right text-slate-500 font-bold">1000m</div>
+                                         <input type="number" step="0.001" id="mx-1-0" value="${b.matrix[1][0]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
+                                         <input type="number" step="0.001" id="mx-1-1" value="${b.matrix[1][1]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
+                                         <input type="number" step="0.001" id="mx-1-2" value="${b.matrix[1][2]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
 
-                                     <!-- 2000m -->
-                                     <div class="text-right text-slate-500 font-bold">2000m</div>
-                                     <input type="number" step="0.001" id="mx-2-0" value="${b.matrix[2][0]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
-                                     <input type="number" step="0.001" id="mx-2-1" value="${b.matrix[2][1]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
-                                     <input type="number" step="0.001" id="mx-2-2" value="${b.matrix[2][2]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
+                                         <!-- 2000m -->
+                                         <div class="text-right text-slate-500 font-bold">2000m</div>
+                                         <input type="number" step="0.001" id="mx-2-0" value="${b.matrix[2][0]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
+                                         <input type="number" step="0.001" id="mx-2-1" value="${b.matrix[2][1]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
+                                         <input type="number" step="0.001" id="mx-2-2" value="${b.matrix[2][2]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
 
-                                     <!-- 3000m -->
-                                     <div class="text-right text-slate-500 font-bold">3000m</div>
-                                     <input type="number" step="0.001" id="mx-3-0" value="${b.matrix[3][0]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
-                                     <input type="number" step="0.001" id="mx-3-1" value="${b.matrix[3][1]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
-                                     <input type="number" step="0.001" id="mx-3-2" value="${b.matrix[3][2]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
+                                         <!-- 3000m -->
+                                         <div class="text-right text-slate-500 font-bold">3000m</div>
+                                         <input type="number" step="0.001" id="mx-3-0" value="${b.matrix[3][0]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
+                                         <input type="number" step="0.001" id="mx-3-1" value="${b.matrix[3][1]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
+                                         <input type="number" step="0.001" id="mx-3-2" value="${b.matrix[3][2]}" class="p-1 text-center bg-slate-800 rounded border border-white/10">
+                                    </div>
                                 </div>
                             </div>
 
@@ -3088,13 +3130,13 @@
                             matrix.push(row);
                         }
 
-                        const newB = {
-                            id: bid,
-                            callsign: callsign,
-                            volume: parseFloat(document.getElementById('edit-vol').value),
-                            mtom: parseFloat(document.getElementById('edit-mtom').value),
-                            weight: parseFloat(document.getElementById('edit-weight').value),
-                            image: document.getElementById('preview-balloon-img').src,
+                        const newB = { 
+                            id: bid, 
+                            callsign: callsign, 
+                            volume: parseFloat(document.getElementById('edit-vol').value), 
+                            mtom: parseFloat(document.getElementById('edit-mtom').value), 
+                            weight: parseFloat(document.getElementById('edit-weight').value), 
+                            image: document.getElementById('preview-balloon-img').src, 
                             defaultCylinders: [],
                             matrix: matrix 
                         };
@@ -3131,12 +3173,12 @@
                     window.saveCylinder = (cid) => {
                         const label = document.getElementById('edit-cyl-label').value;
                         if(!label) return;
-                        const newC = {
-                            id: cid,
-                            label: label,
-                            type: document.getElementById('edit-cyl-type').value,
-                            sn: document.getElementById('edit-cyl-sn').value,
-                            tare: parseFloat(document.getElementById('edit-cyl-tare').value),
+                        const newC = { 
+                            id: cid, 
+                            label: label, 
+                            type: document.getElementById('edit-cyl-type').value, 
+                            sn: document.getElementById('edit-cyl-sn').value, 
+                            tare: parseFloat(document.getElementById('edit-cyl-tare').value), 
                             gas: parseFloat(document.getElementById('edit-cyl-gas').value),
                             tuv: document.getElementById('edit-cyl-tuv').value
                         };
@@ -3164,11 +3206,11 @@
                     window.savePax = (pid) => {
                         const first = document.getElementById('edit-pax-first').value;
                         if(!first) return;
-                        const newP = {
-                            id: pid,
-                            firstName: first,
-                            lastName: document.getElementById('edit-pax-last').value,
-                            weight: parseFloat(document.getElementById('edit-pax-weight').value),
+                        const newP = { 
+                            id: pid, 
+                            firstName: first, 
+                            lastName: document.getElementById('edit-pax-last').value, 
+                            weight: parseFloat(document.getElementById('edit-pax-weight').value), 
                             gender: document.getElementById('edit-pax-gender').value,
                             phone: document.getElementById('edit-pax-phone').value,
                             flights: p.flights,
