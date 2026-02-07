@@ -243,38 +243,61 @@
             width: 120px; /* Fixed width to prevent content squishing */
         }
 
-        /* --- STATUS AREA (ADDED MISSING CSS) --- */
+        /* --- STATUS AREA (REVISED FOR COLLAPSIBLE LINE BEHAVIOR) --- */
         .status-area {
             position: absolute;
             top: 10px;
-            right: 10px;
+            right: 0; /* Sticky to right edge */
             z-index: 1000;
             display: flex;
             flex-direction: column;
-            gap: 5px;
-            align-items: flex-end;
-            pointer-events: none; /* Let clicks pass through, children enable pointer-events */
+            gap: 8px;
+            align-items: flex-end; /* Align items to the right */
+            pointer-events: none; /* Pass clicks through container */
         }
         
         .status-badge {
-            pointer-events: auto;
-            background: rgba(15, 23, 42, 0.9);
-            border: 1px solid rgba(255,255,255,0.2);
-            padding: 4px 8px;
-            border-radius: 6px;
-            font-size: 0.65rem;
+            pointer-events: auto; /* Enable clicks on badges */
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(8px);
+            
+            /* Border Logic for "Line" look */
+            border: 1px solid rgba(255,255,255,0.1);
+            border-right: none; /* Remove right border to merge with edge */
+            border-left: 5px solid; /* This is the visible "line" */
+            
+            padding: 6px 12px;
+            padding-left: 10px; /* Space from colored line */
+            border-radius: 6px 0 0 6px; /* Round only left corners */
+            
+            font-size: 0.7rem;
             font-weight: bold;
             display: flex;
             align-items: center;
-            gap: 5px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            gap: 8px;
+            box-shadow: -2px 2px 8px rgba(0,0,0,0.3);
             cursor: pointer;
-            transition: all 0.2s;
+            
+            /* Animation Transition */
+            transition: transform 0.4s cubic-bezier(0.19, 1, 0.22, 1);
+            
+            /* COLLAPSED STATE (Default) */
+            /* Translate right so only the 5px border + maybe 2px of body is visible */
+            transform: translateX(calc(100% - 5px)); 
+            white-space: nowrap;
         }
-        .status-badge.red { color: #f87171; border-color: #f87171; }
-        .status-badge.green { color: #4ade80; border-color: #4ade80; }
-        .status-badge.blue { color: #60a5fa; border-color: #60a5fa; }
-        .status-badge.yellow { color: #facc15; border-color: #facc15; }
+
+        /* Expanded State (Hover or Class) */
+        .status-badge:hover,
+        .status-badge.expanded {
+            transform: translateX(0);
+        }
+
+        /* Colors for the left "Line" and Text */
+        .status-badge.red { border-left-color: #f87171; color: #f87171; }
+        .status-badge.green { border-left-color: #4ade80; color: #4ade80; }
+        .status-badge.blue { border-left-color: #60a5fa; color: #60a5fa; }
+        .status-badge.yellow { border-left-color: #facc15; color: #facc15; }
 
         .btn-round { width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; transition: all 0.2s; cursor: pointer; }
         .btn-round:active { transform: scale(0.9); }
@@ -364,20 +387,18 @@
             border-left: 3px solid #22c55e !important;
         }
 
-        /* --- TOAST CONTAINER UPDATED FOR RIGHT SIDE BAR --- */
+        /* --- TOAST CONTAINER (Lower right notifications) --- */
         #toast-container {
             position: fixed;
-            top: 90px; /* Below Top HUD */
+            top: 130px; /* Moved down below status area */
             right: 0;
             z-index: 2001;
             display: flex;
             flex-direction: column;
             gap: 5px;
             pointer-events: none;
-            width: auto;
-            align-items: flex-end; /* Align right */
+            align-items: flex-end;
             padding-right: 0;
-            overflow: visible;
         }
         
         .toast-notification {
@@ -387,8 +408,8 @@
             backdrop-filter: blur(8px);
             border-left: 4px solid;
             padding: 12px 16px;
-            padding-right: 32px; /* Space for close btn */
-            border-radius: 8px 0 0 8px; /* Round left corners */
+            padding-right: 32px;
+            border-radius: 8px 0 0 8px;
             box-shadow: -4px 4px 12px rgba(0,0,0,0.5);
             color: white;
             font-size: 0.85rem;
@@ -396,25 +417,16 @@
             align-items: center;
             gap: 8px;
             transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            transform: translateX(100%); /* Start off-screen */
+            transform: translateX(100%); 
             margin-right: 0;
             min-width: 200px;
             max-width: 300px;
             cursor: pointer;
         }
 
-        .toast-notification.show {
-            transform: translateX(0); /* Slide in */
-        }
-
-        .toast-notification.collapsed {
-            transform: translateX(calc(100% - 8px)); /* Collapse to just a line (8px visible) */
-        }
-        
-        /* Expand on hover when collapsed */
-        .toast-notification.collapsed:hover {
-            transform: translateX(0);
-        }
+        .toast-notification.show { transform: translateX(0); }
+        .toast-notification.collapsed { transform: translateX(calc(100% - 8px)); }
+        .toast-notification.collapsed:hover { transform: translateX(0); }
 
         .toast-close {
             position: absolute;
@@ -511,22 +523,22 @@
         </div>
     </div>
 
-    <!-- STATUS AREA (Right Edge) - Now properly CSS positioned -->
+    <!-- STATUS AREA (COLLAPSIBLE SIDE BADGES) -->
+    <!-- Updated for "Line on Right" behavior with hover expansion -->
     <div class="status-area">
-        <div id="sb-rec" class="status-badge red hidden" onclick="this.classList.toggle('active')">
+        <div id="sb-rec" class="status-badge red hidden" onclick="this.classList.toggle('expanded')" onmouseleave="this.classList.remove('expanded')">
              <i class="fas fa-circle text-[8px]"></i> <span>REC</span>
         </div>
-        <div id="sb-gps" class="status-badge blue" onclick="this.classList.toggle('active')">
+        <div id="sb-gps" class="status-badge blue" onclick="this.classList.toggle('expanded')" onmouseleave="this.classList.remove('expanded')">
              <i class="fas fa-satellite-dish text-[10px]"></i> <span id="sb-gps-text">NO GPS</span>
         </div>
-        <div id="sb-baro" class="status-badge green hidden" onclick="this.classList.toggle('active')">
+        <div id="sb-baro" class="status-badge green hidden" onclick="this.classList.toggle('expanded')" onmouseleave="this.classList.remove('expanded')">
              <i class="fas fa-tachometer-alt text-[10px]"></i> <span>BARO ON</span>
         </div>
-        <div id="sb-screen" class="status-badge yellow hidden" onclick="this.classList.toggle('active')">
+        <div id="sb-screen" class="status-badge yellow hidden" onclick="this.classList.toggle('expanded')" onmouseleave="this.classList.remove('expanded')">
              <i class="fas fa-sun text-[10px]"></i> <span>SCREEN ON</span>
         </div>
-        <!-- NEW: Network Status Badge -->
-        <div id="sb-net" class="status-badge green" onclick="this.classList.toggle('active')">
+        <div id="sb-net" class="status-badge green" onclick="this.classList.toggle('expanded')" onmouseleave="this.classList.remove('expanded')">
              <i class="fas fa-wifi text-[10px]"></i> <span id="sb-net-text">ONLINE</span>
         </div>
     </div>
@@ -602,7 +614,6 @@
     </div>
 
     <!-- SIDEBAR RIGHT (Wind) -->
-    <!-- Added ID for sliding -->
     <div id="sidebar-right-container" class="sidebar-right-container">
         <!-- Collapse Button attached to panel -->
         <div id="btn-wind-toggle-wrapper" class="absolute -left-10 top-0">
@@ -611,7 +622,6 @@
             </button>
         </div>
 
-        <!-- REMOVED inline width:auto to fix transition -->
         <div id="wind-panel" class="glass-panel">
             <!-- Header with merged Live Button -->
             <div class="p-2 border-b border-white/10 flex justify-between items-center px-3 gap-2">
@@ -622,7 +632,6 @@
             </div>
             
             <div id="wind-content-wrapper" class="overflow-hidden transition-all duration-300 w-[110px]">
-                <!-- Removed sub-bar since live button moved up -->
                 <div id="wind-layers-container" class="p-2 flex flex-col gap-1 max-h-60 overflow-y-auto scrollbar-hide">
                     <!-- Layers will be injected here -->
                 </div>
@@ -1457,6 +1466,9 @@
                         const c = pos.coords; const now = Date.now();
                         if(badgeGPSText) badgeGPSText.innerText = "GPS OK";
                         badgeGPS.classList.remove('red', 'blue'); badgeGPS.classList.add('green');
+                        // Temporarily expand on fix
+                        badgeGPS.classList.add('expanded'); setTimeout(()=>badgeGPS.classList.remove('expanded'), 3000);
+                        
                         this.lat = c.latitude; this.lng = c.longitude;
                         if (c.altitude !== null) {
                             if (barometerService.isAvailable) { this.vario = barometerService.vario; this.alt = c.altitude; } 
@@ -1475,6 +1487,7 @@
                         console.warn("GPS Fehler:", err.message);
                         if(badgeGPSText) badgeGPSText.innerText = "NO GPS";
                         badgeGPS.classList.remove('green', 'blue'); badgeGPS.classList.add('red');
+                        badgeGPS.classList.add('expanded'); setTimeout(()=>badgeGPS.classList.remove('expanded'), 3000);
                         ui.showToast("GPS Signal verloren", "error");
                     }, { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 });
                 } else { if(badgeGPSText) badgeGPSText.innerText = "NO SUPP"; badgeGPS.classList.remove('green', 'blue'); badgeGPS.classList.add('red'); }
@@ -1635,6 +1648,9 @@
                         text.innerText = "OFFLINE";
                         this.showToast("Du bist Offline. Karte lädt nicht mehr.", "error");
                     }
+                    // Temporarily expand on change
+                    badge.classList.add('expanded');
+                    setTimeout(() => badge.classList.remove('expanded'), 3000);
                 }
             },
             
