@@ -1705,8 +1705,12 @@
                     const bucketAlt = Math.round(data.alt / interval) * interval;
                     const existingIdx = state.measuredWindLayers.findIndex(l => l.alt === bucketAlt);
                     
+                    // FIX: Convert Track (Movement) to Wind Source (From)
+                    // If moving South (180), Wind is From North (0).
+                    const windFrom = (data.course + 180) % 360;
+
                     // NEW: Add timestamp
-                    const newLayer = { alt: bucketAlt, dir: data.course, speed: data.speed, isMeasured: true, timestamp: Date.now() };
+                    const newLayer = { alt: bucketAlt, dir: windFrom, speed: data.speed, isMeasured: true, timestamp: Date.now() };
                     
                     if (existingIdx >= 0) { state.measuredWindLayers[existingIdx] = newLayer; } else { state.measuredWindLayers.push(newLayer); }
                     ui.renderWind();
