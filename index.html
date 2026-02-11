@@ -2409,7 +2409,7 @@
                     </div>
 
                     <div class="bg-white/5 p-4 rounded-lg">
-                        <h4 class="text-amber-400 font-bold mb-3 border-b border-white/10 pb-1">Speicher & Wind-Konfig</h4>
+                        <h4 class="text-amber-400 font-bold mb-3 border-b border-white/10 pb-1">Speicher</h4>
                         <div class="space-y-3">
                             <div class="flex items-end gap-2">
                                 <div class="flex-1">
@@ -2417,23 +2417,6 @@
                                     <input type="number" id="set-image-retention" value="${state.settings.imageRetention || 30}" onchange="ui.saveSettings(true)" class="bg-slate-800 border border-slate-600 rounded p-2 text-sm w-full">
                                 </div>
                                 <button onclick="flightManager.cleanOldPhotosNow()" class="bg-amber-700/50 hover:bg-amber-600 text-amber-100 p-2 rounded text-sm mb-[1px]">Jetzt bereinigen</button>
-                            </div>
-                            
-                            <div class="grid grid-cols-2 gap-2 pt-2 border-t border-white/5">
-                                <div>
-                                    <label class="text-[10px] text-blue-300">Mess-Intervall (Höhe)</label>
-                                    <div class="flex items-center gap-1">
-                                        <input type="number" id="set-wind-interval" value="${state.settings.windMeasInterval || 50}" onchange="state.settings.windMeasInterval = parseInt(this.value); saveState();" class="bg-slate-800 border border-slate-600 rounded p-2 text-sm w-full">
-                                        <span class="text-xs text-slate-500">m</span>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label class="text-[10px] text-blue-300">Mess-Abweichung (Min)</label>
-                                    <div class="flex items-center gap-1">
-                                        <input type="number" id="set-wind-threshold" value="${state.settings.windThreshold || 5}" onchange="state.settings.windThreshold = parseInt(this.value); saveState();" class="bg-slate-800 border border-slate-600 rounded p-2 text-sm w-full">
-                                        <span class="text-xs text-slate-500">°</span>
-                                    </div>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -3396,8 +3379,6 @@
                 state.settings.apiKey = document.getElementById('set-api-key').value;
                 state.settings.imageRetention = parseInt(document.getElementById('set-image-retention').value);
                 state.settings.baptismMaxWords = parseInt(document.getElementById('set-baptism-words').value);
-                state.settings.windMeasInterval = parseInt(document.getElementById('set-wind-interval').value);
-                state.settings.windThreshold = parseInt(document.getElementById('set-wind-threshold').value);
                 state.settings.aiMaxWords = parseInt(document.getElementById('set-ai-max-words').value);
                 state.settings.toastTimeout = parseInt(document.getElementById('set-toast-timeout').value); // Save Toast Timeout
                 
