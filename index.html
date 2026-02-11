@@ -1035,7 +1035,7 @@
             isActive: false,
             settings: {
                 climbRate: 2.0, // m/s, assumed vertical speed for transit
-                maxDataAgeMin: 60 // Discard wind data older than this
+                maxDataAgeMin: 120 // Increased to 2 hours to keep manual data longer
             },
 
             toggleLocalNav() {
@@ -1060,7 +1060,7 @@
                 this.update(); // Initial run
                 
                 // Interval loop
-                this.interval = setInterval(() => this.update(), 5000); 
+                this.interval = setInterval(() => this.update(), 2000); // Faster updates (2s instead of 5s)
             },
 
             stopLocalNav() {
@@ -1087,16 +1087,13 @@
                 
                 const currentPos = simulation.getCurrentState(); // {lat, lng, alt, speed (knots), course}
                 
-                // Use combined layers (from Simulation helper)
+                // Use combined layers (from Simulation helper) to ensure manual winds are included
                 let layersToScan = simulation.getCombinedLayers();
 
                 // If absolutely no layers, return null
                 if(!layersToScan || layersToScan.length === 0) return null;
 
                 const candidates = [];
-                
-                // Conversions
-                // Speed: Knots to m/s for calculations
                 const KNOTS_TO_MS = 0.514444;
 
                 layersToScan.forEach(layer => {
@@ -1104,18 +1101,16 @@
                     const deltaAlt = Math.abs(layer.alt - currentPos.alt);
                     const t_transit = deltaAlt / this.settings.climbRate; // seconds
                     
-                    // Simple drift estimation: 
                     // Assume drift speed/dir is average of current state and target layer
                     const currentSpeedMs = currentPos.speed * KNOTS_TO_MS;
                     const layerSpeedMs = layer.speed * KNOTS_TO_MS;
                     const avgSpeedMs = (currentSpeedMs + layerSpeedMs) / 2;
                     
-                    // Drift distance
+                    // Drift distance (Simplified: assumes straight drift during climb)
                     const driftDistM = avgSpeedMs * t_transit;
                     
-                    // New Position after drift (Estimate)
-                    // Moving approx along current course (simplified)
-                    const R = 6371e3; // Earth radius m
+                    // Calculate New Position after drift
+                    const R = 6371e3; 
                     const radBrg = toRad(currentPos.course);
                     const lat1 = toRad(currentPos.lat);
                     const lon1 = toRad(currentPos.lng);
@@ -1127,40 +1122,54 @@
                     const startLng = toDeg(lon2);
                     
                     // 2. VMG Calculation from new start point
-                    // Distance from post-drift point to target
                     const distToTargetM = getDistance(startLat, startLng, target.lat, target.lng) * 1000;
                     const bearingToTarget = getBearing(startLat, startLng, target.lat, target.lng);
                     
-                    // layer.dir is WIND FROM direction.
-                    // Balloon travels TO opposite direction.
-                    // So movement direction = layer.dir + 180
+                    // Convert wind direction (FROM) to movement direction (TO)
                     const movementDir = (layer.dir + 180) % 360;
                     
                     const movementDirRad = toRad(movementDir);
                     const targetBrgRad = toRad(bearingToTarget);
                     
-                    // VMG = Speed * cos(MovementAngle - TargetAngle)
+                    // VMG = Velocity Made Good towards target
                     const vmg = layerSpeedMs * Math.cos(movementDirRad - targetBrgRad);
                     
-                    if (vmg > 0.1) { // Must be positive closing velocity
-                         const t_travel = distToTargetM / vmg; // seconds
-                         const total_time = t_transit + t_travel;
-                         
-                         candidates.push({
-                             layer: layer,
-                             vmg: vmg,
-                             totalTime: total_time,
-                             transitTime: t_transit,
-                             distM: distToTargetM
-                         });
+                    // Calculate Time to Target (if VMG > 0) or "Time to infinite loss" (score)
+                    let totalTime = Infinity;
+                    
+                    if (vmg > 0.1) { 
+                         const t_travel = distToTargetM / vmg; 
+                         totalTime = t_transit + t_travel;
+                    }
+
+                    candidates.push({
+                        layer: layer,
+                        vmg: vmg,
+                        totalTime: totalTime,
+                        transitTime: t_transit,
+                        distM: distToTargetM,
+                        bearingToTarget: bearingToTarget,
+                        movementDir: movementDir
+                    });
+                });
+                
+                // Sort candidates:
+                // Primary: Positive VMG is better than Negative VMG
+                // Secondary: If both Positive, lower Total Time is better
+                // Secondary: If both Negative, higher VMG (closer to 0) is better (least drift away)
+                
+                candidates.sort((a,b) => {
+                    if (a.vmg > 0 && b.vmg <= 0) return -1; // a wins
+                    if (a.vmg <= 0 && b.vmg > 0) return 1;  // b wins
+                    
+                    if (a.vmg > 0 && b.vmg > 0) {
+                        return a.totalTime - b.totalTime; // Fastest wins
+                    } else {
+                        return b.vmg - a.vmg; // Least negative wins (closest to 0)
                     }
                 });
                 
-                if (candidates.length === 0) return "unreachable";
-                
-                // Sort by Total Time ASC (Fastest)
-                candidates.sort((a,b) => a.totalTime - b.totalTime);
-                return candidates[0];
+                return candidates[0]; // Return the best candidate
             },
 
             update() {
@@ -1169,12 +1178,6 @@
                 this.cleanupOldData();
                 const best = this.calculateBestLayer();
                 const textEl = document.getElementById('nav-instruction-text');
-                
-                if (best === "unreachable") {
-                     textEl.innerText = "Ziel nicht erreichbar (Gegenwind)";
-                     // Make text red/orange to indicate warning? For now just text.
-                     return;
-                }
                 
                 if (!best) {
                     textEl.innerText = "Keine Winddaten verfügbar";
@@ -1185,13 +1188,44 @@
                 const targetAlt = best.layer.alt;
                 const diff = targetAlt - currentAlt;
                 
+                // Calculate arrow for visual aid relative to current movement
+                let dirArrow = '';
+                if (best.movementDir !== undefined) {
+                     // Simple arrow logic could go here if UI supports it
+                }
+
+                // If the best option still moves away (VMG <= 0)
+                if (best.vmg <= 0) {
+                     // Find relative bearing to show "Gegenwind" context
+                     let bearingDiff = Math.abs(best.movementDir - best.bearingToTarget);
+                     if(bearingDiff > 180) bearingDiff = 360 - bearingDiff;
+                     
+                     textEl.innerHTML = `<span class="text-red-400"><i class="fas fa-exclamation-triangle"></i> Ziel nicht direkt erreichbar</span>`;
+                     // Still suggest the best altitude to minimize loss
+                     if (Math.abs(diff) > 10) {
+                         const action = diff > 0 ? "Steigen" : "Sinken";
+                         textEl.innerHTML += ` <span class="text-sm">(${action} auf ${targetAlt}m für min. Abdrift)</span>`;
+                     }
+                     return;
+                }
+                
+                // Normal Navigation
                 let action = "Höhe halten";
-                if (diff > 50) action = `Steigen auf ${targetAlt}m`;
-                else if (diff < -50) action = `Sinken auf ${targetAlt}m`;
+                let icon = '<i class="fas fa-check-circle text-green-500"></i>';
+                
+                // Tolerance reduced to 10m (was 50m) for precision
+                if (diff > 10) {
+                    action = `Steigen auf ${targetAlt}m`;
+                    icon = '<i class="fas fa-arrow-up text-blue-400 animate-bounce"></i>';
+                }
+                else if (diff < -10) {
+                    action = `Sinken auf ${targetAlt}m`;
+                    icon = '<i class="fas fa-arrow-down text-blue-400 animate-bounce"></i>';
+                }
                 
                 const etaMin = Math.round(best.totalTime / 60);
                 
-                textEl.innerText = `${action} (ETA: ${etaMin} min)`;
+                textEl.innerHTML = `${icon} ${action} <span class="text-slate-400 text-sm ml-2">(ETA: ${etaMin} min)</span>`;
             }
         };
 
