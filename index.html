@@ -33,6 +33,7 @@
             --accent-red: #ef4444;
             --accent-green: #22c55e;
             --accent-yellow: #eab308;
+            --accent-purple: #a855f7;
         }
 
         body, html {
@@ -128,7 +129,7 @@
             transform: translateX(-50%);
             z-index: 990;
             width: 90%;
-            max-width: 600px;
+            max-width: 650px; /* Widened slightly for CPA */
             min-height: 75px; 
             display: flex;
             flex-direction: column; 
@@ -147,7 +148,8 @@
         .hud-nav {
             pointer-events: auto;
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
+            /* Changed Grid for CPA: Dist | CPA (Smaller) | Brg | ETE */
+            grid-template-columns: 1fr 0.7fr 1fr 1fr;
             gap: 4px;
             padding: 8px;
             border-color: var(--accent-yellow);
@@ -236,6 +238,10 @@
         .hud-label small { font-size: 0.55rem; opacity: 0.7; font-weight: normal; margin-left: 2px; }
         .hud-num { font-size: 1.4rem; font-weight: 700; font-family: 'Courier New', Courier, monospace; }
         .hud-nav .hud-num { font-size: 1.2rem; color: var(--accent-yellow); }
+        
+        /* Specific style for CPA in HUD to make it slightly smaller/different as requested */
+        #hud-cpa { font-size: 1.0rem; color: var(--accent-purple); }
+        #lbl-cpa { color: #c084fc; }
 
         /* Animation for Vario Warning */
         @keyframes blink-red { 
@@ -509,6 +515,21 @@
             100% { transform: scale(0.8); opacity: 0.5; box-shadow: 0 0 0 0 rgba(255,255,255, 0); }
         }
 
+        /* CPA Marker Pulse */
+        .cpa-marker-pulse {
+            background-color: #a855f7;
+            border: 2px solid white;
+            border-radius: 50%;
+            box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.7);
+            animation: cpaPulse 1.5s infinite;
+        }
+        
+        @keyframes cpaPulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(168, 85, 247, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(168, 85, 247, 0); }
+        }
+
     </style>
 </head>
 <body>
@@ -647,6 +668,13 @@
                 <div class="hud-label">Distanz <small id="lbl-nav-dist">km</small></div>
                 <div class="hud-num"><span id="nav-dist">0.0</span></div>
             </div>
+            
+            <!-- NEW CPA COLUMN -->
+            <div class="hud-value">
+                <div class="hud-label" id="lbl-cpa">CPA <small>min</small></div>
+                <div class="hud-num" id="hud-cpa">--</div>
+            </div>
+
             <div class="hud-value">
                 <div class="hud-label">Peilung</div>
                 <div class="hud-num"><span id="nav-brg">0</span>°</div>
@@ -830,8 +858,9 @@
                 mapOffset: 0.25,
                 showPathPrediction: false,
                 pathPredictionMinutes: 5,
+                showCPA: false, // NEW Setting for CPA
                 navMode: 'direct',
-                toastTimeout: 60 // New: Default 60s
+                toastTimeout: 60 
             }
         };
 
@@ -851,9 +880,10 @@
         if(state.settings.windMeasurementMinDeviation === undefined) state.settings.windMeasurementMinDeviation = 5;
         if(state.settings.showPathPrediction === undefined) state.settings.showPathPrediction = false;
         if(state.settings.pathPredictionMinutes === undefined) state.settings.pathPredictionMinutes = 5;
+        if(state.settings.showCPA === undefined) state.settings.showCPA = false; // Init CPA setting
         if(state.settings.navMode === undefined) state.settings.navMode = 'direct';
         if(state.settings.aiMaxWords === undefined) state.settings.aiMaxWords = 10;
-        if(state.settings.toastTimeout === undefined) state.settings.toastTimeout = 60; // Initialize toast timeout
+        if(state.settings.toastTimeout === undefined) state.settings.toastTimeout = 60; 
 
         // Ensure archived property exists on balloons
         if (state.balloons) {
@@ -949,6 +979,42 @@
             const lon2 = lon1 + Math.atan2(Math.sin(brgRad)*Math.sin(distKm/R)*Math.cos(lat1), Math.cos(distKm/R)-Math.sin(lat1)*Math.sin(lat2));
             
             return { lat: toDeg(lat2), lng: toDeg(lon2) };
+        }
+
+        // --- NEW: Calculate CPA (Closest Point of Approach) ---
+        function calculateCPA(lat, lng, course, targetLat, targetLng) {
+            // Distance and Bearing to Target
+            const dist = getDistance(lat, lng, targetLat, targetLng);
+            const bearingToTarget = getBearing(lat, lng, targetLat, targetLng);
+            
+            // Relative Angle (Alpha)
+            let relAngle = (bearingToTarget - course + 360) % 360;
+            if (relAngle > 180) relAngle -= 360; // Normalize to -180 to +180
+
+            // Trigonometry for "Right Triangle"
+            const alphaRad = toRad(Math.abs(relAngle));
+            
+            // Distance along track to reach the perpendicular point (Lotheilpunkt)
+            const distAlongTrack = dist * Math.cos(alphaRad);
+            
+            // Minimum distance (Perpendicular distance)
+            const minMissDist = dist * Math.sin(alphaRad);
+            
+            // CPA Coordinate
+            // If angle is > 90, CPA is behind us (negative distAlongTrack)
+            let cpaCoord = null;
+            if (Math.abs(relAngle) < 90) {
+                 cpaCoord = calculateDestination(lat, lng, course, distAlongTrack);
+            } else {
+                 // Passed CPA
+                 cpaCoord = calculateDestination(lat, lng, course + 180, Math.abs(distAlongTrack));
+            }
+
+            return {
+                distAlongTrack: distAlongTrack, // Positive = Ahead, Negative = Behind
+                missDistance: Math.abs(minMissDist),
+                coords: cpaCoord
+            };
         }
 
         /**
@@ -1409,7 +1475,7 @@
          * MAP MANAGER
          */
         const mapManager = {
-            map: null, marker: null, track: null, lock: false, targetLayer: null, navLine: null, predictionLine: null,
+            map: null, marker: null, track: null, lock: false, targetLayer: null, navLine: null, predictionLine: null, cpaMarker: null,
             activeKmlLayers: {}, 
 
             layers: {
@@ -1461,8 +1527,34 @@
                 
                 if (state.targetWaypoint) {
                     this.navLine.setLatLngs([[pos.lat, pos.lng], [state.targetWaypoint.lat, state.targetWaypoint.lng]]);
+                    
+                    // --- NEW: CPA on Map ---
+                    if (state.settings.showCPA) {
+                        const cpaData = calculateCPA(pos.lat, pos.lng, pos.course, state.targetWaypoint.lat, state.targetWaypoint.lng);
+                        
+                        // Only show if CPA is ahead or very close
+                        if (cpaData.coords && cpaData.distAlongTrack > -1.0) { // Keep it visible shortly after passing
+                             if (!this.cpaMarker) {
+                                 const cpaIcon = L.divIcon({
+                                     className: 'cpa-marker-pulse',
+                                     iconSize: [14, 14],
+                                     iconAnchor: [7, 7]
+                                 });
+                                 this.cpaMarker = L.marker([cpaData.coords.lat, cpaData.coords.lng], { icon: cpaIcon }).addTo(this.map);
+                             } else {
+                                 this.cpaMarker.setLatLng([cpaData.coords.lat, cpaData.coords.lng]);
+                                 // Update Tooltip if added later?
+                             }
+                        } else {
+                             if(this.cpaMarker) { this.map.removeLayer(this.cpaMarker); this.cpaMarker = null; }
+                        }
+                    } else {
+                        if(this.cpaMarker) { this.map.removeLayer(this.cpaMarker); this.cpaMarker = null; }
+                    }
+
                 } else {
                     this.navLine.setLatLngs([]);
+                    if(this.cpaMarker) { this.map.removeLayer(this.cpaMarker); this.cpaMarker = null; }
                 }
 
                 if (flightManager.recording) {
@@ -1781,7 +1873,29 @@
                     const bearing = getBearing(simulation.lat, simulation.lng, wp.lat, wp.lng);
                     document.getElementById('hud-nav-container').classList.remove('hidden'); 
                     document.getElementById('nav-brg').innerText = Math.round(bearing);
-                    // ... (rest of HUD Nav logic same as before)
+                    
+                    // --- NEW CPA DISPLAY LOGIC ---
+                    const cpaData = calculateCPA(simulation.lat, simulation.lng, simulation.course, wp.lat, wp.lng);
+                    const cpaEl = document.getElementById('hud-cpa');
+                    const cpaLbl = document.getElementById('lbl-cpa');
+                    
+                    if (state.settings.unitAlt === 'ft') {
+                         // NM Display
+                         const missNm = cpaData.missDistance * 0.539957;
+                         cpaEl.innerText = missNm.toFixed(2);
+                         cpaLbl.innerHTML = 'CPA <small>nm</small>';
+                    } else {
+                         // KM Display (or meters if very close)
+                         if (cpaData.missDistance < 1) {
+                             cpaEl.innerText = Math.round(cpaData.missDistance * 1000);
+                             cpaLbl.innerHTML = 'CPA <small>m</small>';
+                         } else {
+                             cpaEl.innerText = cpaData.missDistance.toFixed(2);
+                             cpaLbl.innerHTML = 'CPA <small>km</small>';
+                         }
+                    }
+
+                    // --- Original Nav Dist ---
                     if (state.settings.unitAlt === 'ft') { 
                         const distNm = distKm * 0.539957;
                         document.getElementById('nav-dist').innerText = distNm.toFixed(1);
@@ -2207,9 +2321,10 @@
                     `;
                 });
 
-                // Path Prediction Toggle
+                // Path Prediction & CPA Toggle
                 const ppActive = state.settings.showPathPrediction;
                 const ppMin = state.settings.pathPredictionMinutes || 5;
+                const cpaActive = state.settings.showCPA;
                 
                 html += `
                     <div class="text-xs uppercase font-bold text-slate-500 px-3 py-2 border-b border-white/5 border-t mt-1">Tools</div>
@@ -2222,13 +2337,22 @@
                              </label>
                         </div>
                         ${ppActive ? `
-                            <div class="flex gap-2 mt-2 justify-end" onclick="event.stopPropagation()">
+                            <div class="flex gap-2 mt-2 justify-end mb-2" onclick="event.stopPropagation()">
                                ${[5, 10, 15].map(m => {
                                    const active = ppMin === m ? 'bg-pink-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600';
                                    return `<button onclick="state.settings.pathPredictionMinutes=${m}; saveState(); ui.renderLayersMenu();" class="px-2 py-1 rounded text-xs ${active}">${m}m</button>`;
                                }).join('')}
                             </div>
                         ` : ''}
+
+                        <!-- NEW: CPA TOGGLE -->
+                        <div class="flex items-center justify-between mb-2">
+                             <span class="text-sm text-slate-300">CPA Punkt anzeigen</span>
+                             <label class="relative inline-flex items-center cursor-pointer" onclick="event.stopPropagation()">
+                                <input type="checkbox" class="sr-only peer" ${cpaActive ? 'checked' : ''} onchange="state.settings.showCPA = this.checked; saveState(); ui.renderLayersMenu(); mapManager.update(simulation.getCurrentState());">
+                                <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
+                             </label>
+                        </div>
                     </div>
                 `;
                 
