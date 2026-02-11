@@ -659,8 +659,8 @@
             <!-- AI Button (Blue) -->
             <button onclick="aiService.toggleAutoNav()" id="btn-ai-nav" class="absolute -right-2 top-8 bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-xs shadow border border-white/20 hidden" title="Auto-Navi (KI)"><i class="fas fa-magic"></i></button>
             
-            <!-- Local Nav Button (Amber) - NEW -->
-            <button onclick="localNavService.toggleLocalNav()" id="btn-local-nav" class="absolute -right-2 top-[68px] bg-amber-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-xs shadow border border-white/20" title="Local Navi (Calc)"><i class="fas fa-calculator"></i></button>
+            <!-- Local Nav Button (Amber) - Moved to left to avoid Wind Panel overlap -->
+            <button onclick="localNavService.toggleLocalNav()" id="btn-local-nav" class="absolute -left-3 top-[68px] bg-amber-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-xs shadow border border-white/20" title="Local Navi (Calc)"><i class="fas fa-calculator"></i></button>
 
             <button onclick="ui.clearTarget()" class="absolute -right-2 -top-2 bg-slate-800 text-slate-400 hover:text-white rounded-full w-6 h-6 flex items-center justify-center text-xs shadow border border-white/20"><i class="fas fa-times"></i></button>
         </div>
