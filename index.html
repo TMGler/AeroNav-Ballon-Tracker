@@ -33,7 +33,6 @@
             --accent-red: #ef4444;
             --accent-green: #22c55e;
             --accent-yellow: #eab308;
-            --accent-purple: #a855f7;
         }
 
         body, html {
@@ -129,7 +128,7 @@
             transform: translateX(-50%);
             z-index: 990;
             width: 90%;
-            max-width: 650px; /* Widened slightly for CPA */
+            max-width: 600px;
             min-height: 75px; 
             display: flex;
             flex-direction: column; 
@@ -148,8 +147,8 @@
         .hud-nav {
             pointer-events: auto;
             display: grid;
-            /* Changed Grid for CPA: Dist | CPA (Smaller) | Brg | ETE */
-            grid-template-columns: 1fr 0.7fr 1fr 1fr;
+            /* Updated Grid for CPA Column (last one smaller) */
+            grid-template-columns: 1fr 1fr 1fr 0.8fr;
             gap: 4px;
             padding: 8px;
             border-color: var(--accent-yellow);
@@ -238,10 +237,6 @@
         .hud-label small { font-size: 0.55rem; opacity: 0.7; font-weight: normal; margin-left: 2px; }
         .hud-num { font-size: 1.4rem; font-weight: 700; font-family: 'Courier New', Courier, monospace; }
         .hud-nav .hud-num { font-size: 1.2rem; color: var(--accent-yellow); }
-        
-        /* Specific style for CPA in HUD to make it slightly smaller/different as requested */
-        #hud-cpa { font-size: 1.0rem; color: var(--accent-purple); }
-        #lbl-cpa { color: #c084fc; }
 
         /* Animation for Vario Warning */
         @keyframes blink-red { 
@@ -515,21 +510,6 @@
             100% { transform: scale(0.8); opacity: 0.5; box-shadow: 0 0 0 0 rgba(255,255,255, 0); }
         }
 
-        /* CPA Marker Pulse */
-        .cpa-marker-pulse {
-            background-color: #a855f7;
-            border: 2px solid white;
-            border-radius: 50%;
-            box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.7);
-            animation: cpaPulse 1.5s infinite;
-        }
-        
-        @keyframes cpaPulse {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.7); }
-            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(168, 85, 247, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(168, 85, 247, 0); }
-        }
-
     </style>
 </head>
 <body>
@@ -668,13 +648,6 @@
                 <div class="hud-label">Distanz <small id="lbl-nav-dist">km</small></div>
                 <div class="hud-num"><span id="nav-dist">0.0</span></div>
             </div>
-            
-            <!-- NEW CPA COLUMN -->
-            <div class="hud-value">
-                <div class="hud-label" id="lbl-cpa">CPA <small>min</small></div>
-                <div class="hud-num" id="hud-cpa">--</div>
-            </div>
-
             <div class="hud-value">
                 <div class="hud-label">Peilung</div>
                 <div class="hud-num"><span id="nav-brg">0</span>°</div>
@@ -682,6 +655,15 @@
             <div class="hud-value">
                 <div class="hud-label">ETE</div>
                 <div class="hud-num" id="nav-ete">--:--</div>
+            </div>
+            
+            <!-- NEW CPA COLUMN -->
+            <div class="hud-value" style="border-left: 1px solid rgba(255,255,255,0.1);">
+                <div class="hud-label text-purple-300">CPA</div>
+                <div class="hud-num text-sm flex flex-col justify-center h-full pb-1">
+                    <span id="nav-cpa-time">--</span>
+                    <span id="nav-cpa-min" class="text-[10px] text-slate-400 font-normal">--</span>
+                </div>
             </div>
             
             <!-- AI Button (Blue) -->
@@ -848,7 +830,7 @@
                 mapStyle: 'dark',
                 mode: 'sim', 
                 activeBalloonId: null,
-                windThreshold: 5,            
+                windThreshold: 5,             
                 windMeasInterval: 50,        
                 windMeasurementMinDeviation: 5, 
                 imageRetention: 30,
@@ -858,9 +840,9 @@
                 mapOffset: 0.25,
                 showPathPrediction: false,
                 pathPredictionMinutes: 5,
-                showCPA: false, // NEW Setting for CPA
                 navMode: 'direct',
-                toastTimeout: 60 
+                toastTimeout: 60,
+                showCpaOnMap: false // New Setting
             }
         };
 
@@ -880,10 +862,10 @@
         if(state.settings.windMeasurementMinDeviation === undefined) state.settings.windMeasurementMinDeviation = 5;
         if(state.settings.showPathPrediction === undefined) state.settings.showPathPrediction = false;
         if(state.settings.pathPredictionMinutes === undefined) state.settings.pathPredictionMinutes = 5;
-        if(state.settings.showCPA === undefined) state.settings.showCPA = false; // Init CPA setting
         if(state.settings.navMode === undefined) state.settings.navMode = 'direct';
         if(state.settings.aiMaxWords === undefined) state.settings.aiMaxWords = 10;
-        if(state.settings.toastTimeout === undefined) state.settings.toastTimeout = 60; 
+        if(state.settings.toastTimeout === undefined) state.settings.toastTimeout = 60;
+        if(state.settings.showCpaOnMap === undefined) state.settings.showCpaOnMap = false;
 
         // Ensure archived property exists on balloons
         if (state.balloons) {
@@ -979,42 +961,6 @@
             const lon2 = lon1 + Math.atan2(Math.sin(brgRad)*Math.sin(distKm/R)*Math.cos(lat1), Math.cos(distKm/R)-Math.sin(lat1)*Math.sin(lat2));
             
             return { lat: toDeg(lat2), lng: toDeg(lon2) };
-        }
-
-        // --- NEW: Calculate CPA (Closest Point of Approach) ---
-        function calculateCPA(lat, lng, course, targetLat, targetLng) {
-            // Distance and Bearing to Target
-            const dist = getDistance(lat, lng, targetLat, targetLng);
-            const bearingToTarget = getBearing(lat, lng, targetLat, targetLng);
-            
-            // Relative Angle (Alpha)
-            let relAngle = (bearingToTarget - course + 360) % 360;
-            if (relAngle > 180) relAngle -= 360; // Normalize to -180 to +180
-
-            // Trigonometry for "Right Triangle"
-            const alphaRad = toRad(Math.abs(relAngle));
-            
-            // Distance along track to reach the perpendicular point (Lotheilpunkt)
-            const distAlongTrack = dist * Math.cos(alphaRad);
-            
-            // Minimum distance (Perpendicular distance)
-            const minMissDist = dist * Math.sin(alphaRad);
-            
-            // CPA Coordinate
-            // If angle is > 90, CPA is behind us (negative distAlongTrack)
-            let cpaCoord = null;
-            if (Math.abs(relAngle) < 90) {
-                 cpaCoord = calculateDestination(lat, lng, course, distAlongTrack);
-            } else {
-                 // Passed CPA
-                 cpaCoord = calculateDestination(lat, lng, course + 180, Math.abs(distAlongTrack));
-            }
-
-            return {
-                distAlongTrack: distAlongTrack, // Positive = Ahead, Negative = Behind
-                missDistance: Math.abs(minMissDist),
-                coords: cpaCoord
-            };
         }
 
         /**
@@ -1254,25 +1200,19 @@
                 const targetAlt = best.layer.alt;
                 const diff = targetAlt - currentAlt;
                 
-                // Calculate arrow for visual aid relative to current movement
-                let dirArrow = '';
-                if (best.movementDir !== undefined) {
-                     // Simple arrow logic could go here if UI supports it
-                }
-
                 // If the best option still moves away (VMG <= 0)
                 if (best.vmg <= 0) {
-                     // Find relative bearing to show "Gegenwind" context
-                     let bearingDiff = Math.abs(best.movementDir - best.bearingToTarget);
-                     if(bearingDiff > 180) bearingDiff = 360 - bearingDiff;
-                     
-                     textEl.innerHTML = `<span class="text-red-400"><i class="fas fa-exclamation-triangle"></i> Ziel nicht direkt erreichbar</span>`;
-                     // Still suggest the best altitude to minimize loss
-                     if (Math.abs(diff) > 10) {
-                         const action = diff > 0 ? "Steigen" : "Sinken";
-                         textEl.innerHTML += ` <span class="text-sm">(${action} auf ${targetAlt}m für min. Abdrift)</span>`;
-                     }
-                     return;
+                      // Find relative bearing to show "Gegenwind" context
+                      let bearingDiff = Math.abs(best.movementDir - best.bearingToTarget);
+                      if(bearingDiff > 180) bearingDiff = 360 - bearingDiff;
+                      
+                      textEl.innerHTML = `<span class="text-red-400"><i class="fas fa-exclamation-triangle"></i> Ziel nicht direkt erreichbar</span>`;
+                      // Still suggest the best altitude to minimize loss
+                      if (Math.abs(diff) > 10) {
+                           const action = diff > 0 ? "Steigen" : "Sinken";
+                           textEl.innerHTML += ` <span class="text-sm">(${action} auf ${targetAlt}m für min. Abdrift)</span>`;
+                      }
+                      return;
                 }
                 
                 // Normal Navigation
@@ -1505,6 +1445,17 @@
                 document.getElementById('btn-center').onclick = () => { this.lock = !this.lock; document.getElementById('btn-center').classList.toggle('active', this.lock); };
                 document.getElementById('btn-layers').onclick = () => ui.toggleLayersMenu();
                 ui.updateLockBtn();
+                
+                // Initialize CPA Marker (hidden by default)
+                this.cpaMarker = L.circleMarker([0,0], {
+                    radius: 5,
+                    fillColor: "#d8b4fe", // Purple-ish
+                    color: "#fff",
+                    weight: 1,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                });
+
                 setTimeout(() => this.map.invalidateSize(), 500);
             },
 
@@ -1527,34 +1478,8 @@
                 
                 if (state.targetWaypoint) {
                     this.navLine.setLatLngs([[pos.lat, pos.lng], [state.targetWaypoint.lat, state.targetWaypoint.lng]]);
-                    
-                    // --- NEW: CPA on Map ---
-                    if (state.settings.showCPA) {
-                        const cpaData = calculateCPA(pos.lat, pos.lng, pos.course, state.targetWaypoint.lat, state.targetWaypoint.lng);
-                        
-                        // Only show if CPA is ahead or very close
-                        if (cpaData.coords && cpaData.distAlongTrack > -1.0) { // Keep it visible shortly after passing
-                             if (!this.cpaMarker) {
-                                 const cpaIcon = L.divIcon({
-                                     className: 'cpa-marker-pulse',
-                                     iconSize: [14, 14],
-                                     iconAnchor: [7, 7]
-                                 });
-                                 this.cpaMarker = L.marker([cpaData.coords.lat, cpaData.coords.lng], { icon: cpaIcon }).addTo(this.map);
-                             } else {
-                                 this.cpaMarker.setLatLng([cpaData.coords.lat, cpaData.coords.lng]);
-                                 // Update Tooltip if added later?
-                             }
-                        } else {
-                             if(this.cpaMarker) { this.map.removeLayer(this.cpaMarker); this.cpaMarker = null; }
-                        }
-                    } else {
-                        if(this.cpaMarker) { this.map.removeLayer(this.cpaMarker); this.cpaMarker = null; }
-                    }
-
                 } else {
                     this.navLine.setLatLngs([]);
-                    if(this.cpaMarker) { this.map.removeLayer(this.cpaMarker); this.cpaMarker = null; }
                 }
 
                 if (flightManager.recording) {
@@ -1577,6 +1502,19 @@
             updateTrackStyle() {
                 if(this.track) {
                     this.track.setStyle({ color: state.settings.trackColor, weight: state.settings.trackWidth });
+                }
+            },
+
+            updateCpaMarker(lat, lng) {
+                if (state.settings.showCpaOnMap && lat && lng) {
+                    this.cpaMarker.setLatLng([lat, lng]);
+                    if (!this.map.hasLayer(this.cpaMarker)) {
+                        this.cpaMarker.addTo(this.map);
+                    }
+                } else {
+                    if (this.map.hasLayer(this.cpaMarker)) {
+                        this.map.removeLayer(this.cpaMarker);
+                    }
                 }
             },
 
@@ -1866,36 +1804,15 @@
                 if(closestRow) closestRow.classList.add('active-altitude');
 
 
-                // Nav
+                // Nav Logic incl. CPA
                 if (state.targetWaypoint) {
                     const wp = state.targetWaypoint;
                     const distKm = getDistance(simulation.lat, simulation.lng, wp.lat, wp.lng);
                     const bearing = getBearing(simulation.lat, simulation.lng, wp.lat, wp.lng);
+                    
                     document.getElementById('hud-nav-container').classList.remove('hidden'); 
                     document.getElementById('nav-brg').innerText = Math.round(bearing);
                     
-                    // --- NEW CPA DISPLAY LOGIC ---
-                    const cpaData = calculateCPA(simulation.lat, simulation.lng, simulation.course, wp.lat, wp.lng);
-                    const cpaEl = document.getElementById('hud-cpa');
-                    const cpaLbl = document.getElementById('lbl-cpa');
-                    
-                    if (state.settings.unitAlt === 'ft') {
-                         // NM Display
-                         const missNm = cpaData.missDistance * 0.539957;
-                         cpaEl.innerText = missNm.toFixed(2);
-                         cpaLbl.innerHTML = 'CPA <small>nm</small>';
-                    } else {
-                         // KM Display (or meters if very close)
-                         if (cpaData.missDistance < 1) {
-                             cpaEl.innerText = Math.round(cpaData.missDistance * 1000);
-                             cpaLbl.innerHTML = 'CPA <small>m</small>';
-                         } else {
-                             cpaEl.innerText = cpaData.missDistance.toFixed(2);
-                             cpaLbl.innerHTML = 'CPA <small>km</small>';
-                         }
-                    }
-
-                    // --- Original Nav Dist ---
                     if (state.settings.unitAlt === 'ft') { 
                         const distNm = distKm * 0.539957;
                         document.getElementById('nav-dist').innerText = distNm.toFixed(1);
@@ -1915,6 +1832,61 @@
                             document.getElementById('nav-ete').innerText = mins + " min";
                         } else { document.getElementById('nav-ete').innerText = "--:--"; }
                     }
+
+                    // --- CPA CALCULATION ---
+                    let cpaTimeStr = "--";
+                    let cpaDistStr = "--";
+                    let cpaLat = null; 
+                    let cpaLng = null;
+
+                    if (data.speed > 1) { // Need speed for calculation
+                        const bearingToTarget = bearing;
+                        const course = data.course;
+                        
+                        // Angle between course and target
+                        let angleDiff = (bearingToTarget - course + 360) % 360;
+                        if (angleDiff > 180) angleDiff -= 360; // Normalize to -180 to 180
+                        
+                        // If angleDiff is > 90 or < -90, we are moving away -> CPA is now (or passed)
+                        if (Math.abs(angleDiff) < 90) {
+                            const angleRad = toRad(angleDiff);
+                            
+                            // Distance along track to CPA
+                            const distToCpaKm = distKm * Math.cos(angleRad);
+                            
+                            // Min Distance at CPA (Cross Track Error)
+                            const minDistKm = Math.abs(distKm * Math.sin(angleRad));
+                            
+                            // Time to CPA
+                            const speedKmh = data.speed * 1.852; // Speed in km/h
+                            const timeToCpaHrs = distToCpaKm / speedKmh;
+                            const timeToCpaMin = Math.round(timeToCpaHrs * 60);
+                            
+                            cpaTimeStr = timeToCpaMin + " min";
+                            
+                            // Format Min Distance
+                            if (minDistKm < 1) {
+                                cpaDistStr = Math.round(minDistKm * 1000) + " m";
+                            } else {
+                                cpaDistStr = minDistKm.toFixed(1) + " km";
+                            }
+
+                            // Calculate Lat/Lng of CPA for Map
+                            const cpaLoc = calculateDestination(simulation.lat, simulation.lng, course, distToCpaKm);
+                            cpaLat = cpaLoc.lat;
+                            cpaLng = cpaLoc.lng;
+                        } else {
+                            cpaTimeStr = "Vorbei";
+                            cpaDistStr = "-";
+                        }
+                    }
+
+                    document.getElementById('nav-cpa-time').innerText = cpaTimeStr;
+                    document.getElementById('nav-cpa-min').innerText = cpaDistStr;
+                    
+                    // Update Map Marker for CPA
+                    mapManager.updateCpaMarker(cpaLat, cpaLng);
+
                 } else { 
                     document.getElementById('hud-nav-container').classList.add('hidden'); 
                     // Stop Auto Nav if active when target cleared
@@ -1922,6 +1894,7 @@
                         aiService.stopAutoNav();
                     }
                     if(localNavService.isActive) localNavService.stopLocalNav();
+                    mapManager.updateCpaMarker(null, null); // Hide CPA marker
                 }
             }
         };
@@ -2321,10 +2294,10 @@
                     `;
                 });
 
-                // Path Prediction & CPA Toggle
+                // Path Prediction Toggle
                 const ppActive = state.settings.showPathPrediction;
                 const ppMin = state.settings.pathPredictionMinutes || 5;
-                const cpaActive = state.settings.showCPA;
+                const cpaActive = state.settings.showCpaOnMap;
                 
                 html += `
                     <div class="text-xs uppercase font-bold text-slate-500 px-3 py-2 border-b border-white/5 border-t mt-1">Tools</div>
@@ -2337,7 +2310,7 @@
                              </label>
                         </div>
                         ${ppActive ? `
-                            <div class="flex gap-2 mt-2 justify-end mb-2" onclick="event.stopPropagation()">
+                            <div class="flex gap-2 mt-2 justify-end mb-3" onclick="event.stopPropagation()">
                                ${[5, 10, 15].map(m => {
                                    const active = ppMin === m ? 'bg-pink-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600';
                                    return `<button onclick="state.settings.pathPredictionMinutes=${m}; saveState(); ui.renderLayersMenu();" class="px-2 py-1 rounded text-xs ${active}">${m}m</button>`;
@@ -2345,11 +2318,11 @@
                             </div>
                         ` : ''}
 
-                        <!-- NEW: CPA TOGGLE -->
+                        <!-- CPA Toggle -->
                         <div class="flex items-center justify-between mb-2">
-                             <span class="text-sm text-slate-300">CPA Punkt anzeigen</span>
+                             <span class="text-sm text-purple-300">CPA Punkt auf Karte</span>
                              <label class="relative inline-flex items-center cursor-pointer" onclick="event.stopPropagation()">
-                                <input type="checkbox" class="sr-only peer" ${cpaActive ? 'checked' : ''} onchange="state.settings.showCPA = this.checked; saveState(); ui.renderLayersMenu(); mapManager.update(simulation.getCurrentState());">
+                                <input type="checkbox" class="sr-only peer" ${cpaActive ? 'checked' : ''} onchange="state.settings.showCpaOnMap = this.checked; saveState(); ui.renderLayersMenu();">
                                 <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
                              </label>
                         </div>
@@ -2419,18 +2392,18 @@
                                  
                                  return `
                                      <div class="glass-panel p-4 ${isArchive ? 'opacity-75' : ''}">
-                                        <div class="flex justify-between items-center">
-                                             <div>
+                                      <div class="flex justify-between items-center">
+                                            <div>
                                                  <div class="font-bold text-lg text-white">${b.callsign}</div>
                                                  <div class="text-xs text-slate-400">${b.volume}m³ | Std-Flaschen: ${defaultCount} | MTOM: ${b.mtom}kg</div>
                                                  <div class="text-xs text-green-400 mt-1"><i class="fas fa-weight-hanging"></i> Startgewicht: ${Math.round(startWeight)} kg (inkl. ${Math.round(cylWeight)} kg Gas/Flaschen)</div>
-                                             </div>
-                                             <div class="flex gap-2">
+                                            </div>
+                                            <div class="flex gap-2">
                                                  <button onclick="ui.exportBalloon('${b.id}')" class="bg-slate-700/50 text-slate-300 px-3 py-1 rounded hover:bg-slate-700 transition" title="Exportieren"><i class="fas fa-file-export"></i></button>
                                                  ${!isArchive ? `<button onclick="ui.archiveBalloon('${b.id}')" class="bg-amber-900/30 text-amber-500 px-3 py-1 rounded hover:bg-amber-900/50 transition" title="Archivieren"><i class="fas fa-archive"></i></button><button onclick="ui.edit('${b.id}')" class="bg-slate-700 px-3 py-1 rounded hover:bg-slate-600 transition">Edit</button>` : `<button onclick="ui.restoreBalloon('${b.id}')" class="bg-green-900/30 text-green-500 px-3 py-1 rounded hover:bg-green-900/50 transition" title="Wiederherstellen"><i class="fas fa-trash-restore"></i></button>`}
                                                  <button onclick="ui.deleteBalloon('${b.id}')" class="text-red-400 p-1 hover:text-red-300 transition" title="Löschen"><i class="fas fa-trash"></i></button>
-                                             </div>
-                                        </div>
+                                            </div>
+                                      </div>
                                      </div>`;
                              }).join('')}
                         </div>
@@ -3392,7 +3365,7 @@
                 linkElement.setAttribute('href', dataUri);
                 linkElement.setAttribute('download', exportFileDefaultName);
                 linkElement.click();
-            }, // <-- FIXED: Added missing comma
+            }, 
             
             handleBalloonImport(input) {
                 if (input.files && input.files[0]) {
@@ -4016,7 +3989,7 @@
                             balloon: document.getElementById('edit-log-balloon').value, 
                             startLoc: document.getElementById('edit-log-sloc').value, 
                             endLoc: document.getElementById('edit-log-eloc').value, 
-                            notes: document.getElementById('edit-log-notes').value, 
+                            notes: document.getElementById('edit-log-notes').value,
                             pax: [], cylinders: [], track: []
                         };
                         state.logs.push(newL);
