@@ -79,7 +79,7 @@
             z-index: 1000;
             width: 95%;
             max-width: 800px;
-            min-height: 75px; 
+            min-height: 50px; 
             display: flex;
             align-items: center; 
             padding-left: 40px; 
@@ -97,7 +97,7 @@
             display: grid;
             grid-template-columns: 1fr 1fr 1fr 1fr 0.5fr; /* Time column smaller */
             gap: 4px;
-            padding: 8px;
+            padding: 4px 8px; /* Reduced Empty Space */
             width: 100%;
             transition: opacity 0.3s ease, transform 0.3s ease;
             opacity: 1;
@@ -124,13 +124,13 @@
         /* --- NAVIGATION HUD --- */
         .hud-nav-container {
             position: absolute;
-            top: 80px; 
+            top: 95px; /* Increased Distance to Top HUD */
             left: 50%;
             transform: translateX(-50%);
             z-index: 990;
             width: 90%;
-            max-width: 650px; /* Widened slightly for CPA */
-            min-height: 75px; 
+            max-width: 650px;
+            min-height: 50px; /* Reduced Height */
             display: flex;
             flex-direction: column; 
             align-items: center;
@@ -151,7 +151,7 @@
             /* Changed Grid for CPA: Dist | CPA (Smaller) | Brg | ETE */
             grid-template-columns: 1fr 0.7fr 1fr 1fr;
             gap: 4px;
-            padding: 8px;
+            padding: 4px 8px; /* Reduced Empty Space */
             border-color: var(--accent-yellow);
             border-width: 1px;
             width: 100%;
@@ -215,7 +215,8 @@
         #btn-nav-toggle-wrapper {
             position: absolute;
             left: 0;
-            top: 28px; /* Adjusted top alignment */
+            top: 50%;
+            transform: translateY(-50%);
             z-index: 991;
             pointer-events: auto;
         }
@@ -233,14 +234,14 @@
             transform: rotate(180deg);
         }
 
-        .hud-value { text-align: center; }
-        .hud-label { font-size: 0.75rem; color: #94a3b8; letter-spacing: 0.05em; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 2px; }
+        .hud-value { text-align: center; display: flex; flex-direction: column; justify-content: center; }
+        .hud-label { font-size: 0.75rem; color: #94a3b8; letter-spacing: 0.05em; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 2px; margin-bottom: 2px; }
         .hud-label small { font-size: 0.55rem; opacity: 0.7; font-weight: normal; margin-left: 2px; }
-        .hud-num { font-size: 1.4rem; font-weight: 700; font-family: 'Courier New', Courier, monospace; }
+        .hud-num { font-size: 1.4rem; font-weight: 700; font-family: 'Courier New', Courier, monospace; line-height: 1.1; }
         .hud-nav .hud-num { font-size: 1.2rem; color: var(--accent-yellow); }
         
         /* Specific style for CPA in HUD to make it slightly smaller/different as requested */
-        #hud-cpa { font-size: 1.0rem; color: var(--accent-purple); display: block; }
+        #hud-cpa { font-size: 1.0rem; color: var(--accent-purple); display: block; line-height: 1; }
         #lbl-cpa { color: #c084fc; }
         #hud-cpa-time { font-family: 'Inter', sans-serif; }
 
@@ -252,7 +253,7 @@
         .text-blink-red { animation: blink-red 0.8s infinite ease-in-out; }
 
         /* Time Display Style */
-        #hud-time { font-size: 1.0rem; color: #cbd5e1; font-family: 'Inter', sans-serif; font-weight: 600; margin-top: 4px; }
+        #hud-time { font-size: 1.0rem; color: #cbd5e1; font-family: 'Inter', sans-serif; font-weight: 600; margin-top: 0px; }
 
         .sidebar-left { 
             position: absolute; 
@@ -689,10 +690,10 @@
             </div>
             
             <!-- AI Button (Blue) -->
-            <button onclick="aiService.toggleAutoNav()" id="btn-ai-nav" class="absolute -right-2 top-8 bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-xs shadow border border-white/20 hidden" title="Auto-Navi (KI)"><i class="fas fa-magic"></i></button>
+            <button onclick="aiService.toggleAutoNav()" id="btn-ai-nav" class="absolute -right-4 top-1/2 -translate-y-1/2 bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-xs shadow border border-white/20 hidden" title="Auto-Navi (KI)"><i class="fas fa-magic"></i></button>
             
-            <!-- Local Nav Button (Amber) - Moved to left to avoid Wind Panel overlap -->
-            <button onclick="localNavService.toggleLocalNav()" id="btn-local-nav" class="absolute -left-3 top-[68px] bg-amber-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-xs shadow border border-white/20" title="Local Navi (Calc)"><i class="fas fa-calculator"></i></button>
+            <!-- Local Nav Button (Amber) -->
+            <button onclick="localNavService.toggleLocalNav()" id="btn-local-nav" class="absolute -left-4 top-1/2 -translate-y-1/2 bg-amber-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-xs shadow border border-white/20" title="Local Navi (Calc)"><i class="fas fa-calculator"></i></button>
 
             <button onclick="ui.clearTarget()" class="absolute -right-2 -top-2 bg-slate-800 text-slate-400 hover:text-white rounded-full w-6 h-6 flex items-center justify-center text-xs shadow border border-white/20"><i class="fas fa-times"></i></button>
         </div>
@@ -1481,6 +1482,7 @@
         const mapManager = {
             map: null, marker: null, track: null, lock: false, targetLayer: null, navLine: null, predictionLine: null, cpaMarker: null,
             activeKmlLayers: {}, 
+            cpaLabelVisibleUntil: 0,
 
             layers: {
                 dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'),
@@ -1538,33 +1540,38 @@
                     this.navLine.setStyle({ color: state.settings.navLineColor || '#eab308' });
 
                     // --- NEW: CPA on Map (Linked to Path Prediction) ---
-                    // Show CPA if path prediction is enabled
                     if (state.settings.showPathPrediction) {
                         const cpaData = calculateCPA(pos.lat, pos.lng, pos.course, state.targetWaypoint.lat, state.targetWaypoint.lng);
                         const navColor = state.settings.navLineColor || '#eab308';
                         
                         // Only show if CPA is ahead or very close
                         if (cpaData.coords && cpaData.distAlongTrack > -1.0) { 
-                             const cpaIconHtml = `<div style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; color: ${navColor}; font-size: 24px; text-shadow: 0 0 5px black; filter: drop-shadow(0 0 2px black);">✕</div>`;
+                             const showLabel = Date.now() < this.cpaLabelVisibleUntil;
+                             const labelHtml = showLabel ? `<div style="position: absolute; top: 32px; left: 20px; transform: translateX(-50%); font-size: 11px; font-family: sans-serif; font-weight: bold; background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 4px; line-height: 1; color: white; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.5);">CPA</div>` : '';
+
+                             const cpaIconHtml = `
+                             <div style="position: relative; width: 40px; height: 40px; color: ${navColor}; text-shadow: 0 0 5px black; filter: drop-shadow(0 0 2px black);">
+                                 <div style="position: absolute; top: 20px; left: 20px; transform: translate(-50%, -50%); font-size: 24px; line-height: 1;">✕</div>
+                                 ${labelHtml}
+                             </div>`;
+                             
+                             const cpaIcon = L.divIcon({
+                                 html: cpaIconHtml,
+                                 className: 'bg-transparent',
+                                 iconSize: [40, 40],
+                                 iconAnchor: [20, 20]
+                             });
                              
                              if (!this.cpaMarker) {
-                                 const cpaIcon = L.divIcon({
-                                     html: cpaIconHtml,
-                                     className: 'bg-transparent',
-                                     iconSize: [24, 24],
-                                     iconAnchor: [12, 12]
-                                 });
                                  // Increased Z-Index to ensure visibility
                                  this.cpaMarker = L.marker([cpaData.coords.lat, cpaData.coords.lng], { icon: cpaIcon, zIndexOffset: 2000 }).addTo(this.map);
+                                 this.cpaMarker.on('click', () => {
+                                     this.cpaLabelVisibleUntil = Date.now() + 3000;
+                                     this.update(simulation.getCurrentState()); // Force redraw
+                                 });
                              } else {
                                  this.cpaMarker.setLatLng([cpaData.coords.lat, cpaData.coords.lng]);
-                                 // Update Icon (to handle color changes dynamically)
-                                 const cpaIcon = L.divIcon({
-                                     html: cpaIconHtml,
-                                     className: 'bg-transparent',
-                                     iconSize: [24, 24],
-                                     iconAnchor: [12, 12]
-                                 });
+                                 // Update Icon (to handle color changes dynamically & show/hide label)
                                  this.cpaMarker.setIcon(cpaIcon);
                              }
                         } else {
@@ -2380,9 +2387,9 @@
                         </div>
                         ${ppActive ? `
                             <div class="flex gap-2 mt-2 justify-end mb-2" onclick="event.stopPropagation()">
-                               ${[5, 10, 15].map(m => {
+                                ${[5, 10, 15].map(m => {
                                    const active = ppMin === m ? 'bg-pink-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600';
-                                   return `<button onclick="state.settings.pathPredictionMinutes=${m}; saveState(); ui.renderLayersMenu();" class="px-2 py-1 rounded text-xs ${active}">${m}m</button>`;
+                                   return `<button onclick="state.settings.pathPredictionMinutes=${m}; saveState(); ui.renderLayersMenu(); mapManager.update(simulation.getCurrentState());" class="px-2 py-1 rounded text-xs ${active}">${m}m</button>`;
                                }).join('')}
                             </div>
                         ` : ''}
@@ -3427,7 +3434,7 @@
                 linkElement.setAttribute('href', dataUri);
                 linkElement.setAttribute('download', exportFileDefaultName);
                 linkElement.click();
-            }, // <-- FIXED: Added missing comma
+            }, 
             
             handleBalloonImport(input) {
                 if (input.files && input.files[0]) {
