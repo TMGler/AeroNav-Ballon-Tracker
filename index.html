@@ -19,34 +19,29 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
-        html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; background-color: #f1f5f9; }
+        html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; background-color: #f1f5f9; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
         
-        /* Map fills the entire container relative to parent */
         #map-container { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 0; cursor: crosshair; background: #e2e8f0; }
         
         .glass-panel { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px); border-bottom: 1px solid rgba(0,0,0,0.1); }
         .instrument-box { background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.1); color: white; }
         .nav-director { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border-top: 2px solid #3b82f6; }
         
-        .tab-content { display: none; height: 100%; overflow-y: auto; padding-bottom: 80px; /* Space for Cockpit */ }
-        .tab-content.active { display: block; animation: fadeIn 0.3s; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .tab-content { display: none; height: 100%; overflow-y: auto; padding-bottom: 120px; }
+        .tab-content.active { display: block; animation: fadeIn 0.2s ease-out; }
         
-        .sim-overlay-btn { backdrop-filter: blur(4px); transition: all 0.2s; touch-action: manipulation; user-select: none; }
-        .btn-burner { background: rgba(239, 68, 68, 0.85); border: 2px solid white; color: white; }
-        .btn-burner:active { background: #ef4444; transform: scale(0.95); box-shadow: 0 0 20px #f59e0b; }
-        .btn-vent { background: rgba(71, 85, 105, 0.85); border: 2px solid white; color: white; }
-        .btn-vent:active { background: #334155; transform: scale(0.95); }
+        .sim-overlay-btn { backdrop-filter: blur(4px); transition: all 0.1s; touch-action: manipulation; user-select: none; }
+        .btn-burner { background: rgba(239, 68, 68, 0.9); border: 2px solid white; color: white; }
+        .btn-vent { background: rgba(71, 85, 105, 0.9); border: 2px solid white; color: white; }
         .btn-marker { background: rgba(37, 99, 235, 0.9); border: 2px solid white; color: white; }
-        .btn-marker:active { background: #1d4ed8; transform: scale(0.9); }
         
-        .sub-tab-btn { padding-bottom: 4px; color: #64748b; font-weight: bold; text-transform: uppercase; font-size: 0.75rem; border-bottom: 2px solid transparent; }
+        .sub-tab-btn { padding-bottom: 6px; color: #64748b; font-weight: 700; text-transform: uppercase; font-size: 0.75rem; border-bottom: 2px solid transparent; }
         .sub-tab-btn.active { border-bottom-color: #2563eb; color: #2563eb; }
         
-        .info-modal-overlay { background: rgba(0,0,0,0.5); z-index: 5000; }
         .task-completed { opacity: 0.6; background-color: #f1f5f9; }
         .task-completed .task-title { text-decoration: line-through; color: #94a3b8; }
         
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         .pulse-ring { animation: pulse-ring 2s infinite; }
         @keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); } 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); } }
 
@@ -58,15 +53,16 @@
         .kml-popup-label { font-weight: bold; color: #64748b; width: 40%; vertical-align: top; text-transform: uppercase; font-size: 9px; }
         .kml-popup-value { color: #1e293b; font-weight: 700; }
 
-        #cockpit { transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        #cockpit { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
         .cockpit-collapsed { transform: translateY(calc(100% - 24px)); }
         
-        #mapSettingsPanel { right: 10px; top: 60px; }
+        #mapSettingsPanel { right: 10px; top: 60px; z-index: 2000; }
         
-        /* Custom Color Input Styling */
         input[type="color"] { -webkit-appearance: none; border: none; width: 24px; height: 24px; padding: 0; border-radius: 50%; overflow: hidden; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
         input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
         input[type="color"]::-webkit-color-swatch { border: none; }
+        
+        .wind-grid { display: grid; grid-template-columns: 45px 1fr 55px; align-items: center; }
     </style>
 </head>
 <body class="bg-slate-200 h-screen w-screen overflow-hidden flex flex-col font-sans text-slate-900">
@@ -76,9 +72,9 @@
         <div class="flex items-center gap-3">
             <div class="bg-blue-600 text-white w-8 h-8 rounded flex items-center justify-center font-bold text-xs shadow-md">CNA</div>
             <div>
-                <h1 class="font-bold text-sm leading-tight text-slate-800">CompNavAir <span class="text-xs text-blue-500 font-normal">Competition</span></h1>
+                <h1 class="font-bold text-sm leading-tight text-slate-800">CompNavAir <span class="text-xs text-blue-500 font-normal">PRO</span></h1>
                 <div class="flex items-center gap-2 text-[10px]">
-                    <span id="gpsStatus" class="text-slate-500">Bereit.</span>
+                    <span id="gpsStatus" class="text-slate-500 font-mono">Bereit</span>
                     <span id="simIndicator" class="hidden font-bold text-purple-600 bg-purple-100 px-1 rounded uppercase">Sim</span>
                     <button id="briefingIndicator" onclick="deactivateBriefing()" class="hidden font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded animate-pulse border border-blue-200 uppercase">
                         WETTKAMPF AKTIV <i class="fa-solid fa-xmark ml-1"></i>
@@ -90,13 +86,13 @@
             <button onclick="toggleWindHud()" class="bg-white text-slate-600 p-2 rounded-lg shadow border border-slate-200 active:bg-slate-50" title="Wind HUD">
                 <i class="fa-solid fa-wind"></i>
             </button>
-            <button onclick="toggleMapSettings()" class="bg-white text-slate-600 p-2 rounded-lg shadow border border-slate-200 active:bg-slate-50" title="Karten & Ansicht">
+            <button onclick="toggleMapSettings()" class="bg-white text-slate-600 p-2 rounded-lg shadow border border-slate-200 active:bg-slate-50" title="Karten">
                 <i class="fa-solid fa-layer-group"></i>
             </button>
             <button onclick="centerMap(true)" class="bg-white text-blue-600 p-2 rounded-lg shadow border border-slate-200" title="Zentrieren"><i class="fa-solid fa-location-crosshairs"></i></button>
             <button onclick="toggleMenu()" class="bg-white text-slate-700 p-2 rounded-lg shadow border border-slate-200 relative">
                 <i class="fa-solid fa-bars"></i>
-                <span id="taskBadge" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center">0</span>
+                <span id="taskBadge" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center border border-white">0</span>
             </button>
         </div>
     </header>
@@ -106,13 +102,25 @@
         <div id="map-container"></div>
         
         <!-- WIND HUD -->
-        <div id="windHud" class="absolute top-4 left-4 z-[400] bg-slate-900/80 backdrop-blur text-white p-2 rounded-lg border border-white/20 w-32 shadow-xl flex flex-col gap-1 max-h-[40vh]">
-            <div class="text-[9px] font-bold uppercase border-b border-white/20 pb-1 mb-1 flex justify-between">
-                <span>Wind Profil</span>
-                <span id="windHudCount" class="text-slate-400">0</span>
+        <div id="windHud" class="absolute top-4 left-4 z-[400] bg-slate-900/90 backdrop-blur text-white rounded-lg border border-white/20 w-48 shadow-xl flex flex-col max-h-[40vh]">
+            <div class="p-2 border-b border-white/20 flex justify-between items-center text-slate-400">
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] font-bold uppercase tracking-wider">WINDPROFIL</span>
+                </div>
+                <div class="flex gap-2 items-center">
+                     <span id="windHudCount" class="text-[9px] font-mono">0</span>
+                     <button onclick="fetchOnlineWind()" class="text-blue-400 hover:text-white transition-colors" title="Live Wind laden"><i class="fa-solid fa-cloud-arrow-down"></i></button>
+                </div>
             </div>
-            <div id="windHudContent" class="overflow-y-auto wind-hud space-y-0.5 text-[10px] font-mono">
-                <div class="text-center text-slate-400 italic py-2">Keine Daten</div>
+            
+            <div class="wind-grid px-2 py-1 text-[8px] font-bold text-slate-500 bg-slate-950/30 border-b border-white/5">
+                <div>HÖHE</div>
+                <div class="text-center">RICHT</div>
+                <div class="text-right">SPD</div>
+            </div>
+
+            <div id="windHudContent" class="overflow-y-auto wind-hud space-y-[1px] p-1 text-[10px] font-mono">
+                <div class="text-center text-slate-500 italic py-2">Keine Daten</div>
             </div>
         </div>
 
@@ -225,11 +233,10 @@
         </div>
 
         <div class="flex border-b border-slate-200 text-[10px] font-bold uppercase shrink-0">
-            <!-- UPDATED TAB BUTTONS WITH DEFAULT BORDER AND TEXT CLASSES FOR TOGGLING -->
-            <button onclick="switchTab('tab-task')" id="btn-tab-task" class="flex-1 py-3 border-b-2 border-blue-600 text-blue-600 bg-blue-50 transition-colors">Wettkampf</button>
-            <button onclick="switchTab('tab-wind')" id="btn-tab-wind" class="flex-1 py-3 border-b-2 border-transparent text-slate-500 transition-colors">Wind</button>
-            <button onclick="switchTab('tab-setup')" id="btn-tab-setup" class="flex-1 py-3 border-b-2 border-transparent text-slate-500 transition-colors">Setup</button>
-            <button onclick="switchTab('tab-archive')" id="btn-tab-archive" class="flex-1 py-3 border-b-2 border-transparent text-slate-500 transition-colors">Archiv</button>
+            <button onclick="switchTab('tab-task')" id="btn-tab-task" class="flex-1 py-3 text-blue-600 border-b-2 border-blue-600 bg-blue-50">Wettkampf</button>
+            <button onclick="switchTab('tab-wind')" id="btn-tab-wind" class="flex-1 py-3 text-slate-500">Wind</button>
+            <button onclick="switchTab('tab-setup')" id="btn-tab-setup" class="flex-1 py-3 text-slate-500">Setup</button>
+            <button onclick="switchTab('tab-archive')" id="btn-tab-archive" class="flex-1 py-3 text-slate-500">Archiv</button>
         </div>
 
         <div class="flex-1 overflow-y-auto p-4 bg-slate-50 space-y-4">
@@ -244,6 +251,13 @@
                     <button onclick="toggleFlight()" id="btnFlightToggle" class="w-full py-4 rounded-xl font-black text-lg text-white bg-green-500 hover:bg-green-600 shadow-lg flex flex-col items-center justify-center gap-1 pulse-ring">
                         <span>START</span>
                     </button>
+                    
+                    <!-- NEW QUICK SIM TOGGLE -->
+                    <div class="flex justify-center -mt-2">
+                         <button onclick="toggleSimulation()" id="btnQuickSim" class="text-[10px] text-slate-400 underline hover:text-slate-700 transition-colors">
+                             Simulation aktivieren
+                         </button>
+                    </div>
 
                     <div id="liveFormCard" class="bg-white p-3 rounded shadow-sm border border-slate-200">
                         <h3 class="text-xs font-bold text-slate-400 uppercase mb-2 text-center">Aufgabe hinzufügen (Live)</h3>
@@ -333,8 +347,10 @@
                 </div>
                 
                 <div id="view-plan" class="space-y-4 hidden">
-                    <div id="briefingList" class="space-y-2"></div>
-                    <button onclick="editBriefing(-1)" class="w-full bg-slate-700 text-white py-3 rounded font-bold text-xs hover:bg-slate-600">+ Neues Briefing</button>
+                    <div id="briefingListContainer">
+                        <div id="briefingList" class="space-y-2"></div>
+                        <button onclick="editBriefing(-1)" class="w-full bg-slate-700 text-white py-3 rounded font-bold text-xs hover:bg-slate-600 mt-2">+ Neues Briefing</button>
+                    </div>
                     
                     <!-- INLINE BRIEFING EDITOR -->
                     <div id="briefingEditor" class="hidden bg-white p-3 rounded border border-slate-300 shadow-md">
@@ -362,6 +378,7 @@
                                             </select>
                                             <button onclick="showTaskInfoFromEditor()" class="text-blue-500 p-1"><i class="fa-solid fa-info-circle"></i></button>
                                         </div>
+                                        
                                         <!-- Briefing Color Picker Dynamic -->
                                         <div id="brfMarkerConfigContainer" class="flex flex-col gap-1 mt-1"></div>
                                     </div>
@@ -468,18 +485,30 @@
     <script>
         // --- CONSTANTS ---
         const EDRY_POS = { lat: 49.3015, lng: 8.4485 };
-        const TASK_RULES_DATA = { /* ... abbreviated rules for brevity ... */ 
-            "PDG": "15.1...", "JDG": "15.2...", "HWZ": "15.3...", "FIN": "15.4...", "FON": "15.5...", "HNH": "15.6...", "WSD": "15.7...", "GBM": "15.8...", "CRT": "15.9...", "RTA": "15.10...", "ELB": "15.11...", "LRN": "15.12...", "MDT": "15.13...", "SFL": "15.14...", "MDD": "15.15...", "XDT": "15.16...", "XDI": "15.17...", "XDD": "15.18...", "ANG": "15.19...", "3DT": "15.20...", "APT": "15.21..."
+        const TASK_RULES_DATA = {
+            "PDG": "<b>15.1 SELBST GEWÄHLTES ZIEL (PDG)</b><br>Die Wettbewerber versuchen, einen Messpunkt möglichst nah an einem vor dem Start selbst gewählten und deklarierten Ziel zu erzeugen.<br><ul><li>Ergebnis: Distanz Messpunkt zu Ziel.</li><li>Kleinstes Ergebnis gewinnt.</li></ul>",
+            "JDG": "<b>15.2 VORGEGEBENES ZIEL (JDG)</b><br>Die Wettbewerber versuchen, einen Messpunkt möglichst nah an einem vorgegebenen Ziel zu erzeugen.<br><ul><li>Ergebnis: Distanz Messpunkt zu Ziel.</li><li>Kleinstes Ergebnis gewinnt.</li></ul>",
+            "HWZ": "<b>15.3 QUAL DER WAHL (HWZ)</b><br>Die Wettbewerber versuchen, einen Messpunkt möglichst nah an einem von mehreren vorgegebenen Zielen zu erzeugen.<br><ul><li>Ergebnis: Distanz zum nahesten Ziel.</li><li>Kleinstes Ergebnis gewinnt.</li></ul>",
+            "FIN": "<b>15.4 FLY IN (FIN)</b><br>Die Wettbewerber suchen ihre eigenen Startplätze und versuchen, einen Messpunkt möglichst nah an einem vorgegebenen Ziel zu erzeugen.<br><ul><li>Nur ein Versuch erlaubt.</li><li>Kleinstes Ergebnis gewinnt.</li></ul>",
+            "FON": "<b>15.5 FLY ON (FON)</b><br>Die Wettbewerber versuchen, einen Messpunkt möglichst nah an einem vor dem Start oder während der Fahrt selbst gewählten Ziel zu erzeugen.<br><ul><li>Gültige Deklaration erforderlich.</li><li>Kleinstes Ergebnis gewinnt.</li></ul>",
+            "HNH": "<b>15.6 FUCHSJAGD (HNH)</b><br>Die Wettbewerber verfolgen einen Fuchsballon und versuchen, einen Messpunkt möglichst nah am Zielkreuz des Fuchses zu erzeugen.<br><ul><li>Zielkoordinaten nach Landung des Fuchses.</li></ul>",
+            "WSD": "<b>15.7 FUCHSJAGD MIT ANLAUF (WSD)</b><br>Ähnlich HNH, aber Start am Startplatz des Fuchses. Markerabwurf in Zielnähe.",
+            "GBM": "<b>15.8 GORDON BENNETT MEMORIAL (GBM)</b><br>Marker in Wertungsgebiet möglichst nah am Ziel.<br><ul><li>Ergebnis: Distanz zum Ziel.</li></ul>",
+            "CRT": "<b>15.9 ZIELFAHRT MIT ZEITFENSTER (CRT)</b><br>Messpunkt im Wertungsgebiet innerhalb gültiger Periode.<br><ul><li>Zeitfenster strikt beachten!</li></ul>",
+            "RTA": "<b>15.10 RENNEN ZUM WERTUNGSGEBIET (RTA)</b><br>Kürzeste Zeit vom Start bis zum Messpunkt im Gebiet.<br><ul><li>Ergebnis: Zeit.</li></ul>",
+            "ELB": "<b>15.11 ELLENBOGEN (ELB)</b><br>Größte Richtungsänderung (Winkel ABC).<br><ul><li>Basiert auf 3 Markern.</li><li>180 - Winkel ABC gewinnt.</li></ul>",
+            "LRN": "<b>15.12 DREIECKSFLÄCHE (LRN)</b><br>Größtmögliche Fläche eines Dreiecks ABC.<br><ul><li>3 Marker notwendig.</li></ul>",
+            "MDT": "<b>15.13 MINIMUM DISTANCE MIT ZEITVORGABE (MDT)</b><br>Messpunkt nach Mindestzeit/-strecke nah am Referenzpunkt.",
+            "SFL": "<b>15.14 MINIMUM DISTANCE MIT WERTUNGSGEBIET (SFL)</b><br>Messpunkt innerhalb Gebiet nah am Referenzpunkt.",
+            "MDD": "<b>15.15 MINIMUM DISTANCE ZWEI MARKER (MDD)</b><br>Möglichst nah beieinander liegende Marker in unterschiedlichen Gebieten.",
+            "XDT": "<b>15.16 MAXIMUM DISTANCE MIT ZEITVORGABE (XDT)</b><br>Messpunkt innerhalb Zeit möglichst weit vom Referenzpunkt.",
+            "XDI": "<b>15.17 MAXIMUM DISTANCE MIT WERTUNGSGEBIET (XDI)</b><br>Messpunkt innerhalb Gebiet möglichst weit vom Referenzpunkt.",
+            "XDD": "<b>15.18 MAXIMUM DISTANCE ZWEI MARKER (XDD)</b><br>Möglichst weit voneinander entfernte Marker in Gebieten.",
+            "ANG": "<b>15.19 WINKEL (ANG)</b><br>Größte Richtungsänderung von einer vorgegebenen Richtung (Linie A-B).",
+            "3DT": "<b>15.20 3D-AUFGABE (3DT)</b><br>Größtmögliche Distanz innerhalb eines definierten Luftraumes.",
+            "APT": "<b>15.21 HÖHENPROFIL AUFGABE (APT)</b><br>Längste Zeit in definiertem Höhenband. Inneres Band zählt doppelt.<br><ul><li>Start durch Marker.</li><li>Zeit in Sekunden gewinnt.</li></ul>"
         };
         
-        // Task Marker Requirement Lookup
-        const TASK_MARKER_COUNTS = {
-            "PDG": "1 (Logger/Phy)", "JDG": "1 (Phy)", "HWZ": "1 (Phy)", "FIN": "1 (Phy)", "FON": "1 (Logger)", 
-            "HNH": "1 (Phy)", "WSD": "1 (Phy)", "GBM": "1 (Phy)", "CRT": "1 (Phy)", "RTA": "1 (Phy)",
-            "ELB": "3 Marker", "LRN": "3 Marker", "MDT": "1 (Phy)", "SFL": "1 (Phy)", "MDD": "2 Marker", 
-            "XDT": "1 (Phy)", "XDI": "1 (Phy)", "XDD": "2 Marker", "ANG": "2 Marker", "3DT": "Track", "APT": "1 (Start)"
-        };
-
         // --- GLOBAL STATE ---
         let map, currentMarker, polylineTrack, polylineTask, polylineTrajectory, forecastMarker;
         let tasks = [], activeTaskIdx = -1, savedFlights = [], briefings = [], activeBriefing = null;
@@ -490,6 +519,19 @@
         let simBurnerActive = false, simVentActive = false, isCockpitCollapsed = false;
         let tempBriefingTasks = [], editingTaskIndex = -1;
         let tempClickMarker = null;
+
+        // --- WAKE LOCK ---
+        const wakeLockManager = {
+            wakeLock: null,
+            async request() {
+                if ('wakeLock' in navigator) {
+                    try { this.wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
+                }
+            },
+            release() {
+                if (this.wakeLock !== null) { this.wakeLock.release().then(() => { this.wakeLock = null; }); }
+            }
+        };
 
         // --- MATH HELPERS ---
         function getDistanceM(la1, lo1, la2, lo2) {
@@ -509,16 +551,70 @@
             return { lat: φ2*180/Math.PI, lng: λ2*180/Math.PI };
         }
 
-        // --- INIT ---
-        window.onload = function() {
-            initMap();
-            generateSyntheticWind();
-            renderBriefingList();
-            renderFlightList();
-            setInterval(checkBriefingTimes, 1000);
-            updateLiveMarkerConfig(); // Init Live form
-        };
+        // --- DYNAMIC MARKER CONFIG ---
+        function getMarkerCount(type) {
+            if(['LRN', 'ELB'].includes(type)) return 3;
+            if(['MDD', 'XDD', 'ANG'].includes(type)) return 2;
+            if(['3DT'].includes(type)) return 0;
+            return 1;
+        }
 
+        function renderMarkerConfig(type, containerId, prefix) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            container.innerHTML = "";
+            const count = getMarkerCount(type);
+            if (count === 0) return;
+
+            for (let i = 0; i < count; i++) {
+                const wrapper = document.createElement('div');
+                wrapper.className = "flex items-center gap-2 justify-between bg-slate-50 p-1 rounded border";
+                const label = document.createElement('span'); label.className = "text-[9px] font-bold text-slate-500"; label.innerText = `Marker ${i + 1}`;
+                const input = document.createElement('input'); input.type = "color"; input.className = "shadow-sm"; input.id = `${prefix}_color_${i}`; input.value = (i===0) ? "#ff0000" : (i===1 ? "#0000ff" : "#00ff00");
+                wrapper.appendChild(label); wrapper.appendChild(input); container.appendChild(wrapper);
+            }
+        }
+        
+        function getMarkerColors(count, prefix) {
+            const colors = [];
+            for (let i = 0; i < count; i++) {
+                const el = document.getElementById(`${prefix}_color_${i}`);
+                colors.push(el ? el.value : "#000000");
+            }
+            return colors;
+        }
+
+        // --- HELPER FUNCTIONS ---
+        function updateLiveMarkerConfig() { renderMarkerConfig(document.getElementById('taskType').value, 'liveMarkerConfigContainer', 'live_m'); }
+        function updateBrfMarkerConfig() { renderMarkerConfig(document.getElementById('brfTaskType').value, 'brfMarkerConfigContainer', 'brf_m'); }
+        function updateModMarkerConfig() { renderMarkerConfig(document.getElementById('modTaskType').value, 'modMarkerConfigContainer', 'mod_m'); }
+        
+        function updateTaskInputs() { 
+            const type = document.getElementById('taskType').value; 
+            const extra = document.getElementById('extraInputs'); 
+            const inpR2 = document.getElementById('inpRadius2'); 
+            const altInp = document.getElementById('altInputs');
+            
+            if(type === 'ANG') { extra.classList.remove('hidden'); } else { extra.classList.add('hidden'); }
+            if(type === '3DT') { inpR2.classList.remove('hidden'); } else { inpR2.classList.add('hidden'); }
+            if(type === 'APT') { altInp.classList.remove('hidden'); } else { altInp.classList.add('hidden'); }
+            
+            updateLiveMarkerConfig();
+        }
+        
+        function updateBrfTaskInputs() { 
+            const type = document.getElementById('brfTaskType').value; 
+            document.getElementById('brfTaskRad2').classList.toggle('hidden', type!=='3DT'); 
+            document.getElementById('brfAltInputs').classList.toggle('hidden', type!=='APT');
+            updateBrfMarkerConfig();
+        }
+
+        function safeSetText(id, txt) { const el = document.getElementById(id); if(el) el.innerText = txt; }
+        function toggleMapSettings() { document.getElementById('mapSettingsPanel').classList.toggle('hidden'); }
+        function toggleWindHud() { document.getElementById('windHud').classList.toggle('hidden'); }
+        function toggleMenu() { document.getElementById('sideMenu').classList.toggle('translate-x-full'); }
+
+        // --- MAP ---
         function initMap() {
             map = L.map('map-container', { zoomControl: false, attributionControl: false }).setView([EDRY_POS.lat, EDRY_POS.lng], 15);
             baseLayers.osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
@@ -530,125 +626,22 @@
             
             map.on('click', (e) => {
                 const lat = e.latlng.lat.toFixed(5), lon = e.latlng.lng.toFixed(5);
-                ['inpLat','brfTaskLat','modInpLat'].forEach(id => { const el = document.getElementById(id); if(el) el.value = lat; });
-                ['inpLon','brfTaskLon','modInpLon'].forEach(id => { const el = document.getElementById(id); if(el) el.value = lon; });
+                // Update active inputs
+                const activeTab = document.querySelector('.sub-tab-btn.active');
+                if(activeTab && activeTab.id === 'sub-live') {
+                    ['inpLat','modInpLat'].forEach(id => { const el = document.getElementById(id); if(el) el.value = lat; });
+                    ['inpLon','modInpLon'].forEach(id => { const el = document.getElementById(id); if(el) el.value = lon; });
+                } else if(activeTab && activeTab.id === 'sub-plan') {
+                    const brfLat = document.getElementById('brfTaskLat'); if(brfLat) brfLat.value = lat;
+                    const brfLon = document.getElementById('brfTaskLon'); if(brfLon) brfLon.value = lon;
+                }
                 if(tempClickMarker) map.removeLayer(tempClickMarker);
                 tempClickMarker = L.circleMarker(e.latlng, { color: 'red', fillColor: '#f03', fillOpacity: 0.8, radius: 4 }).addTo(map);
             });
             updatePlaneMarker();
         }
 
-        // --- UI FUNCTIONS ---
-        function switchTab(id) { 
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active')); 
-            document.getElementById(id).classList.add('active'); 
-            
-            // Correct active class toggle logic
-            ['btn-tab-task','btn-tab-wind','btn-tab-setup','btn-tab-archive'].forEach(k => {
-                const el = document.getElementById(k);
-                if(el) {
-                    if (k === 'btn-' + id) {
-                        el.classList.add('text-blue-600', 'border-blue-600', 'bg-blue-50');
-                        el.classList.remove('text-slate-500', 'border-transparent');
-                    } else {
-                        el.classList.remove('text-blue-600', 'border-blue-600', 'bg-blue-50');
-                        el.classList.add('text-slate-500', 'border-transparent');
-                    }
-                }
-            });
-        }
-        
-        function toggleMapSettings() { document.getElementById('mapSettingsPanel').classList.toggle('hidden'); }
-        function setMapStyle(style) { map.removeLayer(baseLayers.osm); map.removeLayer(baseLayers.sat); baseLayers[style].addTo(map); 
-            document.getElementById('btnStyleOsm').className = style==='osm' ? "flex-1 text-[10px] py-1 rounded bg-white shadow-sm font-bold text-blue-600" : "flex-1 text-[10px] py-1 rounded text-slate-500";
-            document.getElementById('btnStyleSat').className = style==='sat' ? "flex-1 text-[10px] py-1 rounded bg-white shadow-sm font-bold text-blue-600" : "flex-1 text-[10px] py-1 rounded text-slate-500";
-        }
-        function setTrajectory(min) {
-            config.forecastMinutes = min;
-            [0,5,10,15].forEach(m => {
-                const btn = document.getElementById(`traj${m}`);
-                if(m === min) btn.className = "text-[9px] py-1 rounded bg-blue-600 text-white border border-blue-600 font-bold";
-                else btn.className = "text-[9px] py-1 rounded bg-slate-100 border hover:bg-slate-200";
-            });
-            handleGpsUpdate(currentPos);
-        }
-
-        // --- KML & STYLING ---
-        function handleKmlUpload() {
-            const files = document.getElementById('kmlFileInput').files;
-            if(!files.length) return;
-            for(let file of files) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const layer = omnivore.kml.parse(e.target.result, null, L.geoJson(null, {
-                        style: (f) => {
-                            const name = f.properties.name || "";
-                            if (/ED-?R\d+/i.test(name) && !name.toUpperCase().includes("EDRY")) return { color:'red', fillColor:'red', fillOpacity:0.3, weight:2 };
-                            return { color:'#3b82f6', weight:2, fillOpacity:0.1 };
-                        },
-                        onEachFeature: (f, l) => {
-                            if (f.properties) {
-                                const p = f.properties;
-                                let html = `<div class="font-bold border-b pb-1 mb-1 text-sm text-blue-800">${p.name || 'Luftraum'}</div>`;
-                                html += `<table class="kml-popup-table">`;
-                                ['IDENT', 'NAM', 'UPPERLIMIT', 'LOWERLIMIT'].forEach(key => {
-                                    if(p[key]) html += `<tr><td class="kml-popup-label">${key}</td><td class="kml-popup-value">${p[key]}</td></tr>`;
-                                });
-                                html += `</table>`;
-                                layer.bindPopup(html);
-                            }
-                        }
-                    }));
-                    layer.addTo(map);
-                    kmlLayers[file.name] = layer;
-                    renderKmlList();
-                };
-                reader.readAsText(file);
-            }
-        }
-        function renderKmlList() {
-            const cont = document.getElementById('kmlList'); if(!cont) return; cont.innerHTML = "";
-            const quickCont = document.getElementById('quickKmlList');
-            let html = "";
-            Object.keys(kmlLayers).forEach(name => {
-                const isVisible = map.hasLayer(kmlLayers[name]);
-                html += `<div class="flex justify-between items-center text-[10px] bg-white p-1 px-2 rounded border"><span class="truncate w-32">${name}</span><div class="flex gap-2"><button onclick="toggleKml('${name}')" class="${isVisible?'text-blue-600':'text-slate-400'}"><i class="fa-solid fa-eye"></i></button><button onclick="removeKml('${name}')" class="text-red-400"><i class="fa-solid fa-trash"></i></button></div></div>`;
-            });
-            cont.innerHTML = html;
-            if(quickCont) quickCont.innerHTML = html || '<div class="text-[9px] italic text-slate-400">Keine KMLs geladen</div>';
-        }
-        function toggleKml(name) { if(map.hasLayer(kmlLayers[name])) map.removeLayer(kmlLayers[name]); else kmlLayers[name].addTo(map); renderKmlList(); }
-        function removeKml(name) { map.removeLayer(kmlLayers[name]); delete kmlLayers[name]; renderKmlList(); }
-        function changeMapStyle() { const s = document.getElementById('mapStyle').value; map.removeLayer(baseLayers.osm); map.removeLayer(baseLayers.sat); baseLayers[s].addTo(map); }
-
         // --- FLIGHT LOGIC ---
-        function toggleFlight() {
-            const btn = document.getElementById('btnFlightToggle');
-            if (!isFlightActive) {
-                if (activeBriefing && activeBriefing.startTime) {
-                    const nowStr = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                    if (nowStr < activeBriefing.startTime && !confirm(`ACHTUNG: Startperiode beginnt erst um ${activeBriefing.startTime}. Vorzeitig starten?`)) return;
-                }
-                isFlightActive = true;
-                currentFlight = { id: Date.now(), start: new Date().toISOString(), track: [], tasksSnapshot: [], markers: [] };
-                btn.className = "w-full py-4 rounded-xl font-black text-lg text-white bg-red-600 shadow-lg";
-                btn.innerHTML = `<span>LANDUNG</span>`;
-                document.getElementById('liveFormCard').classList.add('hidden');
-                document.getElementById('liveTaskCard').classList.remove('hidden');
-                if(!isSimulating) navigator.geolocation.watchPosition(pos => handleGpsUpdate(pos.coords), null, {enableHighAccuracy:true});
-            } else {
-                if(!confirm("Fahrt beenden?")) return;
-                isFlightActive = false;
-                savedFlights.unshift({ ...currentFlight, tasksSnapshot: JSON.parse(JSON.stringify(tasks)) }); 
-                renderFlightList();
-                btn.className = "w-full py-4 rounded-xl font-black text-lg text-white bg-green-500 shadow-lg pulse-ring";
-                btn.innerHTML = `<span>START</span>`;
-                document.getElementById('liveFormCard').classList.remove('hidden');
-                document.getElementById('liveTaskCard').classList.add('hidden');
-                switchTab('tab-archive');
-            }
-        }
-
         function handleGpsUpdate(coords) {
             currentPos = { lat: coords.latitude, lng: coords.longitude, alt: coords.altitude||0, speed: (coords.speed||0)*3.6, head: coords.heading||0 };
             document.getElementById('valSpeed').innerText = Math.round(currentPos.speed);
@@ -684,6 +677,7 @@
             }
         }
 
+        // --- NAV ---
         function calculateNav() {
             if(activeTaskIdx === -1 || !tasks[activeTaskIdx] || tasks[activeTaskIdx].completed) {
                 document.getElementById('navOverlay').classList.add('hidden');
@@ -732,7 +726,7 @@
             list.innerHTML = "";
             tasks.forEach((t, i) => {
                 const li = document.createElement('li');
-                li.className = `p-2 rounded border flex justify-between items-center ${i===activeTaskIdx?'bg-blue-100 border-blue-300':'bg-white shadow-sm'}`;
+                li.className = `p-2 rounded border flex justify-between items-center cursor-pointer ${i===activeTaskIdx?'bg-blue-100 border-blue-300':'bg-white shadow-sm'}`;
                 
                 let markersHtml = "";
                 if(t.markerColors && t.markerColors.length > 0) {
@@ -754,6 +748,7 @@
                         <button class="bg-blue-600 text-white w-6 h-6 rounded" onclick="setActiveTask(${i})"><i class="fa-solid fa-play text-[10px]"></i></button>
                     </div>
                 `;
+                li.onclick = () => setActiveTask(i);
                 list.appendChild(li);
             });
             document.getElementById('taskBadge').innerText = tasks.filter(x => !x.completed).length;
@@ -767,11 +762,12 @@
                 
                 L.marker([t.lat, t.lng], { isTaskLayer: true, icon: L.divIcon({ html: `<div class="rounded-full bg-white border-2 flex items-center justify-center font-bold w-5 h-5 text-[10px]" style="border-color:${color}; color:${color}">${i+1}</div>`, className:'' }) }).addTo(map);
                 if(t.radius > 0) L.circle([t.lat, t.lng], { radius: t.radius, color, fillOpacity: 0.1, weight: 2, isTaskLayer: true }).addTo(map);
+                if(t.radius2 > 0) L.circle([t.lat, t.lng], { radius: t.radius2, color: '#ef4444', fillOpacity: 0.05, weight: 2, isTaskLayer: true }).addTo(map);
                 
                 // Draw connecting lines for Multi-Marker tasks
                 if(t.droppedMarkers && t.droppedMarkers.length > 1) {
                     const latlngs = t.droppedMarkers.map(m => [m.lat, m.lng]);
-                    if(t.type === 'LRN' && t.droppedMarkers.length === 3) latlngs.push(latlngs[0]); // Close triangle
+                    if((t.type === 'LRN' || t.type === 'ELB') && t.droppedMarkers.length === 3) latlngs.push(latlngs[0]); 
                     L.polyline(latlngs, { color: t.markerColors[0] || 'black', weight: 3, dashArray: '5,5', isTaskLayer: true }).addTo(map);
                 }
             });
@@ -783,6 +779,7 @@
                 const icon = L.divIcon({ html: `<div class="bg-orange-500 text-white rounded-full w-4 h-4 flex items-center justify-center font-bold text-[8px]">${i+1}</div>`, className: 'bg-transparent', iconSize: [16, 16] });
                 L.marker([t.lat, t.lng], { icon, isPreviewLayer: true }).addTo(map); 
                 if(t.radius) L.circle([t.lat, t.lng], { radius: t.radius, color: '#f97316', fillOpacity: 0.2, weight: 2, dashArray: '5,5', isPreviewLayer: true }).addTo(map);
+                if(t.radius2) L.circle([t.lat, t.lng], { radius: t.radius2, color: '#f97316', fillOpacity: 0.1, weight: 2, dashArray: '5,5', isPreviewLayer: true }).addTo(map);
             });
             if(tempBriefingTasks.length > 0) {
                  const pts = tempBriefingTasks.filter(t => t.lat !== 0).map(t => [t.lat, t.lng]);
@@ -799,7 +796,8 @@
                 const d = windProfile[h]; const dir = Math.round((Math.atan2(d.sumSin, d.sumCos)*180/Math.PI+360)%360);
                 const spd = Math.round(d.sumSpd/d.count);
                 const isCurrent = Math.abs(currentPos.alt - h) < 25;
-                hud.innerHTML += `<div class="flex justify-between items-center px-1 rounded ${isCurrent?'bg-blue-500 text-white font-bold':'text-slate-300'}"><span>${h}m</span><span style="transform:rotate(${dir-180}deg)"><i class="fa-solid fa-arrow-down text-[8px]"></i></span><span>${dir}°</span></div>`;
+                const arrow = `<i class="fa-solid fa-long-arrow-alt-down transform" style="transform: rotate(${dir}deg)"></i>`;
+                hud.innerHTML += `<div class="wind-grid px-2 py-1 rounded transition-all ${isCurrent?'bg-blue-600 text-white font-bold shadow-sm scale-[1.02]':'text-slate-300 hover:bg-white/5'} mb-0.5 font-mono cursor-pointer"><div class="text-left">${h}m</div><div class="flex items-center justify-center gap-1">${arrow} ${dir}°</div><div class="text-right">${spd}</div></div>`;
                 if(tbody) tbody.innerHTML += `<tr><td class="p-1">${h}m</td><td class="p-1">${dir}°</td><td class="p-1">${spd} km/h</td></tr>`;
             });
         }
@@ -833,7 +831,7 @@
                     col = `<span class="inline-block w-2 h-2 rounded-full ml-1 border border-black/10" style="background-color:${t.markerColors[0]}"></span>`;
                     if(t.markerColors.length > 1) col += `<span class="text-[8px] text-slate-400 ml-1">+${t.markerColors.length-1}</span>`;
                 }
-                return `<li>${t.title} (${t.type}) ${col} ${extra} <button onclick="editTempTask(${i})" class="text-blue-500 ml-1">E</button> <button onclick="removeTempTask(${i})" class="text-red-500 ml-1">x</button></li>`;
+                return `<li><div class="flex justify-between items-center border-b py-1"><span>${t.title} (${t.type}) ${col} ${extra}</span> <div><button onclick="editTempTask(${i})" class="text-blue-500 px-1">E</button> <button onclick="removeTempTask(${i})" class="text-red-500 px-1">X</button></div></div></li>`;
             }).join(''); 
         }
 
@@ -842,9 +840,26 @@
         function startBurn() { simBurnerActive = true; } function stopBurn() { simBurnerActive = false; } function startVent() { simVentActive = true; } function stopVent() { simVentActive = false; }
         
         // --- UI HELPERS ---
-        function switchSubTab(tab) { document.getElementById('view-live').classList.toggle('hidden', tab!=='live'); document.getElementById('view-plan').classList.toggle('hidden', tab!=='plan'); }
+        function switchTab(id) { 
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active')); 
+            document.getElementById(id).classList.add('active'); 
+            ['btn-tab-task','btn-tab-wind','btn-tab-setup','btn-tab-archive'].forEach(k => {
+                const el = document.getElementById(k);
+                if(el) {
+                    if (k === 'btn-' + id) {
+                        el.classList.add('text-blue-600', 'border-blue-600', 'bg-blue-50');
+                        el.classList.remove('text-slate-500', 'border-transparent');
+                    } else {
+                        el.classList.remove('text-blue-600', 'border-blue-600', 'bg-blue-50');
+                        el.classList.add('text-slate-500', 'border-transparent');
+                    }
+                }
+            });
+        }
+        function switchSubTab(tab) { document.getElementById('view-live').classList.toggle('hidden', tab!=='live'); document.getElementById('view-plan').classList.toggle('hidden', tab!=='plan'); document.getElementById('sub-live').className = tab==='live'?'sub-tab-btn active':'sub-tab-btn'; document.getElementById('sub-plan').className = tab==='plan'?'sub-tab-btn active':'sub-tab-btn'; }
         function toggleMenu() { document.getElementById('sideMenu').classList.toggle('translate-x-full'); }
         function toggleWindHud() { document.getElementById('windHud').classList.toggle('hidden'); }
+        function toggleMapSettings() { document.getElementById('mapSettingsPanel').classList.toggle('hidden'); }
         function centerMap(force=false) { 
             let target = [currentPos.lat, currentPos.lng];
             if(config.forecastMinutes > 0 && currentPos.speed > 2) {
@@ -855,15 +870,14 @@
             map.setView(target, map.getZoom()); 
         }
         function safeSetText(id, txt) { const el = document.getElementById(id); if(el) el.innerText = txt; }
-        
-        // --- UI ACTIONS ---
         function updatePlaneMarker() { const icon = L.divIcon({ html: `<svg width="30" height="30" style="transform:rotate(${currentPos.head-45}deg)"><path d="M15 2 L28 28 L15 22 L2 28 Z" fill="${isSimulating?'orange':'blue'}" stroke="white" stroke-width="2"/></svg>`, className:'bg-transparent', iconSize:[30,30] }); if(!currentMarker) currentMarker = L.marker([currentPos.lat, currentPos.lng], {icon}).addTo(map); else currentMarker.setLatLng([currentPos.lat, currentPos.lng]).setIcon(icon); }
         function generateSyntheticWind() { for(let h=0; h<=1000; h+=50) windProfile[h] = { sumSin:Math.sin(h/100), sumCos:Math.cos(h/100), sumSpd:12+h/100, count:1 }; updateWindHud(); }
         function deactivateBriefing() { activeBriefing = null; document.getElementById('briefingIndicator').classList.add('hidden'); }
         function activateBriefing(idx) { activeBriefing = briefings[idx]; tasks = JSON.parse(JSON.stringify(activeBriefing.tasks)); activeTaskIdx = 0; renderTasks(); drawTaskVisuals(); calculateNav(); document.getElementById('briefingIndicator').classList.remove('hidden'); switchSubTab('live'); }
-        function editBriefing(idx) { document.getElementById('briefingEditor').classList.remove('hidden'); tempBriefingTasks = []; if(idx===-1) document.getElementById('brfName').value = ""; else { tempBriefingTasks = [...briefings[idx].tasks]; document.getElementById('brfName').value = briefings[idx].name; } renderBriefingTemp(); drawTempTasks(); }
+        function editBriefing(idx) { document.getElementById('briefingEditor').classList.remove('hidden'); document.getElementById('briefingListContainer').classList.add('hidden'); tempBriefingTasks = []; if(idx===-1) document.getElementById('brfName').value = ""; else { tempBriefingTasks = [...briefings[idx].tasks]; document.getElementById('brfName').value = briefings[idx].name; } renderBriefingTemp(); updateBrfMarkerConfig(); }
         function closeBriefingEditor() { 
             document.getElementById('briefingEditor').classList.add('hidden'); 
+            document.getElementById('briefingListContainer').classList.remove('hidden');
             map.eachLayer(l => { if(l.options && l.options.isPreviewLayer) map.removeLayer(l); }); 
         }
         function addOrUpdateBriefingTask() { 
@@ -872,7 +886,7 @@
             const type = document.getElementById('brfTaskType').value;
             const mCount = getMarkerCount(type);
             const mColors = getMarkerColors(mCount, 'brf_m');
-
+            
             const newTask = { 
                 title: document.getElementById('brfTaskTitle').value||"T", type, lat, lng: parseFloat(document.getElementById('brfTaskLon').value), radius: parseInt(document.getElementById('brfTaskRad').value)||100, radius2: parseInt(document.getElementById('brfTaskRad2').value)||0, 
                 timeStart: document.getElementById('brfTaskTimeStart').value, timeEnd: document.getElementById('brfTaskTimeEnd').value, altMin: document.getElementById('brfTaskAltMin').value, altMax: document.getElementById('brfTaskAltMax').value, markerColors: mColors, droppedMarkers: []
@@ -889,8 +903,16 @@
             document.getElementById('brfTaskTimeStart').value = t.timeStart || ""; document.getElementById('brfTaskTimeEnd').value = t.timeEnd || ""; document.getElementById('brfTaskAltMin').value = t.altMin || ""; document.getElementById('brfTaskAltMax').value = t.altMax || "";
             
             updateBrfTaskInputs();
+            const cont = document.getElementById('brfMarkerConfigContainer');
+            if(t.markerColors && cont) {
+                 t.markerColors.forEach((c, idx) => {
+                     const inp = document.getElementById(`brf_m_color_${idx}`);
+                     if(inp) inp.value = c;
+                 });
+            }
+            
             document.getElementById('btnAddBrfTask').innerText = "Ändern"; document.getElementById('btnCancelBrfTask').classList.remove('hidden');
-            renderTempTasks();
+            renderBriefingTemp();
         }
         function removeTempTask(i) { tempBriefingTasks.splice(i, 1); if(i === editingTaskIndex) cancelTaskEdit(); renderBriefingTemp(); drawTempTasks(); }
         function cancelTaskEdit() { editingTaskIndex = -1; document.getElementById('btnAddBrfTask').innerText = "Add"; document.getElementById('btnCancelBrfTask').classList.add('hidden'); renderBriefingTemp(); }
@@ -914,17 +936,35 @@
             if(!isSimulating && (!currentPos.lat || !isFlightActive)) return alert("Bitte erst START drücken!");
             const drop = { lat: currentPos.lat, lng: currentPos.lng, alt: currentPos.alt, time: new Date().toISOString() };
             markerDrops.push(drop); if(isFlightActive) currentFlight.markers.push(drop);
+            
+            // Assign to active task
             if(activeTaskIdx !== -1 && !tasks[activeTaskIdx].completed) {
                 const t = tasks[activeTaskIdx];
                 if(t.markerColors && t.droppedMarkers.length < t.markerColors.length) {
                     t.droppedMarkers.push(drop);
                     const col = t.markerColors[t.droppedMarkers.length - 1];
                     L.marker([drop.lat, drop.lng], { icon: L.divIcon({ html: `<i class="fa-solid fa-location-dot text-lg drop-shadow-md" style="color:${col}"></i>`, className: 'bg-transparent' }) }).addTo(map);
-                } else L.marker([drop.lat, drop.lng], { icon: L.divIcon({ html:'<i class="fa-solid fa-times text-slate-500 font-bold text-lg"></i>', className:''})}).addTo(map);
+                } else {
+                     L.marker([drop.lat, drop.lng], { icon: L.divIcon({ html:'<i class="fa-solid fa-times text-slate-500 font-bold text-lg"></i>', className:''})}).addTo(map);
+                }
                 renderTasks(); drawTaskVisuals(); calculateNav();
-            } else L.marker([drop.lat, drop.lng], { icon: L.divIcon({ html:'<i class="fa-solid fa-times text-slate-500 font-bold text-lg"></i>', className:''})}).addTo(map);
+            } else {
+                 L.marker([drop.lat, drop.lng], { icon: L.divIcon({ html:'<i class="fa-solid fa-times text-slate-500 font-bold text-lg"></i>', className:''})}).addTo(map);
+            }
         }
-        function checkBriefingTimes() {} 
+        function checkBriefingTimes() { 
+            const now = new Date(); const timeStr = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            if (activeTaskIdx !== -1 && tasks.length > 0 && tasks[activeTaskIdx]) {
+                const t = tasks[activeTaskIdx]; const statusEl = document.getElementById('liveTaskTimeStatus');
+                if (t.timeStart || t.timeEnd) {
+                    statusEl.classList.remove('hidden'); statusEl.innerText = `${t.timeStart||'--'} - ${t.timeEnd||'--'}`;
+                    let ok = true; if(t.timeStart && timeStr < t.timeStart) ok = false; if(t.timeEnd && timeStr > t.timeEnd) ok = false;
+                    statusEl.className = ok ? "mt-2 text-[10px] font-bold px-2 py-0.5 rounded-full inline-block bg-green-100 text-green-700" : "mt-2 text-[10px] font-bold px-2 py-0.5 rounded-full inline-block bg-red-100 text-red-600";
+                    const instr = document.getElementById('navInstruction');
+                    if(!ok && instrEl) instrEl.innerHTML = `<span class="text-red-300">ZEITFENSTER!</span>`;
+                } else statusEl.classList.add('hidden');
+            }
+        }
         function showActiveTaskInfo() { if(activeTaskIdx>=0) showTaskInfoModal(tasks[activeTaskIdx].type); }
         function showTaskInfo() { showTaskInfoModal(document.getElementById('taskType').value); }
         function showTaskInfoFromEditor() { showTaskInfoModal(document.getElementById('brfTaskType').value); }
@@ -934,28 +974,125 @@
         function useCurrentPosForModal() { document.getElementById('modInpLat').value = currentPos.lat.toFixed(5); document.getElementById('modInpLon').value = currentPos.lng.toFixed(5); }
         function exportGpx(id) { alert("Export..."); }
         function toggleCockpit() { const cp = document.getElementById('cockpit'); const chevron = document.getElementById('cockpitChevron'); isCockpitCollapsed = !isCockpitCollapsed; cp.classList.toggle('cockpit-collapsed', isCockpitCollapsed); chevron.style.transform = isCockpitCollapsed ? 'rotate(180deg)' : 'rotate(0deg)'; setTimeout(() => { map.invalidateSize(); centerMap(true); }, 400); }
-
-        // --- DYNAMIC MARKER CONFIG ---
-        function getMarkerCount(type) { if(['LRN', 'ELB'].includes(type)) return 3; if(['MDD', 'XDD', 'ANG'].includes(type)) return 2; if(['3DT'].includes(type)) return 0; return 1; }
-        function renderMarkerConfig(type, containerId, prefix) {
-            const container = document.getElementById(containerId); if (!container) return; container.innerHTML = "";
-            const count = getMarkerCount(type); if (count === 0) return;
-            for (let i = 0; i < count; i++) {
-                const wrapper = document.createElement('div'); wrapper.className = "flex items-center gap-2 justify-between bg-slate-50 p-1 rounded border";
-                const label = document.createElement('span'); label.className = "text-[9px] font-bold text-slate-500"; label.innerText = `Marker ${i + 1}`;
-                const input = document.createElement('input'); input.type = "color"; input.className = "shadow-sm"; input.id = `${prefix}_color_${i}`; input.value = (i===0) ? "#ff0000" : (i===1 ? "#0000ff" : "#00ff00");
-                wrapper.appendChild(label); wrapper.appendChild(input); container.appendChild(wrapper);
-            }
-        }
-        function getMarkerColors(count, prefix) { const colors = []; for (let i = 0; i < count; i++) { const el = document.getElementById(`${prefix}_color_${i}`); colors.push(el ? el.value : "#000000"); } return colors; }
-        function updateLiveMarkerConfig() { renderMarkerConfig(document.getElementById('taskType').value, 'liveMarkerConfigContainer', 'live_m'); }
-        function updateBrfMarkerConfig() { renderMarkerConfig(document.getElementById('brfTaskType').value, 'brfMarkerConfigContainer', 'brf_m'); }
-        function updateModMarkerConfig() { renderMarkerConfig(document.getElementById('modTaskType').value, 'modMarkerConfigContainer', 'mod_m'); }
-
-        // --- NEW FLEXIBLE LOGIC ---
         function setActiveTask(index) { activeTaskIdx = index; renderTasks(); drawTaskVisuals(); calculateNav(); }
         function toggleTaskComplete(index) { tasks[index].completed = !tasks[index].completed; if(tasks[index].completed && index === activeTaskIdx) { let nextIdx = -1; for(let i = index + 1; i < tasks.length; i++) { if(!tasks[i].completed) { nextIdx = i; break; } } if(nextIdx !== -1) activeTaskIdx = nextIdx; } renderTasks(); drawTaskVisuals(); calculateNav(); }
         function completeCurrentTask() { if(activeTaskIdx === -1 || tasks.length === 0) return; tasks[activeTaskIdx].completed = true; let nextIdx = -1; for(let i = activeTaskIdx + 1; i < tasks.length; i++) { if(!tasks[i].completed) { nextIdx = i; break; } } if(nextIdx === -1) { for(let i = 0; i < activeTaskIdx; i++) { if(!tasks[i].completed) { nextIdx = i; break; } } } activeTaskIdx = nextIdx; renderTasks(); drawTaskVisuals(); calculateNav(); }
+        async function fetchOnlineWind() {
+            const lat = currentPos.lat; const lon = currentPos.lng;
+            const levels = [1000, 950, 925, 900, 850];
+            const vars = levels.map(l => `wind_speed_${l}hPa,wind_direction_${l}hPa`).join(',');
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=${vars}&forecast_days=1`;
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('Netzwerkfehler');
+                const data = await response.json();
+                const currentHour = new Date().toISOString().slice(0, 13) + ":00";
+                const index = data.hourly.time.indexOf(currentHour);
+                if (index === -1) { alert("Keine Daten."); return; }
+                windProfile = {};
+                const hPaToMeters = { 1000: 100, 950: 540, 925: 760, 900: 990, 850: 1460 };
+                levels.forEach(level => {
+                    const speed = data.hourly[`wind_speed_${level}hPa`][index];
+                    const dir = data.hourly[`wind_direction_${level}hPa`][index];
+                    const alt = hPaToMeters[level];
+                    if (speed !== undefined && dir !== undefined) {
+                        const vectorDir = (dir + 180) % 360; const rad = vectorDir * Math.PI / 180;
+                        const key = Math.round(alt / 50) * 50;
+                        windProfile[key] = { sumSin: Math.sin(rad), sumCos: Math.cos(rad), sumSpd: speed, count: 1 };
+                    }
+                });
+                updateWindHud(); alert("Live-Wind geladen!");
+            } catch (err) { console.error(err); alert("Fehler: " + err.message); }
+        }
+        
+        function toggleFlight() {
+            const btn = document.getElementById('btnFlightToggle');
+            if (!isFlightActive) {
+                if (activeBriefing && activeBriefing.startTime) {
+                    const nowStr = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    if (nowStr < activeBriefing.startTime && !confirm(`ACHTUNG: Startperiode beginnt erst um ${activeBriefing.startTime}. Vorzeitig starten?`)) return;
+                }
+                isFlightActive = true;
+                currentFlight = { id: Date.now(), start: new Date().toISOString(), track: [], tasksSnapshot: [], markers: [] };
+                btn.className = "w-full py-4 rounded-xl font-black text-lg text-white bg-red-600 shadow-lg";
+                btn.innerHTML = `<span>LANDUNG</span>`;
+                document.getElementById('liveFormCard').classList.add('hidden');
+                document.getElementById('liveTaskCard').classList.remove('hidden');
+                if(!isSimulating) navigator.geolocation.watchPosition(pos => handleGpsUpdate(pos.coords), null, {enableHighAccuracy:true});
+                wakeLockManager.request();
+            } else {
+                if(!confirm("Fahrt beenden?")) return;
+                isFlightActive = false;
+                savedFlights.unshift({ ...currentFlight, tasksSnapshot: JSON.parse(JSON.stringify(tasks)) }); 
+                renderFlightList();
+                btn.className = "w-full py-4 rounded-xl font-black text-lg text-white bg-green-500 shadow-lg pulse-ring";
+                btn.innerHTML = `<span>START</span>`;
+                document.getElementById('liveFormCard').classList.remove('hidden');
+                document.getElementById('liveTaskCard').classList.add('hidden');
+                switchTab('tab-archive');
+                wakeLockManager.release();
+            }
+        }
+
+        function addTask() {
+            const lat = parseFloat(document.getElementById('inpLat').value);
+            if(isNaN(lat)) return;
+            const type = document.getElementById('taskType').value;
+            const mCount = getMarkerCount(type);
+            const mColors = getMarkerColors(mCount, 'live_m');
+            const tStart = document.getElementById('inpTimeStart') ? document.getElementById('inpTimeStart').value : "";
+            const tEnd = document.getElementById('inpTimeEnd') ? document.getElementById('inpTimeEnd').value : "";
+            const altMin = document.getElementById('inpAltMin') ? document.getElementById('inpAltMin').value : "";
+            const altMax = document.getElementById('inpAltMax') ? document.getElementById('inpAltMax').value : "";
+
+            const task = { 
+                id: Date.now(), 
+                title: document.getElementById('inpTitle').value||`T${tasks.length + 1}`, 
+                lat, lng: parseFloat(document.getElementById('inpLon').value), type, 
+                radius: parseInt(document.getElementById('inpRadius').value)||100, 
+                radius2: parseInt(document.getElementById('inpRadius2').value)||0,
+                completed: false, 
+                markerColors: mColors, droppedMarkers: [],
+                timeStart: tStart,
+                timeEnd: tEnd,
+                altMin: altMin,
+                altMax: altMax
+            };
+            tasks.push(task); if(activeTaskIdx === -1) activeTaskIdx = 0; renderTasks(); drawTaskVisuals(); calculateNav(); 
+            document.getElementById('inpTitle').value = "";
+        }
+
+        function setMapStyle(style) { 
+            map.removeLayer(baseLayers.osm); map.removeLayer(baseLayers.sat); 
+            baseLayers[style].addTo(map); 
+            document.getElementById('btnStyleOsm').className = style==='osm' ? "flex-1 text-[10px] py-1 rounded bg-white shadow-sm font-bold text-blue-600" : "flex-1 text-[10px] py-1 rounded text-slate-500";
+            document.getElementById('btnStyleSat').className = style==='sat' ? "flex-1 text-[10px] py-1 rounded bg-white shadow-sm font-bold text-blue-600" : "flex-1 text-[10px] py-1 rounded text-slate-500";
+        }
+        function changeMapStyle() { setMapStyle(document.getElementById('mapStyle').value); }
+        
+        function setTrajectory(min) {
+            config.forecastMinutes = min;
+            [0,5,10,15].forEach(m => {
+                const btn = document.getElementById(`traj${m}`);
+                if(m === min) btn.className = "text-[9px] py-1 rounded bg-blue-600 text-white border border-blue-600 font-bold";
+                else btn.className = "text-[9px] py-1 rounded bg-slate-100 border hover:bg-slate-200";
+            });
+            handleGpsUpdate(currentPos);
+        }
+
+        // --- ONLOAD ---
+        window.onload = function() {
+            initMap();
+            generateSyntheticWind();
+            renderBriefingList();
+            renderFlightList();
+            setInterval(checkBriefingTimes, 1000);
+            updateLiveMarkerConfig();
+            
+            document.addEventListener('visibilitychange', async () => {
+                if(document.visibilityState === 'visible' && isFlightActive) await wakeLockManager.request();
+            });
+        };
     </script>
 </body>
 </html>
