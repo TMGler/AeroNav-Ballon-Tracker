@@ -20,7 +20,7 @@
   <!-- Leaflet Omnivore (KML import) -->
   <script src="https://unpkg.com/leaflet-omnivore@0.3.4/leaflet-omnivore.min.js"></script>
 
-  <!-- FontAwesome (UI Icons only) -->
+  <!-- FontAwesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 
   <style>
@@ -35,22 +35,9 @@
     .shadow-soft { box-shadow: 0 12px 30px rgba(0,0,0,.35); }
     .panel-scroll { max-height: calc(100vh - 7.5rem); overflow: auto; -webkit-overflow-scrolling: touch; }
     .mono { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+    .balloon-icon { width: 28px; height: 28px; display: grid; place-items: center; }
+    .balloon-rot { width: 28px; height: 28px; display: grid; place-items: center; transform-origin: 50% 50%; }
     .leaflet-control-container { z-index: 10; }
-
-    /* Waypoint X marker */
-    .wp-x {
-      width: 22px; height: 22px;
-      display: grid; place-items: center;
-      border-radius: 9999px;
-      background: rgba(2,6,23,.75);
-      border: 2px solid rgba(251,191,36,.95);
-      color: rgba(251,191,36,.95);
-      font-weight: 900;
-      font-size: 14px;
-      line-height: 1;
-      box-shadow: 0 8px 18px rgba(0,0,0,.35);
-      pointer-events: none;
-    }
   </style>
 </head>
 
@@ -121,21 +108,21 @@
           </div>
         </div>
         <div class="px-3 py-2">
-          <div class="text-xs text-slate-400 mb-2">Schichten (Höhe / Richtung / Speed)</div>
+          <div class="text-xs text-slate-400 mb-2">Schichten (Höhe / Richtung / Speed). Tippe im Menü auf „Wind“, um manuell zu editieren.</div>
           <div id="windHudList" class="space-y-2"></div>
         </div>
       </div>
 
-      <!-- Nav Toast (Task oder Waypoint) -->
+      <!-- Nav Toast -->
       <div id="navToast" class="hidden absolute left-1/2 top-3 -translate-x-1/2 z-50 rounded-2xl bg-slate-950/80 backdrop-blur border border-slate-800 shadow-soft px-4 py-2 max-w-[92vw]">
         <div class="text-sm font-bold truncate">
-          <i id="navIcon" class="fa-solid fa-route mr-2 text-emerald-300"></i>
-          <span id="navTitle">–</span>
+          <i class="fa-solid fa-route mr-2 text-emerald-300"></i>
+          <span id="navTaskName">–</span>
         </div>
         <div class="text-xs text-slate-300 mt-0.5">
-          <span class="mono" id="navLine1">–</span>
+          <span class="mono" id="navDist">–</span>
           <span class="mx-2 text-slate-600">•</span>
-          <span id="navLine2">–</span>
+          <span id="navRec">–</span>
         </div>
       </div>
 
@@ -214,7 +201,7 @@
   </div>
 
   <!-- Side Drawer -->
-  <div id="drawerWrap" class="hidden fixed inset-0 z-[70]">
+  <div id="drawerWrap" class="hidden fixed inset-0 z-[60]">
     <div id="drawerBg" class="absolute inset-0 bg-black/60"></div>
     <aside id="drawer" class="absolute right-0 top-0 h-full w-[92vw] max-w-[420px] bg-slate-950 border-l border-slate-800 shadow-soft flex flex-col">
       <div class="safe-top px-4 py-3 flex items-center border-b border-slate-800">
@@ -238,12 +225,13 @@
         <section id="tab_task" class="space-y-4">
           <div class="rounded-2xl bg-slate-900/50 border border-slate-800 p-3">
             <div class="font-extrabold mb-2"><i class="fa-solid fa-flag mr-2 text-emerald-300"></i>Aktiver Task (Briefing)</div>
+            <div class="grid grid-cols-1 gap-2">
+              <label class="text-xs text-slate-400">Task-Typ</label>
+              <select id="taskType" class="h-11 rounded-xl bg-slate-950 border border-slate-700 px-3 font-bold"></select>
 
-            <label class="text-xs text-slate-400">Task-Typ</label>
-            <select id="taskType" class="h-11 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 font-bold"></select>
-
-            <label class="text-xs text-slate-400 mt-3 block">Task-Titel (optional)</label>
-            <input id="taskTitle" type="text" placeholder="z.B. Abendfahrt JDG" class="h-11 w-full rounded-xl bg-slate-950 border border-slate-700 px-3" />
+              <label class="text-xs text-slate-400 mt-2">Task-Titel (optional)</label>
+              <input id="taskTitle" type="text" placeholder="z.B. Abendfahrt JDG" class="h-11 rounded-xl bg-slate-950 border border-slate-700 px-3" />
+            </div>
 
             <div id="taskFields" class="mt-3 space-y-3"></div>
 
@@ -257,19 +245,25 @@
             </div>
 
             <div class="mt-3 rounded-2xl bg-slate-950/60 border border-slate-800 p-3">
-              <div class="font-bold text-sm mb-1"><i class="fa-solid fa-hand-pointer mr-2 text-sky-300"></i>Karte tippen</div>
-              <div id="mapPickHint" class="hidden text-xs text-amber-300">
-                Tippe auf die Karte, um Punkt A zu setzen (Briefing).
+              <div class="font-bold text-sm mb-2"><i class="fa-solid fa-bullseye mr-2 text-sky-300"></i>Navigation</div>
+              <div class="text-xs text-slate-400">Aktiver Task wird im Toast angezeigt (Distanz + Layer-Empfehlung). Fahrt startet **nicht** automatisch.</div>
+              <div class="mt-2 grid grid-cols-2 gap-2">
+                <button id="btnSetTargetFromMap" class="btn-touch h-11 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-bold text-sm">
+                  <i class="fa-solid fa-crosshairs mr-2"></i>Ziel picken
+                </button>
+                <button id="btnAPTStart" class="btn-touch hidden h-11 rounded-xl bg-sky-400 hover:bg-sky-300 active:bg-sky-500 text-slate-950 font-extrabold text-sm">
+                  <i class="fa-solid fa-stopwatch mr-2"></i>APT Start
+                </button>
               </div>
-              <div class="text-xs text-slate-400 mt-2">
-                Tipp: <span class="font-bold">Langer Klick</span> auf die Karte erstellt einen <span class="font-bold">freien Waypoint</span> (ohne Task).
+              <div id="mapPickHint" class="hidden mt-2 text-xs text-amber-300">
+                Tippe auf die Karte, um Punkt A zu setzen (Briefing).
               </div>
             </div>
           </div>
 
           <div class="rounded-2xl bg-slate-900/50 border border-slate-800 p-3">
-            <div class="font-extrabold mb-2"><i class="fa-solid fa-diagram-project mr-2 text-sky-300"></i>ELB Helper</div>
-            <div class="text-xs text-slate-400 mb-3">Nur während aktiver Fahrt.</div>
+            <div class="font-extrabold mb-2"><i class="fa-solid fa-diagram-project mr-2 text-sky-300"></i>ELB / ANG Helper</div>
+            <div class="text-xs text-slate-400 mb-3">Optional: Trackpunkte während der Fahrt setzen (nur wenn Fahrt aktiv).</div>
             <div class="grid grid-cols-3 gap-2">
               <button id="btnSetA" class="btn-touch h-11 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-bold text-sm">Set A</button>
               <button id="btnSetB" class="btn-touch h-11 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-bold text-sm">Set B</button>
@@ -286,7 +280,7 @@
         <section id="tab_wind" class="hidden space-y-4">
           <div class="rounded-2xl bg-slate-900/50 border border-slate-800 p-3">
             <div class="font-extrabold mb-2"><i class="fa-solid fa-wind mr-2 text-sky-300"></i>Windprofil</div>
-            <div class="text-xs text-slate-400 mb-3">Manuell editieren oder Online holen. Auto-Record: GS &gt; 10 km/h &amp;&amp; (ΔH&gt;50 m oder ΔKurs&gt;5°) — nur während Fahrt.</div>
+            <div class="text-xs text-slate-400 mb-3">Manuell editieren oder Online holen. Auto-Record: wenn GS &gt; 10 km/h und ΔH&gt;50 m oder ΔKurs&gt;5° (nur während Fahrt).</div>
 
             <div class="grid grid-cols-3 gap-2">
               <input id="windAlt" type="number" placeholder="Höhe m" class="h-11 rounded-xl bg-slate-950 border border-slate-700 px-3" />
@@ -328,14 +322,8 @@
               <button id="btnWakeLock" class="btn-touch h-11 rounded-xl bg-sky-400 hover:bg-sky-300 active:bg-sky-500 text-slate-950 font-extrabold">
                 <i class="fa-solid fa-mobile-screen mr-2"></i>WakeLock
               </button>
-              <button id="btnResetUi" class="btn-touch h-11 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-extrabold">
+              <button id="btnReset" class="btn-touch h-11 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-extrabold">
                 <i class="fa-solid fa-rotate mr-2"></i>Reset UI
-              </button>
-            </div>
-
-            <div class="mt-3 grid grid-cols-1 gap-2">
-              <button id="btnClearWaypoint" class="btn-touch h-11 w-full rounded-xl bg-amber-300 hover:bg-amber-200 active:bg-amber-400 text-slate-950 font-extrabold">
-                <i class="fa-solid fa-xmark mr-2"></i>Waypoint löschen
               </button>
             </div>
 
@@ -375,24 +363,30 @@
      ********************************************************************/
     const APP = {
       name: "CompNavAir",
-      version: "1.2.0",
-      defaultCenter: { lat: 49.317, lon: 8.448 }, // Speyer/EDRY
+      version: "1.0.0",
+      defaultCenter: { lat: 49.317, lon: 8.448 }, // Speyer/EDRY Nähe
       defaultZoom: 13,
-      storageKey: "compnavair_v1_2",
+      storageKey: "compnavair_v1",
       maxTrackPoints: 20000,
       trackMinDistM: 8,
-      maxGpsJumpM: 160,
-      gpsSmoothingAlpha: 0.25,
+      maxGpsJumpM: 160,            // hartes Jump-Limit
+      gpsSmoothingAlpha: 0.25,     // 0..1 (höher = weniger smoothing)
       followPanMinMs: 800,
-      longPressMs: 650,
-      longPressMovePx: 10,
+      kmlName: "CompNavAir_Export",
     };
 
     const TILE = {
-      osm: { url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", attr: '&copy; OpenStreetMap-Mitwirkende' },
-      esri:{ url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", attr: "Tiles &copy; Esri" }
+      osm: {
+        url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        attr: '&copy; OpenStreetMap-Mitwirkende'
+      },
+      esri: {
+        url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        attr: "Tiles &copy; Esri"
+      }
     };
 
+    // CIA Task List (inkl. 15.21 APT) basierend auf AX Model Event Rules (Apr 2025)
     const CIA_TASKS = [
       { num: "15.1",  code: "PDG", title: "SELBST GEWÄHLTES ZIEL" },
       { num: "15.2",  code: "JDG", title: "VORGEGEBENES ZIEL" },
@@ -419,8 +413,14 @@
 
     const MARKER_COLORS = ["pink","amber","emerald","sky","violet","rose","lime","orange"];
     const COLOR_HEX = {
-      pink:"#fb7185", amber:"#fbbf24", emerald:"#34d399", sky:"#38bdf8",
-      violet:"#a78bfa", rose:"#f43f5e", lime:"#a3e635", orange:"#fb923c",
+      pink:   "#fb7185",
+      amber:  "#fbbf24",
+      emerald:"#34d399",
+      sky:    "#38bdf8",
+      violet: "#a78bfa",
+      rose:   "#f43f5e",
+      lime:   "#a3e635",
+      orange: "#fb923c",
     };
 
     /********************************************************************
@@ -434,9 +434,6 @@
         tasksLayer: null,
         trackLayer: null,
         markersLayer: null,
-        pickLayer: null,
-        waypointLayer: null,
-        trajectoryLayer: null,
         kmlLayer: null,
         trackLine: null,
       },
@@ -446,23 +443,11 @@
         followGps: true,
         base: "osm",
         windHudOpen: false,
-
         mapPickMode: false,
         mapPickWhich: "A",
-        pickMarkers: { A:null, B:null, C:null },
-
         snackbarTimer: null,
         wakeLock: null,
         mapUserInteracting: false,
-
-        longPress: {
-          active: false,
-          timer: null,
-          pointerId: null,
-          startX: 0,
-          startY: 0,
-          startLatLng: null,
-        },
       },
       gps: {
         watchId: null,
@@ -472,14 +457,15 @@
         lon: null,
         altM: null,
         speedKmh: 0,
-        headingDeg: null,
+        headingDeg: 0,
         accuracyM: null,
         smoothLat: null,
         smoothLon: null,
         lastAltM: null,
         lastAltTs: null,
-        lastPanTs: 0,
         lastCourseDeg: null,
+        lastCourseTs: null,
+        lastPanTs: 0,
       },
       sim: {
         enabled: false,
@@ -506,21 +492,13 @@
         lastAuto: { altM: null, courseDeg: null, ts: 0 },
       },
       task: {
-        active: null,
-        pointsABC: { A:null, B:null, C:null },
-        apt: { startTs: null },
-      },
-      waypoint: {
-        active: null, // {lat, lon, ts}
-        marker: null,
-        lineToWp: null,
-        headingLine: null,
-        closestX: null,
+        active: null,      // task object
+        pointsABC: { A:null, B:null, C:null }, // helper for ELB/ANG
+        apt: { startTs: null }, // for APT
       },
       balloon: {
         marker: null,
-        el: null, // rotation element
-      },
+      }
     };
 
     /********************************************************************
@@ -528,6 +506,7 @@
      ********************************************************************/
     function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
     function now() { return Date.now(); }
+
     function toRad(deg) { return deg * Math.PI / 180; }
     function toDeg(rad) { return rad * 180 / Math.PI; }
 
@@ -537,7 +516,8 @@
       const dLat = toRad(b.lat - a.lat);
       const dLon = toRad(b.lon - a.lon);
       const s = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
-      return 2 * R * Math.atan2(Math.sqrt(s), Math.sqrt(1-s));
+      const c = 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1-s));
+      return R * c;
     }
 
     function bearingDeg(a, b) {
@@ -568,25 +548,13 @@
       if (m < 1000) return `${Math.round(m)} m`;
       return `${(m/1000).toFixed(2)} km`;
     }
-
     function fmtNum(n, digits=0) {
       if (n == null || !isFinite(n)) return "–";
       return n.toFixed(digits);
     }
 
-    function fmtTime(sec) {
-      if (sec == null || !isFinite(sec) || sec < 0) return "–";
-      const s = Math.round(sec);
-      const m = Math.floor(s / 60);
-      const r = s % 60;
-      if (m < 60) return `${String(m).padStart(2,"0")}:${String(r).padStart(2,"0")}`;
-      const h = Math.floor(m / 60);
-      const mm = m % 60;
-      return `${h}:${String(mm).padStart(2,"0")}:${String(r).padStart(2,"0")}`;
-    }
-
     function safeFloat(v, fallback=null) {
-      const n = parseFloat(String(v ?? "").replace(",", "."));
+      const n = parseFloat(String(v).replace(",", "."));
       return Number.isFinite(n) ? n : fallback;
     }
 
@@ -595,24 +563,12 @@
       return prev + alpha * (next - prev);
     }
 
-    function windToDegFrom(fromDeg) { return (fromDeg + 180) % 360; }
-
-    function uid() { return Math.random().toString(36).slice(2, 10); }
-
-    function escapeXml(s) {
-      return String(s)
-        .replaceAll("&","&amp;")
-        .replaceAll("<","&lt;")
-        .replaceAll(">","&gt;")
-        .replaceAll('"',"&quot;")
-        .replaceAll("'","&apos;");
+    function windToDegFrom(fromDeg) {
+      return (fromDeg + 180) % 360;
     }
 
-    function hashStr(s) {
-      let h = 0;
-      for (let i=0;i<s.length;i++) h = ((h<<5)-h) + s.charCodeAt(i) | 0;
-      return h;
-    }
+    function isTaskActive() { return !!STATE.task.active; }
+    function getActiveTask() { return STATE.task.active; }
 
     function showSnackbar(msg, ms=2200) {
       const el = document.getElementById("snackbar");
@@ -629,64 +585,15 @@
       knobEl.style.background = on ? "#34d399" : "#e2e8f0";
     }
 
-    function getCurrentPos() {
-      if (STATE.sim.enabled && STATE.sim.lat != null && STATE.sim.lon != null) return { lat: STATE.sim.lat, lon: STATE.sim.lon };
-      if (!STATE.gps.hasFix || STATE.gps.lat == null || STATE.gps.lon == null) return null;
-      return { lat: STATE.gps.lat, lon: STATE.gps.lon };
-    }
+    function uid() { return Math.random().toString(36).slice(2, 10); }
 
-    function getCurrentAltM() {
-      if (STATE.sim.enabled) return STATE.sim.altM;
-      return STATE.gps.altM;
-    }
-
-    function getGroundSpeedMps() {
-      const kmh = STATE.sim.enabled ? (STATE.sim.speedKmh || 0) : (STATE.gps.speedKmh || 0);
-      return Math.max(0, kmh) / 3.6;
-    }
-
-    function getCourseDeg() {
-      // Prefer sim heading
-      if (STATE.sim.enabled) return (STATE.sim.headingDeg ?? 0);
-
-      // Use GPS heading if plausible
-      const h = STATE.gps.headingDeg;
-      const gs = STATE.gps.speedKmh || 0;
-      if (h != null && isFinite(h) && gs >= 3) return ((h % 360) + 360) % 360;
-
-      // Derive from last 2 track points (even if flight not active: use last smoothed positions)
-      // Fallback using lastCourseDeg if set
-      if (STATE.gps.lastCourseDeg != null) return STATE.gps.lastCourseDeg;
-
-      return 0;
-    }
-
-    // Project waypoint onto heading ray from current position (local tangent approx)
-    function projectOntoHeadingRay(pos, headingDegVal, wp) {
-      const R = 6371000;
-      const lat0 = toRad(pos.lat);
-      const cosLat = Math.cos(lat0);
-
-      const dx = toRad(wp.lon - pos.lon) * R * cosLat; // east meters
-      const dy = toRad(wp.lat - pos.lat) * R;          // north meters
-
-      const h = toRad(headingDegVal);
-      const ux = Math.sin(h);
-      const uy = Math.cos(h);
-
-      const s = dx*ux + dy*uy;          // along-track meters
-      const sClamped = Math.max(0, s);  // only forward
-      const px = ux * sClamped;
-      const py = uy * sClamped;
-
-      const offx = dx - px;
-      const offy = dy - py;
-      const dca = Math.hypot(offx, offy);
-
-      const latP = pos.lat + toDeg(py / R);
-      const lonP = pos.lon + toDeg(px / (R * cosLat));
-
-      return { alongM: sClamped, dcaM: dca, closest: { lat: latP, lon: lonP } };
+    function escapeXml(s) {
+      return String(s)
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&apos;");
     }
 
     /********************************************************************
@@ -718,13 +625,21 @@
     }
 
     function updateButtons() {
-      document.getElementById("btnStartFlight")?.classList.toggle("hidden", STATE.flight.active);
-      document.getElementById("btnFinish")?.classList.toggle("hidden", !STATE.flight.active);
-      document.getElementById("simControls")?.classList.toggle("hidden", !STATE.sim.enabled);
+      const bStart = document.getElementById("btnStartFlight");
+      const bFin = document.getElementById("btnFinish");
+      if (bStart) bStart.classList.toggle("hidden", STATE.flight.active);
+      if (bFin) bFin.classList.toggle("hidden", !STATE.flight.active);
 
-      // Nav toast visible when task OR waypoint exists
-      const showNav = !!STATE.task.active || !!STATE.waypoint.active;
-      document.getElementById("navToast")?.classList.toggle("hidden", !showNav);
+      const navToast = document.getElementById("navToast");
+      if (navToast) navToast.classList.toggle("hidden", !isTaskActive());
+
+      const simControls = document.getElementById("simControls");
+      if (simControls) simControls.classList.toggle("hidden", !STATE.sim.enabled);
+
+      const aptBtn = document.getElementById("btnAPTStart");
+      const t = getActiveTask();
+      const isAPT = t && t.code === "APT";
+      if (aptBtn) aptBtn.classList.toggle("hidden", !(isAPT && STATE.flight.active));
     }
 
     function updateInstruments() {
@@ -733,7 +648,6 @@
       const varEl = document.getElementById("instVAR");
 
       let gs = 0, alt = null, vario = null;
-
       if (STATE.sim.enabled) {
         gs = STATE.sim.speedKmh || 0;
         alt = STATE.sim.altM;
@@ -787,7 +701,7 @@
           <div class="flex items-center justify-between rounded-2xl bg-slate-900/60 border border-slate-800 px-3 py-2">
             <div class="min-w-0">
               <div class="font-extrabold mono">${Math.round(w.altM)} m</div>
-              <div class="text-xs text-slate-400 truncate">${escapeXml(w.source || "manual")} • ${new Date(w.ts).toLocaleTimeString()}</div>
+              <div class="text-xs text-slate-400 truncate">${w.source || "manual"} • ${new Date(w.ts).toLocaleTimeString()}</div>
             </div>
             <div class="text-right">
               <div class="font-extrabold mono">${Math.round(w.fromDeg)}° <span class="text-xs text-slate-400">FROM</span></div>
@@ -808,17 +722,19 @@
         return;
       }
 
-      list.innerHTML = items.map((w, idx) => `
-        <div class="flex items-center gap-2 rounded-2xl bg-slate-950/60 border border-slate-800 px-3 py-2">
-          <div class="flex-1">
-            <div class="font-extrabold mono">${Math.round(w.altM)} m</div>
-            <div class="text-xs text-slate-400 mono">${Math.round(w.fromDeg)}° FROM • ${fmtNum(w.speedKmh,1)} km/h</div>
+      list.innerHTML = items.map((w, idx) => {
+        return `
+          <div class="flex items-center gap-2 rounded-2xl bg-slate-950/60 border border-slate-800 px-3 py-2">
+            <div class="flex-1">
+              <div class="font-extrabold mono">${Math.round(w.altM)} m</div>
+              <div class="text-xs text-slate-400 mono">${Math.round(w.fromDeg)}° FROM • ${fmtNum(w.speedKmh,1)} km/h</div>
+            </div>
+            <button data-widx="${idx}" class="btn-touch btnDelWind h-9 w-9 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800">
+              <i class="fa-solid fa-trash"></i>
+            </button>
           </div>
-          <button data-widx="${idx}" class="btn-touch btnDelWind h-9 w-9 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800">
-            <i class="fa-solid fa-trash"></i>
-          </button>
-        </div>
-      `).join("");
+        `;
+      }).join("");
 
       list.querySelectorAll(".btnDelWind").forEach(btn => {
         btn.addEventListener("click", (e) => {
@@ -828,8 +744,6 @@
           persistAll();
           updateWindPanel();
           updateWindHud();
-          updateNavToast();
-          rebuildTrajectory();
         });
       });
     }
@@ -837,8 +751,8 @@
     function updateArchivePanel() {
       const list = document.getElementById("archiveList");
       if (!list) return;
-
       const items = [...STATE.flight.archive].sort((a,b)=>b.startedTs-a.startedTs);
+
       if (!items.length) {
         list.innerHTML = `<div class="text-sm text-slate-400">Noch keine Fahrten im Archiv.</div>`;
         return;
@@ -874,80 +788,173 @@
       });
     }
 
-    function setMarkerButtonColor(key) {
+    function updateNavToast() {
+      const toast = document.getElementById("navToast");
+      const nameEl = document.getElementById("navTaskName");
+      const distEl = document.getElementById("navDist");
+      const recEl  = document.getElementById("navRec");
+      if (!toast || !nameEl || !distEl || !recEl) return;
+
+      const t = getActiveTask();
+      toast.classList.toggle("hidden", !t);
+
+      if (!t) return;
+
+      nameEl.textContent = `${t.code} — ${t.title || t.typeTitle}`;
+
+      const pos = getCurrentPos();
+      if (!pos) {
+        distEl.textContent = "–";
+        recEl.textContent = "Keine Position";
+        return;
+      }
+
+      const target = getPrimaryTarget(t);
+      if (!target) {
+        distEl.textContent = "–";
+        recEl.textContent = "Kein Ziel";
+        return;
+      }
+
+      const d = haversineM(pos, target);
+      distEl.textContent = fmtDist(d);
+
+      const rec = recommendLayerText(t, pos, target);
+      recEl.textContent = rec || "–";
+    }
+
+    function setMarkerButtonColor(taskCode) {
       const btn = document.getElementById("btnMarker");
       if (!btn) return;
-      const idx = Math.abs(hashStr(key || "x")) % MARKER_COLORS.length;
+
+      // simple mapping: rotate color by task code
+      const idx = Math.abs(hashStr(taskCode || "x")) % MARKER_COLORS.length;
       const c = MARKER_COLORS[idx];
       btn.style.background = COLOR_HEX[c];
       btn.style.color = "#0b1220";
     }
 
-    function updateNavToast() {
-      const toast = document.getElementById("navToast");
-      const icon  = document.getElementById("navIcon");
-      const title = document.getElementById("navTitle");
-      const l1    = document.getElementById("navLine1");
-      const l2    = document.getElementById("navLine2");
-      if (!toast || !icon || !title || !l1 || !l2) return;
-
-      const pos = getCurrentPos();
-      const gsMps = getGroundSpeedMps();
-
-      // Prefer task
-      if (STATE.task.active) {
-        icon.className = "fa-solid fa-route mr-2 text-emerald-300";
-        const t = STATE.task.active;
-        title.textContent = `${t.code} — ${t.title || t.typeTitle}`;
-
-        const target = getPrimaryTarget(t);
-        if (!pos || !target) {
-          l1.textContent = "–";
-          l2.textContent = !pos ? "Keine Position" : "Kein Ziel";
-          return;
-        }
-
-        const d = haversineM(pos, target);
-        l1.textContent = `Dist: ${fmtDist(d)}`;
-
-        const rec = recommendLayerText(t, pos, target);
-        l2.textContent = rec || "–";
-        return;
-      }
-
-      // Waypoint
-      if (STATE.waypoint.active) {
-        icon.className = "fa-solid fa-location-crosshairs mr-2 text-amber-300";
-        title.textContent = "Waypoint";
-
-        if (!pos) {
-          l1.textContent = "–";
-          l2.textContent = "Keine Position";
-          return;
-        }
-
-        const wp = { lat: STATE.waypoint.active.lat, lon: STATE.waypoint.active.lon };
-        const d = haversineM(pos, wp);
-        const brg = bearingDeg(pos, wp);
-
-        const course = getCourseDeg();
-        const proj = projectOntoHeadingRay(pos, course, wp);
-        const ete = (gsMps > 0.6) ? (proj.alongM / gsMps) : null;
-
-        l1.textContent = `Dist: ${fmtDist(d)} • Brg: ${Math.round(brg)}°`;
-        l2.textContent = `ETE: ${fmtTime(ete)} • DCA: ${fmtDist(proj.dcaM)}`;
-        return;
-      }
-
-      // none
-      toast.classList.add("hidden");
+    function hashStr(s) {
+      let h = 0;
+      for (let i=0;i<s.length;i++) h = ((h<<5)-h) + s.charCodeAt(i) | 0;
+      return h;
     }
 
-    function setMapPickHint(which, on) {
-      const hint = document.getElementById("mapPickHint");
-      if (!hint) return;
-      hint.textContent = `Tippe auf die Karte, um Punkt ${which} zu setzen (Briefing).`;
-      hint.classList.toggle("hidden", !on);
+    function renderTaskTypeOptions() {
+      const sel = document.getElementById("taskType");
+      if (!sel) return;
+      sel.innerHTML = CIA_TASKS.map(t => `<option value="${t.code}">${t.num} ${t.code} — ${t.title}</option>`).join("");
+    }
+
+    function renderTaskFieldsForCode(code) {
+      const wrap = document.getElementById("taskFields");
+      if (!wrap) return;
+
+      const is3DT = code === "3DT";
+      const isANG = code === "ANG";
+      const isLRN = code === "LRN";
+      const isAPT = code === "APT";
+
+      const commonPoint = (label, idLat, idLon) => `
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <div class="text-xs text-slate-400 mb-1">${label} Lat</div>
+            <input id="${idLat}" type="number" step="0.000001" class="h-11 rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="49.123456" />
+          </div>
+          <div>
+            <div class="text-xs text-slate-400 mb-1">${label} Lon</div>
+            <input id="${idLon}" type="number" step="0.000001" class="h-11 rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="8.123456" />
+          </div>
+        </div>
+      `;
+
+      const radiusFields = `
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <div class="text-xs text-slate-400 mb-1">${is3DT ? "Innenradius (m)" : "Radius 1 (m)"}</div>
+            <input id="taskR1" type="number" class="h-11 rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="z.B. 50" />
+          </div>
+          <div>
+            <div class="text-xs text-slate-400 mb-1">${is3DT ? "Außenradius (m)" : "Radius 2 (m)"}</div>
+            <input id="taskR2" type="number" class="h-11 rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="z.B. 200" />
+          </div>
+        </div>
+      `;
+
+      const altFields = `
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <div class="text-xs text-slate-400 mb-1">Min Höhe (m)</div>
+            <input id="taskMinAlt" type="number" class="h-11 rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="optional" />
+          </div>
+          <div>
+            <div class="text-xs text-slate-400 mb-1">Max Höhe (m)</div>
+            <input id="taskMaxAlt" type="number" class="h-11 rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="optional" />
+          </div>
+        </div>
+      `;
+
+      const angFields = isANG ? `
+        <div>
+          <div class="text-xs text-slate-400 mb-1">Vorgegebene Richtung (°)</div>
+          <input id="taskSetDir" type="number" class="h-11 rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="0..359" />
+        </div>
+      ` : "";
+
+      const abcFields = (isANG || isLRN) ? `
+        <div class="grid grid-cols-1 gap-3">
+          ${commonPoint("Punkt A", "taskALat", "taskALon")}
+          ${commonPoint("Punkt B", "taskBLat", "taskBLon")}
+          ${isLRN ? commonPoint("Punkt C", "taskCLat", "taskCLon") : ""}
+        </div>
+      ` : commonPoint("Ziel", "taskALat", "taskALon");
+
+      const aptFields = isAPT ? `
+        <div class="rounded-2xl bg-slate-950/60 border border-slate-800 p-3">
+          <div class="font-bold mb-2"><i class="fa-solid fa-chart-line mr-2 text-amber-300"></i>APT Profil (Zeit → Zielhöhe)</div>
+          <div class="text-xs text-slate-400 mb-2">Interpretation: Profil nach Zeit seit „APT Start“. Inner Band zählt 2x, Outer Band 1x.</div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <div class="text-xs text-slate-400 mb-1">Inner Band ± (m)</div>
+              <input id="aptInner" type="number" class="h-11 rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="z.B. 25" />
+            </div>
+            <div>
+              <div class="text-xs text-slate-400 mb-1">Outer Band ± (m)</div>
+              <input id="aptOuter" type="number" class="h-11 rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="z.B. 60" />
+            </div>
+          </div>
+          <div class="mt-2 space-y-2" id="aptPoints"></div>
+          <button id="btnAddAptPoint" class="btn-touch mt-2 h-11 w-full rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-extrabold">
+            <i class="fa-solid fa-plus mr-2"></i>Profilpunkt hinzufügen
+          </button>
+        </div>
+      ` : "";
+
+      wrap.innerHTML = `
+        <div class="text-xs text-slate-400 mb-1">Koordinaten</div>
+        ${abcFields}
+        <div class="mt-3">${radiusFields}</div>
+        <div class="mt-3">${angFields}</div>
+        <div class="mt-3">${altFields}</div>
+        ${aptFields}
+      `;
+
+      if (isAPT) {
+        ensureAptUi();
+      }
+    }
+
+    function updateDrawerTabUi() {
+      document.querySelectorAll(".tabBtn").forEach(b => {
+        const tab = b.getAttribute("data-tab");
+        b.classList.toggle("bg-sky-400", tab === STATE.ui.drawerTab);
+        b.classList.toggle("text-slate-950", tab === STATE.ui.drawerTab);
+        b.classList.toggle("border-sky-300", tab === STATE.ui.drawerTab);
+      });
+      ["task","wind","setup","archive"].forEach(t => {
+        const el = document.getElementById(`tab_${t}`);
+        if (el) el.classList.toggle("hidden", t !== STATE.ui.drawerTab);
+      });
     }
 
     function openDrawer(open=true) {
@@ -962,34 +969,16 @@
       const modal = document.getElementById("mapModal");
       if (!modal) return;
       modal.classList.toggle("hidden", !open);
-      updateFollowToggleUi();
-    }
-
-    function updateDrawerTabUi() {
-      document.querySelectorAll(".tabBtn").forEach(b => {
-        const tab = b.getAttribute("data-tab");
-        const on = tab === STATE.ui.drawerTab;
-        b.classList.toggle("bg-sky-400", on);
-        b.classList.toggle("text-slate-950", on);
-        b.classList.toggle("border-sky-300", on);
-      });
-      ["task","wind","setup","archive"].forEach(t => {
-        const el = document.getElementById(`tab_${t}`);
-        if (el) el.classList.toggle("hidden", t !== STATE.ui.drawerTab);
-      });
-    }
-
-    function updateFollowToggleUi() {
       const tgl = document.getElementById("tglFollow");
       const knob = document.getElementById("tglFollowKnob");
       if (tgl && knob) setToggleUI(tgl, knob, STATE.ui.followGps);
     }
 
     /********************************************************************
-     * 5) KERN-LOGIK (GPS, Map, Simulation, Tasks, Waypoint)
+     * 5) KERN-LOGIK (GPS, Map, Simulation)
      ********************************************************************/
     function initManifestAndSW() {
-      // Inline manifest via data URL (best effort)
+      // Inline manifest via data URL
       try {
         const manifest = {
           name: "CompNavAir",
@@ -1013,7 +1002,7 @@
         const swCode = `
           self.addEventListener('install', (e)=>self.skipWaiting());
           self.addEventListener('activate', (e)=>self.clients.claim());
-          self.addEventListener('fetch', (e)=>{});
+          self.addEventListener('fetch', (e)=>{ /* passthrough */ });
         `;
         const blob = new Blob([swCode], { type: "text/javascript" });
         const url = URL.createObjectURL(blob);
@@ -1032,65 +1021,78 @@
 
       STATE.layers.baseOSM = L.tileLayer(TILE.osm.url, { maxZoom: 19, attribution: TILE.osm.attr });
       STATE.layers.baseSAT = L.tileLayer(TILE.esri.url, { maxZoom: 19, attribution: TILE.esri.attr });
+
       STATE.layers.baseOSM.addTo(map);
 
       STATE.layers.tasksLayer = L.layerGroup().addTo(map);
       STATE.layers.trackLayer = L.layerGroup().addTo(map);
       STATE.layers.markersLayer = L.layerGroup().addTo(map);
-      STATE.layers.pickLayer = L.layerGroup().addTo(map);
-      STATE.layers.waypointLayer = L.layerGroup().addTo(map);
-      STATE.layers.trajectoryLayer = L.layerGroup().addTo(map);
 
-      STATE.layers.trackLine = L.polyline([], {
-        color: "#ef4444",
-        weight: 4,
-        opacity: 0.9,
-        interactive: false
-      }).addTo(STATE.layers.trackLayer);
+      STATE.layers.trackLine = L.polyline([], { color: "#ef4444", weight: 4, opacity: 0.9, interactive: false }).addTo(STATE.layers.trackLayer);
 
       map.setView([APP.defaultCenter.lat, APP.defaultCenter.lon], APP.defaultZoom);
 
-      // User interaction disables follow
       map.on("dragstart", () => {
         STATE.ui.mapUserInteracting = true;
         STATE.ui.followGps = false;
         updateFollowToggleUi();
-        cancelLongPress();
       });
-      map.on("dragend", () => setTimeout(()=>STATE.ui.mapUserInteracting = false, 120));
-      map.on("zoomstart", cancelLongPress);
+      map.on("dragend", () => {
+        setTimeout(()=>STATE.ui.mapUserInteracting = false, 150);
+      });
 
-      // Tap for picking task points
       map.on("click", (e) => {
         if (!STATE.ui.mapPickMode) return;
         const lat = e.latlng.lat;
         const lon = e.latlng.lng;
-        const which = STATE.ui.mapPickWhich || "A";
 
-        setPointFromMap(which, lat, lon);
-
-        const next = pickNextPoint(which);
-        if (next) {
-          STATE.ui.mapPickWhich = next;
-          setMapPickHint(next, true);
-          showSnackbar(`Punkt ${which} gesetzt. Jetzt Punkt ${next}.`, 1800);
-        } else {
-          stopMapPick();
-          showSnackbar(`Punkt ${which} gesetzt.`, 1600);
+        if (STATE.ui.mapPickWhich === "A") {
+          const la = document.getElementById("taskALat");
+          const lo = document.getElementById("taskALon");
+          if (la) la.value = lat.toFixed(6);
+          if (lo) lo.value = lon.toFixed(6);
+          showSnackbar("Punkt A gesetzt.");
         }
+        STATE.ui.mapPickMode = false;
+        const hint = document.getElementById("mapPickHint");
+        if (hint) hint.classList.add("hidden");
       });
-
-      // Long press for free waypoint
-      installLongPress(map);
 
       ensureBalloonMarker();
     }
 
+    function ensureBalloonMarker() {
+      if (!STATE.map) return;
+
+      const icon = L.divIcon({
+        className: "",
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
+        html: `
+          <div class="balloon-icon">
+            <div id="balloonRot" class="balloon-rot">
+              <i class="fa-solid fa-location-arrow text-sky-300 drop-shadow"></i>
+            </div>
+          </div>
+        `
+      });
+
+      const p = getCurrentPos() || APP.defaultCenter;
+      STATE.balloon.marker = L.marker([p.lat, p.lon], { icon, interactive: false }).addTo(STATE.map);
+    }
+
+    function setBalloonPose(lat, lon, headingDegVal) {
+      if (!STATE.balloon.marker) return;
+      STATE.balloon.marker.setLatLng([lat, lon]);
+      const rot = document.getElementById("balloonRot");
+      if (rot) rot.style.transform = `rotate(${headingDegVal || 0}deg)`;
+    }
+
     function setBaseLayer(which) {
       if (!STATE.map) return;
-      STATE.ui.base = which === "sat" ? "sat" : "osm";
+      STATE.ui.base = which;
       try {
-        if (STATE.ui.base === "sat") {
+        if (which === "sat") {
           STATE.map.removeLayer(STATE.layers.baseOSM);
           STATE.layers.baseSAT.addTo(STATE.map);
         } else {
@@ -1100,454 +1102,10 @@
       } catch {}
     }
 
-    function ensureBalloonMarker() {
-      if (!STATE.map) return;
-
-      if (STATE.balloon.marker) {
-        if (!STATE.balloon.el) {
-          const el = STATE.balloon.marker.getElement?.();
-          STATE.balloon.el = el ? el.querySelector(".balloon-rot") : null;
-        }
-        return;
-      }
-
-      const icon = L.divIcon({
-        className: "",
-        iconSize: [34, 34],
-        iconAnchor: [17, 17],
-        html: `
-          <div class="balloon-rot" style="width:34px;height:34px;display:grid;place-items:center;transform:rotate(0deg);">
-            <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 2l7 19-7-4-7 4 7-19z" fill="#38bdf8" stroke="#0b1220" stroke-width="1.5" />
-            </svg>
-          </div>
-        `
-      });
-
-      const p = getCurrentPos() || APP.defaultCenter;
-      STATE.balloon.marker = L.marker([p.lat, p.lon], {
-        icon,
-        interactive: false,
-        zIndexOffset: 1000
-      }).addTo(STATE.map);
-
-      setTimeout(() => {
-        try {
-          const el = STATE.balloon.marker.getElement?.();
-          STATE.balloon.el = el ? el.querySelector(".balloon-rot") : null;
-        } catch {}
-      }, 0);
-    }
-
-    function setBalloonPose(lat, lon, headingDegVal) {
-      if (!STATE.map) return;
-      if (!STATE.balloon.marker) ensureBalloonMarker();
-
-      try { STATE.balloon.marker.setLatLng([lat, lon]); } catch {}
-
-      if (!STATE.balloon.el) {
-        try {
-          const el = STATE.balloon.marker.getElement?.();
-          STATE.balloon.el = el ? el.querySelector(".balloon-rot") : null;
-        } catch {}
-      }
-      if (STATE.balloon.el) {
-        STATE.balloon.el.style.transform = `rotate(${headingDegVal || 0}deg)`;
-      }
-    }
-
-    function installLongPress(map) {
-      const container = map.getContainer();
-      if (!container) return;
-
-      // Use pointer events
-      container.addEventListener("pointerdown", (ev) => {
-        try {
-          if (ev.button != null && ev.button !== 0) return; // only left / primary
-          if (STATE.ui.mapPickMode) return; // picking task points has priority
-          if (STATE.ui.longPress.pointerId != null) return; // already tracking one
-          if (ev.pointerType === "mouse" && (ev.ctrlKey || ev.metaKey)) return;
-
-          const rect = container.getBoundingClientRect();
-          const x = ev.clientX - rect.left;
-          const y = ev.clientY - rect.top;
-
-          STATE.ui.longPress.pointerId = ev.pointerId;
-          STATE.ui.longPress.startX = x;
-          STATE.ui.longPress.startY = y;
-          STATE.ui.longPress.active = true;
-          STATE.ui.longPress.startLatLng = map.containerPointToLatLng(L.point(x, y));
-
-          // start timer
-          STATE.ui.longPress.timer = setTimeout(() => {
-            if (!STATE.ui.longPress.active) return;
-            // If user is dragging map, do not trigger
-            if (STATE.ui.mapUserInteracting) return;
-
-            const ll = STATE.ui.longPress.startLatLng;
-            if (!ll) return;
-
-            setWaypoint(ll.lat, ll.lng);
-            // prevent click creating something else
-            cancelLongPress(true);
-          }, APP.longPressMs);
-
-          // capture pointer to keep receiving events
-          try { container.setPointerCapture(ev.pointerId); } catch {}
-        } catch {}
-      }, { passive: true });
-
-      container.addEventListener("pointermove", (ev) => {
-        if (!STATE.ui.longPress.active) return;
-        if (STATE.ui.longPress.pointerId !== ev.pointerId) return;
-
-        const container = map.getContainer();
-        const rect = container.getBoundingClientRect();
-        const x = ev.clientX - rect.left;
-        const y = ev.clientY - rect.top;
-
-        const dx = x - STATE.ui.longPress.startX;
-        const dy = y - STATE.ui.longPress.startY;
-        if (Math.hypot(dx, dy) > APP.longPressMovePx) {
-          cancelLongPress();
-        }
-      }, { passive: true });
-
-      const end = (ev) => {
-        if (!STATE.ui.longPress.active) return;
-        if (STATE.ui.longPress.pointerId !== ev.pointerId) return;
-        cancelLongPress();
-      };
-
-      container.addEventListener("pointerup", end, { passive: true });
-      container.addEventListener("pointercancel", end, { passive: true });
-      container.addEventListener("pointerleave", () => cancelLongPress(), { passive: true });
-    }
-
-    function cancelLongPress(fired=false) {
-      STATE.ui.longPress.active = false;
-      try { clearTimeout(STATE.ui.longPress.timer); } catch {}
-      STATE.ui.longPress.timer = null;
-      STATE.ui.longPress.pointerId = null;
-      STATE.ui.longPress.startLatLng = null;
-      // if fired, keep map interaction normal
-    }
-
-    function setWaypoint(lat, lon) {
-      // create/replace free waypoint
-      STATE.waypoint.active = { lat, lon, ts: now() };
-      drawWaypoint();
-      updateButtons();
-      updateNavToast();
-      persistAll();
-      showSnackbar("Waypoint gesetzt (long press).", 1800);
-    }
-
-    function clearWaypoint() {
-      STATE.waypoint.active = null;
-      removeWaypointGraphics();
-      updateButtons();
-      updateNavToast();
-      persistAll();
-      showSnackbar("Waypoint entfernt.", 1600);
-    }
-
-    function removeWaypointGraphics() {
-      try { STATE.layers.waypointLayer?.clearLayers(); } catch {}
-      STATE.waypoint.marker = null;
-      STATE.waypoint.lineToWp = null;
-      STATE.waypoint.headingLine = null;
-      STATE.waypoint.closestX = null;
-    }
-
-    function drawWaypoint() {
-      if (!STATE.map || !STATE.layers.waypointLayer) return;
-      removeWaypointGraphics();
-      if (!STATE.waypoint.active) return;
-
-      const wp = STATE.waypoint.active;
-      const latlng = [wp.lat, wp.lon];
-
-      // marker interactive for removing (tap)
-      const mk = L.circleMarker(latlng, {
-        radius: 10,
-        color: "#fbbf24",
-        weight: 3,
-        fillColor: "#fbbf24",
-        fillOpacity: 0.20,
-        interactive: true
-      }).addTo(STATE.layers.waypointLayer);
-
-      mk.on("click", () => clearWaypoint());
-
-      // label "WP"
-      L.marker(latlng, {
-        icon: L.divIcon({
-          className: "",
-          iconSize: [1,1],
-          html: `<div class="mono text-xs font-extrabold" style="color:#fbbf24;text-shadow:0 6px 16px rgba(0,0,0,.45)">WP</div>`
-        }),
-        interactive: false
-      }).addTo(STATE.layers.waypointLayer);
-
-      STATE.waypoint.marker = mk;
-
-      // lines + X are computed in updateWaypointGuidance()
-      updateWaypointGuidance();
-    }
-
-    function updateWaypointGuidance() {
-      if (!STATE.map || !STATE.layers.waypointLayer) return;
-      if (!STATE.waypoint.active) return;
-
-      const pos = getCurrentPos();
-      if (!pos) return;
-
-      const wp = { lat: STATE.waypoint.active.lat, lon: STATE.waypoint.active.lon };
-      const course = getCourseDeg();
-
-      // heading line length: min 1500m, max 6000m, based on GS*5min
-      const gsMps = getGroundSpeedMps();
-      const len = clamp(gsMps * 300, 1500, 6000);
-      const end = destPoint(pos, course, len);
-
-      const NI = { interactive: false };
-
-      // clear old guidance (keep marker)
-      try {
-        // remove everything except marker-ish by just clearing and re-adding marker would be annoying;
-        // instead: clear and recreate all quickly
-        const saved = STATE.waypoint.marker;
-        removeWaypointGraphics();
-        // redraw marker
-        STATE.waypoint.active = { ...STATE.waypoint.active };
-        const wpLatLng = [wp.lat, wp.lon];
-        const mk = L.circleMarker(wpLatLng, {
-          radius: 10, color: "#fbbf24", weight: 3, fillColor: "#fbbf24", fillOpacity: 0.20, interactive: true
-        }).addTo(STATE.layers.waypointLayer);
-        mk.on("click", () => clearWaypoint());
-        L.marker(wpLatLng, { icon: L.divIcon({ className:"", iconSize:[1,1], html:`<div class="mono text-xs font-extrabold" style="color:#fbbf24;text-shadow:0 6px 16px rgba(0,0,0,.45)">WP</div>` }), interactive:false }).addTo(STATE.layers.waypointLayer);
-        STATE.waypoint.marker = mk;
-      } catch {
-        // fallback: if something fails, just rebuild marker + guidance from scratch
-      }
-
-      // Direct line to waypoint
-      STATE.waypoint.lineToWp = L.polyline([[pos.lat,pos.lon],[wp.lat,wp.lon]], {
-        color: "#fbbf24", weight: 3, opacity: 0.85, dashArray: "10 8", ...NI
-      }).addTo(STATE.layers.waypointLayer);
-
-      // Heading line (flight direction)
-      STATE.waypoint.headingLine = L.polyline([[pos.lat,pos.lon],[end.lat,end.lon]], {
-        color: "#22c55e", weight: 4, opacity: 0.75, dashArray: "6 10", ...NI
-      }).addTo(STATE.layers.waypointLayer);
-
-      // Closest point X on heading line
-      const proj = projectOntoHeadingRay(pos, course, wp);
-      const c = proj.closest;
-
-      STATE.waypoint.closestX = L.marker([c.lat, c.lon], {
-        icon: L.divIcon({
-          className: "",
-          iconSize: [22,22],
-          iconAnchor: [11,11],
-          html: `<div class="wp-x">X</div>`
-        }),
-        interactive: false,
-        zIndexOffset: 900
-      }).addTo(STATE.layers.waypointLayer);
-    }
-
-    function renderTaskTypeOptions() {
-      const sel = document.getElementById("taskType");
-      if (!sel) return;
-      sel.innerHTML = CIA_TASKS.map(t => `<option value="${t.code}">${t.num} ${t.code} — ${escapeXml(t.title)}</option>`).join("");
-    }
-
-    function renderTaskFieldsForCode(code) {
-      const wrap = document.getElementById("taskFields");
-      if (!wrap) return;
-
-      const is3DT = code === "3DT";
-      const isANG = code === "ANG";
-      const isLRN = code === "LRN";
-
-      const pointCard = (label, which) => `
-        <div class="rounded-2xl bg-slate-950/40 border border-slate-800 p-3">
-          <div class="flex items-center justify-between mb-2">
-            <div class="font-extrabold">${escapeXml(label)}</div>
-            <button type="button" data-pick="${which}" class="btn-touch h-9 px-3 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-bold text-sm">
-              <i class="fa-solid fa-crosshairs mr-2"></i>auf Karte
-            </button>
-          </div>
-          <div class="grid grid-cols-2 gap-2">
-            <div>
-              <div class="text-xs text-slate-400 mb-1">Lat</div>
-              <input id="task${which}Lat" type="number" step="0.000001" class="h-11 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="49.123456" />
-            </div>
-            <div>
-              <div class="text-xs text-slate-400 mb-1">Lon</div>
-              <input id="task${which}Lon" type="number" step="0.000001" class="h-11 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="8.123456" />
-            </div>
-          </div>
-        </div>
-      `;
-
-      const radiusFields = `
-        <div class="grid grid-cols-2 gap-2">
-          <div>
-            <div class="text-xs text-slate-400 mb-1">${is3DT ? "Innenradius (m)" : "Radius 1 (m)"}</div>
-            <input id="taskR1" type="number" class="h-11 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="z.B. 50" />
-          </div>
-          <div>
-            <div class="text-xs text-slate-400 mb-1">${is3DT ? "Außenradius (m)" : "Radius 2 (m)"}</div>
-            <input id="taskR2" type="number" class="h-11 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="z.B. 200" />
-          </div>
-        </div>
-      `;
-
-      const altFields = `
-        <div class="grid grid-cols-2 gap-2">
-          <div>
-            <div class="text-xs text-slate-400 mb-1">Min Höhe (m)</div>
-            <input id="taskMinAlt" type="number" class="h-11 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="optional" />
-          </div>
-          <div>
-            <div class="text-xs text-slate-400 mb-1">Max Höhe (m)</div>
-            <input id="taskMaxAlt" type="number" class="h-11 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="optional" />
-          </div>
-        </div>
-      `;
-
-      const angFields = isANG ? `
-        <div>
-          <div class="text-xs text-slate-400 mb-1">Vorgegebene Richtung (°)</div>
-          <input id="taskSetDir" type="number" class="h-11 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="0..359" />
-        </div>
-      ` : "";
-
-      let coordsHtml = "";
-      if (isANG || isLRN) {
-        coordsHtml = `
-          ${pointCard("Punkt A", "A")}
-          ${pointCard("Punkt B", "B")}
-          ${isLRN ? pointCard("Punkt C", "C") : ""}
-        `;
-      } else {
-        coordsHtml = `${pointCard("Ziel", "A")}`;
-      }
-
-      wrap.innerHTML = `
-        <div class="text-xs text-slate-400 mb-1">Koordinaten</div>
-        <div class="space-y-3">${coordsHtml}</div>
-        <div class="mt-3">${radiusFields}</div>
-        <div class="mt-3">${angFields}</div>
-        <div class="mt-3">${altFields}</div>
-      `;
-
-      // wire pick buttons
-      wrap.querySelectorAll("[data-pick]").forEach(btn => {
-        btn.addEventListener("click", () => startMapPick(btn.getAttribute("data-pick")));
-      });
-
-      // keep preview markers in sync
-      wrap.querySelectorAll('input[id^="task"][id$="Lat"], input[id^="task"][id$="Lon"]').forEach(inp => {
-        inp.addEventListener("change", syncPickMarkersFromInputs);
-        inp.addEventListener("input", () => { /* lightweight: don't spam map */ });
-      });
-
-      syncPickMarkersFromInputs();
-    }
-
-    function startMapPick(which) {
-      STATE.ui.mapPickMode = true;
-      STATE.ui.mapPickWhich = which || "A";
-      openDrawer(false);
-      setMapPickHint(STATE.ui.mapPickWhich, true);
-      showSnackbar(`Karte tippen: Punkt ${STATE.ui.mapPickWhich} setzen.`, 1800);
-    }
-
-    function stopMapPick() {
-      STATE.ui.mapPickMode = false;
-      setMapPickHint("A", false);
-    }
-
-    function updatePickMarker(which, lat, lon) {
-      if (!STATE.layers.pickLayer || !STATE.map) return;
-
-      const prev = STATE.ui.pickMarkers[which];
-      if (prev) {
-        try { STATE.layers.pickLayer.removeLayer(prev); } catch {}
-        STATE.ui.pickMarkers[which] = null;
-      }
-
-      const color = which === "A" ? "#60a5fa" : (which === "B" ? "#22d3ee" : "#a78bfa");
-      const g = L.layerGroup();
-
-      L.circleMarker([lat, lon], {
-        radius: 10,
-        color,
-        weight: 3,
-        fillColor: color,
-        fillOpacity: 0.25,
-        interactive: false
-      }).addTo(g);
-
-      L.marker([lat, lon], {
-        icon: L.divIcon({
-          className: "",
-          iconSize: [1,1],
-          html: `<div class="mono text-xs font-extrabold" style="color:${color};text-shadow:0 6px 16px rgba(0,0,0,.45)">${which}</div>`
-        }),
-        interactive: false
-      }).addTo(g);
-
-      STATE.layers.pickLayer.addLayer(g);
-      STATE.ui.pickMarkers[which] = g;
-    }
-
-    function setPointFromMap(which, lat, lon) {
-      const latEl = document.getElementById(`task${which}Lat`);
-      const lonEl = document.getElementById(`task${which}Lon`);
-      if (latEl) latEl.value = lat.toFixed(6);
-      if (lonEl) lonEl.value = lon.toFixed(6);
-      updatePickMarker(which, lat, lon);
-    }
-
-    function pickNextPoint(which) {
-      const order = ["A", "B", "C"];
-      const idx = order.indexOf(which);
-      for (let i = idx + 1; i < order.length; i++) {
-        const w = order[i];
-        const latEl = document.getElementById(`task${w}Lat`);
-        const lonEl = document.getElementById(`task${w}Lon`);
-        if (!latEl || !lonEl) continue;
-
-        const latVal = safeFloat(latEl.value, null);
-        const lonVal = safeFloat(lonEl.value, null);
-        if (latVal == null || lonVal == null) return w;
-      }
-      return null;
-    }
-
-    function syncPickMarkersFromInputs() {
-      ["A","B","C"].forEach(which => {
-        const latEl = document.getElementById(`task${which}Lat`);
-        const lonEl = document.getElementById(`task${which}Lon`);
-
-        if (!latEl || !lonEl) {
-          const prev = STATE.ui.pickMarkers[which];
-          if (prev && STATE.layers.pickLayer) {
-            try { STATE.layers.pickLayer.removeLayer(prev); } catch {}
-          }
-          STATE.ui.pickMarkers[which] = null;
-          return;
-        }
-
-        const lat = safeFloat(latEl.value, null);
-        const lon = safeFloat(lonEl.value, null);
-        if (lat != null && lon != null) updatePickMarker(which, lat, lon);
-      });
+    function updateFollowToggleUi() {
+      const tgl = document.getElementById("tglFollow");
+      const knob = document.getElementById("tglFollowKnob");
+      if (tgl && knob) setToggleUI(tgl, knob, STATE.ui.followGps);
     }
 
     function initGPS() {
@@ -1560,7 +1118,9 @@
       const opts = { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 };
 
       STATE.gps.watchId = navigator.geolocation.watchPosition(
-        (pos) => { try { onGpsPosition(pos); } catch (e) { console.error(e); } },
+        (pos) => {
+          try { onGpsPosition(pos); } catch (e) { console.error(e); }
+        },
         (err) => {
           console.warn(err);
           STATE.gps.hasFix = false;
@@ -1585,14 +1145,15 @@
       const lon = c.longitude;
       const alt = Number.isFinite(c.altitude) ? c.altitude : null;
       const spdKmh = Number.isFinite(c.speed) ? (c.speed * 3.6) : 0;
-      const head = Number.isFinite(c.heading) ? c.heading : null;
+      const head = Number.isFinite(c.heading) ? c.heading : (STATE.gps.headingDeg || 0);
       const acc = Number.isFinite(c.accuracy) ? c.accuracy : null;
 
-      // Jump guard
+      // Jump guard: reject absurd jumps
       if (STATE.gps.smoothLat != null && STATE.gps.smoothLon != null) {
         const d = haversineM({ lat: STATE.gps.smoothLat, lon: STATE.gps.smoothLon }, { lat, lon });
-        const dyn = clamp((spdKmh/3.6) * 3 + 60, 80, 220);
+        const dyn = clamp((spdKmh/3.6) * 3 + 60, 80, 220); // 3s window + margin
         if (d > Math.max(APP.maxGpsJumpM, dyn)) {
+          // ignore this fix
           return;
         }
       }
@@ -1601,28 +1162,18 @@
       STATE.gps.smoothLat = smooth(STATE.gps.smoothLat, lat, APP.gpsSmoothingAlpha);
       STATE.gps.smoothLon = smooth(STATE.gps.smoothLon, lon, APP.gpsSmoothingAlpha);
 
-      // derive course when possible
-      let course = head;
-      if (course == null) {
-        // compute from previous smoothed point
-        if (STATE.gps.lat != null && STATE.gps.lon != null) {
-          const d = haversineM({ lat: STATE.gps.lat, lon: STATE.gps.lon }, { lat: STATE.gps.smoothLat, lon: STATE.gps.smoothLon });
-          if (d > 4) course = bearingDeg({ lat: STATE.gps.lat, lon: STATE.gps.lon }, { lat: STATE.gps.smoothLat, lon: STATE.gps.smoothLon });
-        }
-      }
-      if (course != null && isFinite(course)) STATE.gps.lastCourseDeg = ((course%360)+360)%360;
-
       STATE.gps.lat = STATE.gps.smoothLat;
       STATE.gps.lon = STATE.gps.smoothLon;
       STATE.gps.altM = alt;
       STATE.gps.speedKmh = spdKmh;
       STATE.gps.headingDeg = head;
       STATE.gps.accuracyM = acc;
+
       STATE.gps.hasFix = true;
       STATE.gps.fixTs = now();
 
-      ensureBalloonMarker();
-      setBalloonPose(STATE.gps.lat, STATE.gps.lon, getCourseDeg());
+      // Update marker & optional follow
+      setBalloonPose(STATE.gps.lat, STATE.gps.lon, head);
 
       if (STATE.ui.followGps && !STATE.ui.mapUserInteracting) {
         const ts = now();
@@ -1632,41 +1183,51 @@
         }
       }
 
-      // Log track/wind ONLY if flight active
+      // Only log track/wind if flight is active (NO AUTO START!)
       if (STATE.flight.active) {
         maybeAddTrackPoint({ lat: STATE.gps.lat, lon: STATE.gps.lon, altM: alt, ts: now() });
-        maybeAutoRecordWind({ altM: alt, courseDeg: getCourseDeg(), speedKmh: spdKmh, ts: now() });
-      }
-
-      // Waypoint guidance updates even without flight
-      if (STATE.waypoint.active) {
-        updateWaypointGuidance();
+        maybeAutoRecordWind({ altM: alt, courseDeg: head, speedKmh: spdKmh, ts: now() });
       }
 
       updateGpsBadge();
       updateInstruments();
-      updateButtons();
       updateNavToast();
       updateWindHud();
-      rebuildTrajectory();
       persistAllThrottled();
+    }
+
+    function getCurrentPos() {
+      if (STATE.sim.enabled && STATE.sim.lat != null && STATE.sim.lon != null) {
+        return { lat: STATE.sim.lat, lon: STATE.sim.lon };
+      }
+      if (!STATE.gps.hasFix || STATE.gps.lat == null || STATE.gps.lon == null) return null;
+      return { lat: STATE.gps.lat, lon: STATE.gps.lon };
+    }
+
+    function getCurrentAltM() {
+      if (STATE.sim.enabled) return STATE.sim.altM;
+      return STATE.gps.altM;
     }
 
     function beginFlight(title) {
       if (STATE.flight.active) return;
 
       STATE.flight.active = true;
-      STATE.flight.title = title || (STATE.task.active ? `${STATE.task.active.code} — ${STATE.task.active.title||STATE.task.active.typeTitle}` : "Fahrt");
+      STATE.flight.title = title || (getActiveTask() ? `${getActiveTask().code} — ${getActiveTask().title||getActiveTask().typeTitle}` : "Fahrt");
       STATE.flight.startedTs = now();
       STATE.flight.track = [];
       STATE.flight.markers = [];
 
+      // Clear map layers for current flight
       try { STATE.layers.trackLine?.setLatLngs([]); } catch {}
       try { STATE.layers.markersLayer?.clearLayers(); } catch {}
 
+      // Reset helpers
       STATE.gps.lastAltM = null;
       STATE.gps.lastAltTs = null;
       STATE.wind.lastAuto = { altM: null, courseDeg: null, ts: 0 };
+
+      // Reset APT timer start (must be started explicitly)
       STATE.task.apt.startTs = null;
 
       updateButtons();
@@ -1713,7 +1274,10 @@
       track.push({ lat:p.lat, lon:p.lon, altM:p.altM, ts:p.ts });
       if (track.length > APP.maxTrackPoints) track.shift();
 
-      try { STATE.layers.trackLine?.setLatLngs(track.map(x => [x.lat, x.lon])); } catch {}
+      try {
+        const latlngs = track.map(x => [x.lat, x.lon]);
+        STATE.layers.trackLine?.setLatLngs(latlngs);
+      } catch {}
     }
 
     function maybeAutoRecordWind({ altM, courseDeg, speedKmh, ts }) {
@@ -1738,17 +1302,18 @@
       const spd = Math.max(0, safeFloat(w.speedKmh, 0));
       const ts = w.ts || now();
 
+      // replace if same altitude bucket
       const idx = STATE.wind.layers.findIndex(x => Math.abs(x.altM - alt) <= 15);
       const item = { altM: alt, fromDeg: from, speedKmh: spd, ts, source: w.source || "manual" };
       if (idx >= 0) STATE.wind.layers[idx] = item;
       else STATE.wind.layers.push(item);
 
+      // keep sorted-ish
       STATE.wind.layers.sort((a,b)=>a.altM-b.altM);
       persistAll();
       updateWindPanel();
       updateWindHud();
       updateNavToast();
-      rebuildTrajectory();
     }
 
     function windAtAltitude(altM) {
@@ -1761,45 +1326,8 @@
       return best;
     }
 
-    function rebuildTrajectory() {
-      if (!STATE.map || !STATE.layers.trajectoryLayer) return;
-      try { STATE.layers.trajectoryLayer.clearLayers(); } catch {}
-
-      const pos = getCurrentPos();
-      const alt = getCurrentAltM();
-      if (!pos || alt == null) return;
-
-      const w = windAtAltitude(alt);
-      if (!w) return;
-
-      const driftTo = windToDegFrom(w.fromDeg);
-      const spdMps = Math.max(0, (w.speedKmh||0) / 3.6);
-      if (spdMps < 0.1) return;
-
-      const mins = [5,10,15];
-      const NI = { interactive:false };
-
-      mins.forEach((m, idx) => {
-        const dist = spdMps * (m*60);
-        const q = destPoint(pos, driftTo, dist);
-        L.polyline([[pos.lat,pos.lon],[q.lat,q.lon]], {
-          color: "#22c55e",
-          weight: 4,
-          opacity: 0.75,
-          dashArray: idx === 0 ? null : (idx === 1 ? "8 8" : "3 10"),
-          ...NI
-        }).addTo(STATE.layers.trajectoryLayer);
-      });
-    }
-
-    function getPrimaryTarget(task) {
-      if (!task) return null;
-      if (task.code === "3DT" && task.center) return task.center;
-      if (task.points && task.points.length) return { lat: task.points[0].lat, lon: task.points[0].lon };
-      return null;
-    }
-
     function recommendLayerText(task, pos, target) {
+      // Special 3DT donut strategy if R1/R2 present
       if (task && task.code === "3DT" && task.center && task.r1M && task.r2M) {
         const dC = haversineM(pos, task.center);
         if (dC < task.r1M) return "Ungültig (im inneren Kreis)";
@@ -1807,11 +1335,18 @@
         return "Außerhalb: Ziel = Zentrum";
       }
 
-      if (!STATE.wind.layers.length) return "Kein Windprofil";
+      // APT scoring indicator (time in bands)
+      if (task && task.code === "APT") {
+        const scoreTxt = aptScoreText();
+        if (scoreTxt) return scoreTxt;
+      }
 
+      // Default: best wind layer = drift direction closest to bearing-to-target
+      if (!STATE.wind.layers.length) return "Kein Windprofil";
       const brg = bearingDeg(pos, target);
 
-      let best = null, bestScore = Infinity;
+      let best = null;
+      let bestScore = Infinity;
       for (const w of STATE.wind.layers) {
         const driftTo = windToDegFrom(w.fromDeg);
         const score = angDiffDeg(driftTo, brg);
@@ -1835,9 +1370,10 @@
       clearTaskOverlays();
       if (!task || !STATE.map) return;
 
-      const NI = { interactive:false };
+      // Non-interactive overlays are CRITICAL (fix for 3DT covering the map)
+      const NI = { interactive: false };
 
-      // points
+      // Primary points
       if (task.points && task.points.length) {
         task.points.forEach((p, idx) => {
           const color = idx === 0 ? "#60a5fa" : "#93c5fd";
@@ -1850,17 +1386,19 @@
             ...NI
           }).addTo(STATE.layers.tasksLayer);
 
+          // tiny label via separate non-interactive marker
           L.marker([p.lat, p.lon], {
             icon: L.divIcon({
               className: "",
               iconSize: [1,1],
-              html: `<div class="mono text-xs font-extrabold" style="color:${color};text-shadow:0 6px 16px rgba(0,0,0,.45)">${escapeXml(p.name||String.fromCharCode(65+idx))}</div>`
+              html: `<div class="mono text-xs font-extrabold text-sky-200 drop-shadow">${escapeXml(p.name||String.fromCharCode(65+idx))}</div>`
             }),
-            interactive:false
+            interactive: false
           }).addTo(STATE.layers.tasksLayer);
         });
       }
 
+      // Donut / radius circles for 3DT or generic
       const center = task.center || (task.points && task.points[0] ? { lat: task.points[0].lat, lon: task.points[0].lon } : null);
       if (center && (task.r2M || task.r1M)) {
         if (task.r2M) {
@@ -1886,113 +1424,46 @@
         }
       }
 
+      // Lines for ANG / LRN
       if (task.code === "ANG" && task.points && task.points.length >= 2) {
-        L.polyline(task.points.slice(0,2).map(p => [p.lat,p.lon]), {
-          color:"#38bdf8", weight:3, opacity:0.9, dashArray:"8 8", ...NI
-        }).addTo(STATE.layers.tasksLayer);
+        L.polyline(task.points.slice(0,2).map(p => [p.lat,p.lon]), { color:"#38bdf8", weight:3, opacity:0.9, dashArray:"8 8", ...NI }).addTo(STATE.layers.tasksLayer);
       }
       if (task.code === "LRN" && task.points && task.points.length >= 3) {
-        const pts = task.points.slice(0,3).map(p => [p.lat,p.lon]);
-        pts.push([task.points[0].lat, task.points[0].lon]);
-        L.polyline(pts, { color:"#38bdf8", weight:3, opacity:0.9, ...NI }).addTo(STATE.layers.tasksLayer);
+        L.polyline(task.points.slice(0,3).map(p => [p.lat,p.lon]).concat([[task.points[0].lat, task.points[0].lon]]), { color:"#38bdf8", weight:3, opacity:0.9, ...NI }).addTo(STATE.layers.tasksLayer);
       }
     }
 
-    function buildTaskFromForm() {
-      const code = document.getElementById("taskType")?.value;
-      const meta = CIA_TASKS.find(x => x.code === code);
-      if (!code || !meta) return null;
-
-      const title = document.getElementById("taskTitle")?.value?.trim() || "";
-      const r1 = safeFloat(document.getElementById("taskR1")?.value, null);
-      const r2 = safeFloat(document.getElementById("taskR2")?.value, null);
-      const minAlt = safeFloat(document.getElementById("taskMinAlt")?.value, null);
-      const maxAlt = safeFloat(document.getElementById("taskMaxAlt")?.value, null);
-      const setDir = safeFloat(document.getElementById("taskSetDir")?.value, null);
-
-      const points = [];
-      const aLat = safeFloat(document.getElementById("taskALat")?.value, null);
-      const aLon = safeFloat(document.getElementById("taskALon")?.value, null);
-      if (aLat != null && aLon != null) points.push({ name:"A", lat:aLat, lon:aLon });
-
-      const bLat = safeFloat(document.getElementById("taskBLat")?.value, null);
-      const bLon = safeFloat(document.getElementById("taskBLon")?.value, null);
-      if (bLat != null && bLon != null) points.push({ name:"B", lat:bLat, lon:bLon });
-
-      const cLat = safeFloat(document.getElementById("taskCLat")?.value, null);
-      const cLon = safeFloat(document.getElementById("taskCLon")?.value, null);
-      if (cLat != null && cLon != null) points.push({ name:"C", lat:cLat, lon:cLon });
-
-      const task = {
-        id: uid(),
-        code,
-        typeTitle: meta.title,
-        title,
-        points,
-        r1M: r1 != null ? Math.max(0, r1) : null,
-        r2M: r2 != null ? Math.max(0, r2) : null,
-        minAltM: minAlt,
-        maxAltM: maxAlt,
-        setDirDeg: setDir != null ? ((setDir%360)+360)%360 : null,
-        center: null,
-      };
-
-      if (task.code === "3DT") {
-        if (points[0]) task.center = { lat: points[0].lat, lon: points[0].lon };
-      }
-
-      return task;
-    }
-
-    function applyTask() {
-      const task = buildTaskFromForm();
-      if (!task) { showSnackbar("Task unvollständig."); return; }
-
-      if (!task.points || !task.points.length) {
-        showSnackbar("Bitte Koordinaten eingeben (mind. Punkt A).");
-        return;
-      }
-
-      STATE.task.active = task;
-      drawTaskOnMap(task);
-      updateButtons();
-      updateNavToast();
-      setMarkerButtonColor(task.code);
-
-      try {
-        const latlngs = [];
-        if (task.points) task.points.forEach(p => latlngs.push([p.lat,p.lon]));
-        if (task.center) latlngs.push([task.center.lat, task.center.lon]);
-        if (latlngs.length) STATE.map.fitBounds(L.latLngBounds(latlngs).pad(0.35), { animate:true, duration:0.4 });
-      } catch {}
-
-      showSnackbar("Task aktiv.");
-      persistAll();
-    }
-
-    function clearTask() {
-      STATE.task.active = null;
-      clearTaskOverlays();
-      updateButtons();
-      updateNavToast();
-      setMarkerButtonColor("x");
-      showSnackbar("Task gelöscht.");
-      persistAll();
+    function getPrimaryTarget(task) {
+      if (!task) return null;
+      if (task.code === "3DT" && task.center) return task.center;
+      if (task.points && task.points.length) return { lat: task.points[0].lat, lon: task.points[0].lon };
+      return null;
     }
 
     function dropMarker() {
-      if (!STATE.flight.active) { showSnackbar("Bitte zuerst die Fahrt starten."); return; }
+      if (!STATE.flight.active) {
+        showSnackbar("Bitte zuerst die Fahrt starten.");
+        return;
+      }
       const pos = getCurrentPos();
       if (!pos) { showSnackbar("Keine Position."); return; }
 
       const alt = getCurrentAltM();
-      const t = STATE.task.active;
+      const t = getActiveTask();
       const colorKey = t ? MARKER_COLORS[Math.abs(hashStr(t.code)) % MARKER_COLORS.length] : "pink";
       const color = COLOR_HEX[colorKey];
 
-      const m = { lat: pos.lat, lon: pos.lon, altM: alt, ts: now(), color: colorKey, label: t ? t.code : "MARK" };
+      const m = {
+        lat: pos.lat,
+        lon: pos.lon,
+        altM: alt,
+        ts: now(),
+        color: colorKey,
+        label: t ? t.code : "MARK",
+      };
       STATE.flight.markers.push(m);
 
+      // Draw
       L.circleMarker([m.lat, m.lon], {
         radius: 8,
         color,
@@ -2006,187 +1477,9 @@
       persistAll();
     }
 
-    function setHelperPoint(which) {
-      if (!STATE.flight.active) { showSnackbar("Nur während aktiver Fahrt."); return; }
-      const pos = getCurrentPos();
-      if (!pos) { showSnackbar("Keine Position."); return; }
-      STATE.task.pointsABC[which] = { ...pos };
-      showSnackbar(`Punkt ${which} gesetzt.`);
-      updateElbowResult();
-    }
-
-    function updateElbowResult() {
-      const out = document.getElementById("elbowResult");
-      if (!out) return;
-      const A = STATE.task.pointsABC.A;
-      const B = STATE.task.pointsABC.B;
-      const C = STATE.task.pointsABC.C;
-      if (!A || !B || !C) { out.textContent = "–"; return; }
-      const brgBA = bearingDeg(B, A);
-      const brgBC = bearingDeg(B, C);
-      const ang = angDiffDeg(brgBA, brgBC);
-      out.textContent = fmtNum(180 - ang, 1);
-    }
-
-    async function fetchWindFromOpenMeteo() {
-      const pos = getCurrentPos();
-      if (!pos) { showSnackbar("Keine Position für Online-Wind."); return; }
-
-      const lat = pos.lat.toFixed(4);
-      const lon = pos.lon.toFixed(4);
-
-      const hourly = [
-        "windspeed_10m","winddirection_10m",
-        "windspeed_80m","winddirection_80m",
-        "windspeed_120m","winddirection_120m",
-        "windspeed_180m","winddirection_180m"
-      ].join(",");
-
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=${hourly}&forecast_days=1&timezone=auto`;
-
-      try {
-        showSnackbar("Lade Wind…", 1200);
-        const r = await fetch(url, { cache: "no-store" });
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        const j = await r.json();
-
-        const h = j.hourly;
-        if (!h || !h.time || !h.time.length) throw new Error("no hourly data");
-
-        const tNow = now();
-        let bestI = 0, bestD = Infinity;
-        for (let i=0;i<h.time.length;i++) {
-          const t = Date.parse(h.time[i]);
-          const d = Math.abs(t - tNow);
-          if (d < bestD) { bestD = d; bestI = i; }
-        }
-
-        const mapping = [
-          { altM: 10,  spd: h.windspeed_10m?.[bestI],  dir: h.winddirection_10m?.[bestI] },
-          { altM: 80,  spd: h.windspeed_80m?.[bestI],  dir: h.winddirection_80m?.[bestI] },
-          { altM: 120, spd: h.windspeed_120m?.[bestI], dir: h.winddirection_120m?.[bestI] },
-          { altM: 180, spd: h.windspeed_180m?.[bestI], dir: h.winddirection_180m?.[bestI] },
-        ];
-
-        let added = 0;
-        for (const m of mapping) {
-          if (m.spd == null || m.dir == null) continue;
-          addWindLayer({ altM: m.altM, fromDeg: m.dir, speedKmh: m.spd, ts: now(), source: "open-meteo" });
-          added++;
-        }
-        showSnackbar(added ? `Wind geladen (${added} Schichten).` : "Keine Windschichten gefunden.");
-      } catch (e) {
-        console.error(e);
-        showSnackbar("Online-Wind fehlgeschlagen.");
-      }
-    }
-
-    function initSimulationToggle(enabled) {
-      STATE.sim.enabled = !!enabled;
-      updateButtons();
-      updateGpsBadge();
-
-      if (STATE.sim.enabled) {
-        stopGPS();
-        const p = getCurrentPos() || APP.defaultCenter;
-        STATE.sim.lat = p.lat;
-        STATE.sim.lon = p.lon;
-        STATE.sim.altM = getCurrentAltM() || 180;
-        STATE.sim.vRateMps = 0;
-        STATE.sim.speedKmh = 0;
-        STATE.sim.headingDeg = getCourseDeg() || 0;
-
-        ensureBalloonMarker();
-        setBalloonPose(STATE.sim.lat, STATE.sim.lon, STATE.sim.headingDeg);
-        STATE.map?.panTo([STATE.sim.lat, STATE.sim.lon], { animate:true, duration:0.35 });
-
-        startSimLoop();
-        showSnackbar("Simulation an.");
-      } else {
-        stopSimLoop();
-        initGPS();
-        showSnackbar("Simulation aus.");
-      }
-      persistAll();
-    }
-
-    function startSimLoop() {
-      if (STATE.sim.timer) return;
-      STATE.sim.running = true;
-      STATE.sim.lastTickTs = now();
-      STATE.sim.timer = setInterval(() => { try { simTick(); } catch (e) { console.error(e); } }, 1000);
-    }
-
-    function stopSimLoop() {
-      STATE.sim.running = false;
-      try { clearInterval(STATE.sim.timer); } catch {}
-      STATE.sim.timer = null;
-      STATE.sim.vRateMps = 0;
-    }
-
-    function simTick() {
-      if (!STATE.sim.enabled) return;
-      const t = now();
-      const dt = Math.min(2.5, Math.max(0.4, (t - STATE.sim.lastTickTs)/1000));
-      STATE.sim.lastTickTs = t;
-
-      // Vertical
-      STATE.sim.altM = Math.max(0, (STATE.sim.altM || 0) + (STATE.sim.vRateMps || 0) * dt);
-
-      // Horizontal drift from wind at altitude
-      const w = windAtAltitude(STATE.sim.altM);
-      let driftTo = STATE.sim.headingDeg || 0;
-      let spd = 0;
-      if (w) {
-        driftTo = windToDegFrom(w.fromDeg);
-        spd = Math.max(0, w.speedKmh || 0);
-      }
-      const distM = (spd/3.6) * dt;
-      const p = destPoint({ lat: STATE.sim.lat, lon: STATE.sim.lon }, driftTo, distM);
-      STATE.sim.lat = p.lat;
-      STATE.sim.lon = p.lon;
-      STATE.sim.headingDeg = driftTo;
-      STATE.sim.speedKmh = spd;
-
-      ensureBalloonMarker();
-      setBalloonPose(STATE.sim.lat, STATE.sim.lon, STATE.sim.headingDeg);
-
-      if (STATE.ui.followGps && !STATE.ui.mapUserInteracting) {
-        const ts = now();
-        if (ts - STATE.gps.lastPanTs > APP.followPanMinMs) {
-          STATE.gps.lastPanTs = ts;
-          STATE.map?.panTo([STATE.sim.lat, STATE.sim.lon], { animate:true, duration:0.35 });
-        }
-      }
-
-      if (STATE.flight.active) {
-        maybeAddTrackPoint({ lat: STATE.sim.lat, lon: STATE.sim.lon, altM: STATE.sim.altM, ts: now() });
-      }
-
-      if (STATE.waypoint.active) updateWaypointGuidance();
-
-      updateInstruments();
-      updateNavToast();
-      updateWindHud();
-      rebuildTrajectory();
-      persistAllThrottled();
-    }
-
-    function handleBurner(pressed) { if (STATE.sim.enabled) STATE.sim.vRateMps = pressed ? 2.5 : 0; }
-    function handleVent(pressed) { if (STATE.sim.enabled) STATE.sim.vRateMps = pressed ? -2.0 : 0; }
-
-    function centerOnPos() {
-      const p = getCurrentPos();
-      if (!p || !STATE.map) return;
-      STATE.ui.followGps = true;
-      updateFollowToggleUi();
-      STATE.map.panTo([p.lat, p.lon], { animate:true, duration:0.35 });
-      showSnackbar("Zentriert.");
-    }
-
     function exportFlightToKml(f) {
       try {
-        const name = escapeXml(f.title || "CompNavAir");
+        const name = escapeXml(f.title || APP.kmlName);
         const trackCoords = (f.track || []).map(p => `${p.lon},${p.lat},${p.altM||0}`).join(" ");
         const markerPlacemarks = (f.markers || []).map(m => {
           const when = new Date(m.ts).toISOString();
@@ -2232,6 +1525,392 @@
       }
     }
 
+    async function fetchWindFromOpenMeteo() {
+      const pos = getCurrentPos();
+      if (!pos) { showSnackbar("Keine Position für Online-Wind."); return; }
+
+      const lat = pos.lat.toFixed(4);
+      const lon = pos.lon.toFixed(4);
+
+      // Use multiple "standard" heights where available
+      const hourly = [
+        "windspeed_10m","winddirection_10m",
+        "windspeed_80m","winddirection_80m",
+        "windspeed_120m","winddirection_120m",
+        "windspeed_180m","winddirection_180m"
+      ].join(",");
+
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=${hourly}&forecast_days=1&timezone=auto`;
+
+      try {
+        showSnackbar("Lade Wind…", 1200);
+        const r = await fetch(url, { cache: "no-store" });
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        const j = await r.json();
+
+        const h = j.hourly;
+        if (!h || !h.time || !h.time.length) throw new Error("no hourly data");
+
+        // Pick closest hour to now
+        const tNow = now();
+        let bestI = 0, bestD = Infinity;
+        for (let i=0;i<h.time.length;i++) {
+          const t = Date.parse(h.time[i]);
+          const d = Math.abs(t - tNow);
+          if (d < bestD) { bestD = d; bestI = i; }
+        }
+
+        const mapping = [
+          { altM: 10,  spd: h.windspeed_10m?.[bestI],  dir: h.winddirection_10m?.[bestI] },
+          { altM: 80,  spd: h.windspeed_80m?.[bestI],  dir: h.winddirection_80m?.[bestI] },
+          { altM: 120, spd: h.windspeed_120m?.[bestI], dir: h.winddirection_120m?.[bestI] },
+          { altM: 180, spd: h.windspeed_180m?.[bestI], dir: h.winddirection_180m?.[bestI] },
+        ];
+
+        let added = 0;
+        for (const m of mapping) {
+          if (m.spd == null || m.dir == null) continue;
+          addWindLayer({ altM: m.altM, fromDeg: m.dir, speedKmh: m.spd, ts: now(), source: "open-meteo" });
+          added++;
+        }
+        showSnackbar(added ? `Wind geladen (${added} Schichten).` : "Keine Windschichten gefunden.");
+      } catch (e) {
+        console.error(e);
+        showSnackbar("Online-Wind fehlgeschlagen.");
+      }
+    }
+
+    function initSimulationToggle(enabled) {
+      STATE.sim.enabled = !!enabled;
+      updateButtons();
+      updateGpsBadge();
+
+      if (STATE.sim.enabled) {
+        // Pause GPS and set sim start at current gps or default
+        stopGPS();
+        const p = getCurrentPos() || APP.defaultCenter;
+        STATE.sim.lat = p.lat;
+        STATE.sim.lon = p.lon;
+        STATE.sim.altM = getCurrentAltM() || 180;
+        STATE.sim.vRateMps = 0;
+        STATE.sim.speedKmh = 0;
+        STATE.sim.headingDeg = 0;
+
+        setBalloonPose(STATE.sim.lat, STATE.sim.lon, STATE.sim.headingDeg);
+        STATE.map?.panTo([STATE.sim.lat, STATE.sim.lon], { animate:true, duration:0.35 });
+
+        startSimLoop();
+        showSnackbar("Simulation an.");
+      } else {
+        stopSimLoop();
+        initGPS();
+        showSnackbar("Simulation aus.");
+      }
+      persistAll();
+    }
+
+    function startSimLoop() {
+      if (STATE.sim.timer) return;
+      STATE.sim.running = true;
+      STATE.sim.lastTickTs = now();
+      STATE.sim.timer = setInterval(() => {
+        try { simTick(); } catch (e) { console.error(e); }
+      }, 1000);
+    }
+
+    function stopSimLoop() {
+      STATE.sim.running = false;
+      try { clearInterval(STATE.sim.timer); } catch {}
+      STATE.sim.timer = null;
+      STATE.sim.vRateMps = 0;
+    }
+
+    function simTick() {
+      if (!STATE.sim.enabled) return;
+      const t = now();
+      const dt = Math.min(2.5, Math.max(0.4, (t - STATE.sim.lastTickTs)/1000));
+      STATE.sim.lastTickTs = t;
+
+      // Vertical
+      STATE.sim.altM = Math.max(0, (STATE.sim.altM || 0) + (STATE.sim.vRateMps || 0) * dt);
+
+      // Horizontal drift from wind at altitude
+      const w = windAtAltitude(STATE.sim.altM);
+      let driftTo = 0, spd = 0;
+      if (w) {
+        driftTo = windToDegFrom(w.fromDeg);
+        spd = Math.max(0, w.speedKmh || 0);
+      }
+      const distM = (spd/3.6) * dt;
+      const p = destPoint({ lat: STATE.sim.lat, lon: STATE.sim.lon }, driftTo, distM);
+      STATE.sim.lat = p.lat;
+      STATE.sim.lon = p.lon;
+      STATE.sim.headingDeg = driftTo;
+      STATE.sim.speedKmh = spd;
+
+      setBalloonPose(STATE.sim.lat, STATE.sim.lon, STATE.sim.headingDeg);
+
+      if (STATE.ui.followGps && !STATE.ui.mapUserInteracting) {
+        const ts = now();
+        if (ts - STATE.gps.lastPanTs > APP.followPanMinMs) {
+          STATE.gps.lastPanTs = ts;
+          STATE.map?.panTo([STATE.sim.lat, STATE.sim.lon], { animate:true, duration:0.35 });
+        }
+      }
+
+      // Track log if flight active
+      if (STATE.flight.active) {
+        maybeAddTrackPoint({ lat: STATE.sim.lat, lon: STATE.sim.lon, altM: STATE.sim.altM, ts: now() });
+      }
+
+      updateInstruments();
+      updateNavToast();
+      updateWindHud();
+      persistAllThrottled();
+    }
+
+    function handleBurner(pressed) {
+      if (!STATE.sim.enabled) return;
+      STATE.sim.vRateMps = pressed ? 2.5 : 0;
+    }
+    function handleVent(pressed) {
+      if (!STATE.sim.enabled) return;
+      STATE.sim.vRateMps = pressed ? -2.0 : 0;
+    }
+
+    function centerOnPos() {
+      const p = getCurrentPos();
+      if (!p || !STATE.map) return;
+      STATE.ui.followGps = true;
+      updateFollowToggleUi();
+      STATE.map.panTo([p.lat, p.lon], { animate:true, duration:0.35 });
+      showSnackbar("Zentriert.");
+    }
+
+    function buildTaskFromForm() {
+      const code = document.getElementById("taskType")?.value;
+      const meta = CIA_TASKS.find(x => x.code === code);
+      if (!code || !meta) return null;
+
+      const title = document.getElementById("taskTitle")?.value?.trim() || "";
+      const r1 = safeFloat(document.getElementById("taskR1")?.value, null);
+      const r2 = safeFloat(document.getElementById("taskR2")?.value, null);
+      const minAlt = safeFloat(document.getElementById("taskMinAlt")?.value, null);
+      const maxAlt = safeFloat(document.getElementById("taskMaxAlt")?.value, null);
+
+      const points = [];
+      const aLat = safeFloat(document.getElementById("taskALat")?.value, null);
+      const aLon = safeFloat(document.getElementById("taskALon")?.value, null);
+      if (aLat != null && aLon != null) points.push({ name:"A", lat:aLat, lon:aLon });
+
+      const bLat = safeFloat(document.getElementById("taskBLat")?.value, null);
+      const bLon = safeFloat(document.getElementById("taskBLon")?.value, null);
+      if (bLat != null && bLon != null) points.push({ name:"B", lat:bLat, lon:bLon });
+
+      const cLat = safeFloat(document.getElementById("taskCLat")?.value, null);
+      const cLon = safeFloat(document.getElementById("taskCLon")?.value, null);
+      if (cLat != null && cLon != null) points.push({ name:"C", lat:cLat, lon:cLon });
+
+      const setDir = safeFloat(document.getElementById("taskSetDir")?.value, null);
+
+      const task = {
+        id: uid(),
+        code,
+        typeTitle: meta.title,
+        title,
+        points,
+        r1M: r1 != null ? Math.max(0, r1) : null,
+        r2M: r2 != null ? Math.max(0, r2) : null,
+        minAltM: minAlt,
+        maxAltM: maxAlt,
+        setDirDeg: setDir != null ? ((setDir%360)+360)%360 : null,
+        center: null,
+        apt: null,
+      };
+
+      // Center definition
+      if (task.code === "3DT") {
+        // For donut: use A as center (if exists)
+        if (points[0]) task.center = { lat: points[0].lat, lon: points[0].lon };
+      }
+
+      if (task.code === "APT") {
+        task.apt = readAptFromUi();
+      }
+
+      return task;
+    }
+
+    function applyTask() {
+      const task = buildTaskFromForm();
+      if (!task) { showSnackbar("Task unvollständig."); return; }
+
+      // Basic validation: need at least A for most tasks
+      if (task.code !== "APT" && (!task.points || !task.points.length)) {
+        showSnackbar("Bitte Koordinaten (mind. Punkt A) eingeben.");
+        return;
+      }
+
+      STATE.task.active = task;
+      drawTaskOnMap(task);
+      updateButtons();
+      updateNavToast();
+      setMarkerButtonColor(task.code);
+
+      // Zoom to task
+      try {
+        const latlngs = [];
+        if (task.points) task.points.forEach(p => latlngs.push([p.lat,p.lon]));
+        if (task.center) latlngs.push([task.center.lat, task.center.lon]);
+        if (latlngs.length) {
+          const b = L.latLngBounds(latlngs);
+          STATE.map.fitBounds(b.pad(0.35), { animate:true, duration:0.4 });
+        }
+      } catch {}
+
+      showSnackbar("Task aktiv.");
+      persistAll();
+    }
+
+    function clearTask() {
+      STATE.task.active = null;
+      clearTaskOverlays();
+      updateButtons();
+      updateNavToast();
+      setMarkerButtonColor("x");
+      showSnackbar("Task gelöscht.");
+      persistAll();
+    }
+
+    function enableMapPick() {
+      STATE.ui.mapPickMode = true;
+      STATE.ui.mapPickWhich = "A";
+      const hint = document.getElementById("mapPickHint");
+      if (hint) hint.classList.remove("hidden");
+      showSnackbar("Tippe auf die Karte, um Punkt A zu setzen.");
+    }
+
+    function setHelperPoint(which) {
+      if (!STATE.flight.active) { showSnackbar("Nur während aktiver Fahrt."); return; }
+      const pos = getCurrentPos();
+      if (!pos) { showSnackbar("Keine Position."); return; }
+      STATE.task.pointsABC[which] = { ...pos };
+      showSnackbar(`Punkt ${which} gesetzt.`);
+      updateElbowResult();
+    }
+
+    function updateElbowResult() {
+      const out = document.getElementById("elbowResult");
+      if (!out) return;
+      const A = STATE.task.pointsABC.A;
+      const B = STATE.task.pointsABC.B;
+      const C = STATE.task.pointsABC.C;
+      if (!A || !B || !C) { out.textContent = "–"; return; }
+
+      // Angle ABC
+      const brgBA = bearingDeg(B, A);
+      const brgBC = bearingDeg(B, C);
+      let ang = angDiffDeg(brgBA, brgBC); // 0..180
+      // ELB result = 180 - angle ABC
+      const res = 180 - ang;
+      out.textContent = fmtNum(res, 1);
+    }
+
+    function ensureAptUi() {
+      const wrap = document.getElementById("aptPoints");
+      const btn = document.getElementById("btnAddAptPoint");
+      if (!wrap || !btn) return;
+
+      // If no points, add default 0 min / 200m
+      if (!wrap.childElementCount) {
+        addAptRow(0, 200);
+        addAptRow(10, 250);
+      }
+
+      btn.onclick = () => addAptRow(0, 200);
+    }
+
+    function addAptRow(min, alt) {
+      const wrap = document.getElementById("aptPoints");
+      if (!wrap) return;
+      const rowId = uid();
+      const el = document.createElement("div");
+      el.className = "flex items-center gap-2";
+      el.innerHTML = `
+        <input data-apt="min" type="number" class="h-11 w-24 rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="min" value="${min ?? ""}">
+        <div class="text-slate-400 text-sm">→</div>
+        <input data-apt="alt" type="number" class="h-11 flex-1 rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="Zielhöhe m" value="${alt ?? ""}">
+        <button data-apt="del" class="btn-touch h-11 w-11 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800">
+          <i class="fa-solid fa-trash"></i>
+        </button>
+      `;
+      el.querySelector('[data-apt="del"]').addEventListener("click", () => el.remove());
+      wrap.appendChild(el);
+    }
+
+    function readAptFromUi() {
+      const inner = safeFloat(document.getElementById("aptInner")?.value, 25);
+      const outer = safeFloat(document.getElementById("aptOuter")?.value, 60);
+      const wrap = document.getElementById("aptPoints");
+      const pts = [];
+      if (wrap) {
+        wrap.querySelectorAll(":scope > div").forEach(row => {
+          const m = safeFloat(row.querySelector('[data-apt="min"]')?.value, null);
+          const a = safeFloat(row.querySelector('[data-apt="alt"]')?.value, null);
+          if (m != null && a != null) pts.push({ min: m, altM: a });
+        });
+      }
+      pts.sort((x,y)=>x.min-y.min);
+      return { innerBandM: Math.max(0, inner), outerBandM: Math.max(0, outer), profile: pts };
+    }
+
+    function startAPT() {
+      if (!STATE.flight.active) { showSnackbar("APT Start nur während Fahrt."); return; }
+      STATE.task.apt.startTs = now();
+      showSnackbar("APT Start gesetzt.");
+      persistAll();
+      updateNavToast();
+    }
+
+    function aptTargetAltAt(elapsedMin, task) {
+      const apt = task?.apt;
+      if (!apt || !apt.profile || apt.profile.length === 0) return null;
+      const p = apt.profile;
+
+      if (elapsedMin <= p[0].min) return p[0].altM;
+      if (elapsedMin >= p[p.length-1].min) return p[p.length-1].altM;
+
+      for (let i=0;i<p.length-1;i++) {
+        const a = p[i], b = p[i+1];
+        if (elapsedMin >= a.min && elapsedMin <= b.min) {
+          const t = (elapsedMin - a.min) / (b.min - a.min);
+          return a.altM + t * (b.altM - a.altM);
+        }
+      }
+      return null;
+    }
+
+    function aptScoreText() {
+      const task = getActiveTask();
+      if (!task || task.code !== "APT") return null;
+      if (!STATE.task.apt.startTs) return "APT: Start fehlt";
+
+      const alt = getCurrentAltM();
+      if (alt == null) return "APT: ALT fehlt";
+
+      const elapsedMin = (now() - STATE.task.apt.startTs) / 60000;
+      const target = aptTargetAltAt(elapsedMin, task);
+      if (target == null) return "APT: Profil fehlt";
+
+      const inner = task.apt?.innerBandM ?? 25;
+      const outer = task.apt?.outerBandM ?? 60;
+      const d = Math.abs(alt - target);
+
+      if (d <= inner) return `APT: 2x (Δ${Math.round(d)}m)`;
+      if (d <= outer) return `APT: 1x (Δ${Math.round(d)}m)`;
+      return `APT: 0x (Δ${Math.round(d)}m)`;
+    }
+
     function importKmlFile(file) {
       if (!file) return;
       const reader = new FileReader();
@@ -2243,7 +1922,10 @@
             STATE.layers.kmlLayer = null;
           }
           const layer = omnivore.kml.parse(txt);
-          layer.eachLayer(l => { if (l?.options) l.options.interactive = false; });
+          layer.eachLayer(l => {
+            // Make overlays non-interactive to avoid blocking
+            if (l && typeof l.options === "object") l.options.interactive = false;
+          });
           layer.addTo(STATE.map);
           STATE.layers.kmlLayer = layer;
           showSnackbar("KML importiert.");
@@ -2267,6 +1949,11 @@
       }
     }
 
+    function releaseWakeLock() {
+      try { STATE.ui.wakeLock?.release(); } catch {}
+      STATE.ui.wakeLock = null;
+    }
+
     /********************************************************************
      * Persistenz
      ********************************************************************/
@@ -2282,9 +1969,17 @@
       try {
         const payload = {
           version: APP.version,
-          ui: { followGps: STATE.ui.followGps, base: STATE.ui.base },
-          wind: { layers: STATE.wind.layers },
-          task: { active: STATE.task.active },
+          ui: {
+            followGps: STATE.ui.followGps,
+            base: STATE.ui.base,
+          },
+          wind: {
+            layers: STATE.wind.layers,
+          },
+          task: {
+            active: STATE.task.active,
+            aptStartTs: STATE.task.apt.startTs,
+          },
           flight: {
             active: STATE.flight.active,
             title: STATE.flight.title,
@@ -2293,8 +1988,9 @@
             markers: STATE.flight.markers,
             archive: STATE.flight.archive,
           },
-          sim: { enabled: STATE.sim.enabled },
-          waypoint: { active: STATE.waypoint.active },
+          sim: {
+            enabled: STATE.sim.enabled,
+          }
         };
         localStorage.setItem(APP.storageKey, JSON.stringify(payload));
       } catch {}
@@ -2310,12 +2006,16 @@
           STATE.ui.followGps = !!j.ui.followGps;
           STATE.ui.base = j.ui.base === "sat" ? "sat" : "osm";
         }
+
         if (j.wind && Array.isArray(j.wind.layers)) {
           STATE.wind.layers = j.wind.layers.filter(x => x && isFinite(x.altM));
         }
+
         if (j.task) {
           STATE.task.active = j.task.active || null;
+          STATE.task.apt.startTs = j.task.aptStartTs || null;
         }
+
         if (j.flight) {
           STATE.flight.active = !!j.flight.active;
           STATE.flight.title = j.flight.title || "";
@@ -2324,8 +2024,10 @@
           STATE.flight.markers = Array.isArray(j.flight.markers) ? j.flight.markers : [];
           STATE.flight.archive = Array.isArray(j.flight.archive) ? j.flight.archive : [];
         }
-        if (j.sim) STATE.sim.enabled = !!j.sim.enabled;
-        if (j.waypoint) STATE.waypoint.active = j.waypoint.active || null;
+
+        if (j.sim) {
+          STATE.sim.enabled = !!j.sim.enabled;
+        }
       } catch {}
     }
 
@@ -2350,7 +2052,19 @@
       setVal("taskMaxAlt", task.maxAltM);
       setVal("taskSetDir", task.setDirDeg);
 
-      syncPickMarkersFromInputs();
+      if (task.code === "APT" && task.apt) {
+        const inner = document.getElementById("aptInner");
+        const outer = document.getElementById("aptOuter");
+        if (inner) inner.value = task.apt.innerBandM ?? "";
+        if (outer) outer.value = task.apt.outerBandM ?? "";
+        const wrap = document.getElementById("aptPoints");
+        if (wrap) wrap.innerHTML = "";
+        if (task.apt.profile && task.apt.profile.length) {
+          task.apt.profile.forEach(p => addAptRow(p.min, p.altM));
+        } else {
+          ensureAptUi();
+        }
+      }
     }
 
     /********************************************************************
@@ -2358,15 +2072,17 @@
      ********************************************************************/
     window.onload = () => {
       initManifestAndSW();
+
       restoreAll();
 
       initMap();
       setBaseLayer(STATE.ui.base);
 
+      // UI init
       renderTaskTypeOptions();
       renderTaskFieldsForCode(document.getElementById("taskType")?.value || "JDG");
 
-      // Restore task
+      // restore task into form and map
       if (STATE.task.active) {
         restoreFormFromTask(STATE.task.active);
         drawTaskOnMap(STATE.task.active);
@@ -2375,9 +2091,12 @@
         setMarkerButtonColor("x");
       }
 
-      // Restore flight visuals if active
+      // restore flight visuals if flight active
       if (STATE.flight.active) {
-        try { STATE.layers.trackLine?.setLatLngs((STATE.flight.track||[]).map(p => [p.lat,p.lon])); } catch {}
+        try {
+          const latlngs = (STATE.flight.track||[]).map(p => [p.lat,p.lon]);
+          STATE.layers.trackLine?.setLatLngs(latlngs);
+        } catch {}
         try {
           (STATE.flight.markers||[]).forEach(m => {
             const color = COLOR_HEX[m.color] || COLOR_HEX.pink;
@@ -2387,12 +2106,6 @@
         } catch {}
       }
 
-      // Restore waypoint
-      if (STATE.waypoint.active) {
-        drawWaypoint();
-      }
-
-      // Initial renders
       updateGpsBadge();
       updateButtons();
       updateInstruments();
@@ -2402,9 +2115,8 @@
       updateArchivePanel();
       updateElbowResult();
       updateFollowToggleUi();
-      rebuildTrajectory();
 
-      // Tabs
+      // Drawer tab buttons
       document.querySelectorAll(".tabBtn").forEach(b => {
         b.addEventListener("click", () => {
           STATE.ui.drawerTab = b.getAttribute("data-tab");
@@ -2418,8 +2130,14 @@
       document.getElementById("drawerBg")?.addEventListener("click", () => openDrawer(false));
 
       // Header buttons
-      document.getElementById("btnWindHud")?.addEventListener("click", () => { STATE.ui.windHudOpen = !STATE.ui.windHudOpen; updateWindHud(); });
-      document.getElementById("btnWindClose")?.addEventListener("click", () => { STATE.ui.windHudOpen = false; updateWindHud(); });
+      document.getElementById("btnWindHud")?.addEventListener("click", () => {
+        STATE.ui.windHudOpen = !STATE.ui.windHudOpen;
+        updateWindHud();
+      });
+      document.getElementById("btnWindClose")?.addEventListener("click", () => {
+        STATE.ui.windHudOpen = false;
+        updateWindHud();
+      });
       document.getElementById("btnWindFetch")?.addEventListener("click", fetchWindFromOpenMeteo);
 
       document.getElementById("btnMapSettings")?.addEventListener("click", () => openMapModal(true));
@@ -2431,6 +2149,7 @@
 
       document.getElementById("btnCenter")?.addEventListener("click", centerOnPos);
 
+      // Follow toggle
       document.getElementById("tglFollow")?.addEventListener("change", (e) => {
         STATE.ui.followGps = !!e.target.checked;
         updateFollowToggleUi();
@@ -2439,7 +2158,7 @@
 
       // Flight controls
       document.getElementById("btnStartFlight")?.addEventListener("click", () => {
-        const t = STATE.task.active;
+        const t = getActiveTask();
         const title = t ? `${t.code} — ${t.title || t.typeTitle}` : "Fahrt";
         beginFlight(title);
       });
@@ -2448,17 +2167,22 @@
       // Marker
       document.getElementById("btnMarker")?.addEventListener("click", dropMarker);
 
-      // Task
+      // Task form
       document.getElementById("taskType")?.addEventListener("change", (e) => {
         const code = e.target.value;
         renderTaskFieldsForCode(code);
         setMarkerButtonColor(code);
         persistAll();
       });
+
       document.getElementById("btnApplyTask")?.addEventListener("click", applyTask);
       document.getElementById("btnClearTask")?.addEventListener("click", clearTask);
 
-      // ELB helper
+      document.getElementById("btnSetTargetFromMap")?.addEventListener("click", enableMapPick);
+
+      document.getElementById("btnAPTStart")?.addEventListener("click", startAPT);
+
+      // ELB helper buttons
       document.getElementById("btnSetA")?.addEventListener("click", () => setHelperPoint("A"));
       document.getElementById("btnSetB")?.addEventListener("click", () => setHelperPoint("B"));
       document.getElementById("btnSetC")?.addEventListener("click", () => setHelperPoint("C"));
@@ -2477,7 +2201,6 @@
         updateWindPanel();
         updateWindHud();
         updateNavToast();
-        rebuildTrajectory();
         showSnackbar("Wind gelöscht.");
       });
 
@@ -2491,7 +2214,7 @@
       });
 
       document.getElementById("btnWakeLock")?.addEventListener("click", requestWakeLock);
-      document.getElementById("btnResetUi")?.addEventListener("click", () => {
+      document.getElementById("btnReset")?.addEventListener("click", () => {
         STATE.ui.followGps = true;
         STATE.ui.windHudOpen = false;
         updateFollowToggleUi();
@@ -2499,8 +2222,6 @@
         showSnackbar("UI zurückgesetzt.");
         persistAll();
       });
-
-      document.getElementById("btnClearWaypoint")?.addEventListener("click", clearWaypoint);
 
       document.getElementById("kmlFile")?.addEventListener("change", (e) => {
         const f = e.target.files?.[0];
@@ -2515,25 +2236,33 @@
         showSnackbar("Archiv gelöscht.");
       });
 
-      // Sim controls press & hold
+      // Sim controls (press & hold)
+      const burner = document.getElementById("btnBurner");
+      const vent = document.getElementById("btnVent");
+
       const press = (el, onDown, onUp) => {
         if (!el) return;
         el.addEventListener("pointerdown", (e)=>{ e.preventDefault(); onDown(true); });
         el.addEventListener("pointerup",   (e)=>{ e.preventDefault(); onUp(false); });
         el.addEventListener("pointercancel",(e)=>{ e.preventDefault(); onUp(false); });
-        el.addEventListener("pointerleave",()=>{ onUp(false); });
+        el.addEventListener("pointerleave",(e)=>{ onUp(false); });
       };
-      press(document.getElementById("btnBurner"), handleBurner, handleBurner);
-      press(document.getElementById("btnVent"), handleVent, handleVent);
+      press(burner, handleBurner, handleBurner);
+      press(vent, handleVent, handleVent);
 
       // WakeLock reacquire
       document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "visible" && STATE.ui.wakeLock) requestWakeLock();
+        if (document.visibilityState === "visible" && STATE.ui.wakeLock) {
+          requestWakeLock();
+        }
       });
 
       // Start GPS unless simulation
-      if (STATE.sim.enabled) initSimulationToggle(true);
-      else initGPS();
+      if (STATE.sim.enabled) {
+        initSimulationToggle(true);
+      } else {
+        initGPS();
+      }
 
       // Final UI pass
       updateButtons();
@@ -2545,3 +2274,4 @@
   </script>
 </body>
 </html>
+```0
