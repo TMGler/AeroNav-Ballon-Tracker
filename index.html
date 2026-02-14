@@ -2,1986 +2,591 @@
 <html lang="de" class="h-full bg-slate-950">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>CompNavAir</title>
-
-  <!-- PWA / “native-ish” (Single-File via data-manifest; für echtes “ohne Browser” => als PWA installieren) -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#020617" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="CompNavAir" />
-  <meta name="mobile-web-app-capable" content="yes" />
-  <link rel="icon" href='data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="%23020b1a"/><path d="M32 10c10 0 18 9 18 20 0 7-3 13-8 17l-2 10H24l-2-10c-5-4-8-10-8-17 0-11 8-20 18-20Z" fill="%23ffffff"/><path d="M26 50h12l2-8c-2 1-5 2-8 2s-6-1-8-2l2 8Z" fill="%2394a3b8"/></svg>' />
-  <link rel="manifest" href='data:application/manifest+json;charset=utf-8,{
-    "name":"CompNavAir",
-    "short_name":"CompNavAir",
-    "start_url":".",
-    "display":"standalone",
-    "background_color":"#020617",
-    "theme_color":"#020617",
-    "description":"Wettkampf-Navigation & Tracking für Heißluftballon-Wettbewerbe",
-    "icons":[
-      {"src":"data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><rect width=%2264%22 height=%2264%22 rx=%2214%22 fill=%22%23020b1a%22/><path d=%22M32 10c10 0 18 9 18 20 0 7-3 13-8 17l-2 10H24l-2-10c-5-4-8-10-8-17 0-11 8-20 18-20Z%22 fill=%22%23ffffff%22/><path d=%22M26 50h12l2-8c-2 1-5 2-8 2s-6-1-8-2l2 8Z%22 fill=%22%2394a3b8%22/></svg>","sizes":"192x192","type":"image/svg+xml"},
-      {"src":"data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><rect width=%2264%22 height=%2264%22 rx=%2214%22 fill=%22%23020b1a%22/><path d=%22M32 10c10 0 18 9 18 20 0 7-3 13-8 17l-2 10H24l-2-10c-5-4-8-10-8-17 0-11 8-20 18-20Z%22 fill=%22%23ffffff%22/><path d=%22M26 50h12l2-8c-2 1-5 2-8 2s-6-1-8-2l2 8Z%22 fill=%22%2394a3b8%22/></svg>","sizes":"512x512","type":"image/svg+xml"}
-    ]
-  }' />
+  <title>CompNavAir</title>
 
   <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
 
   <!-- Leaflet -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-    crossorigin=""
-  />
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin=""
-  ></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <!-- Leaflet-Omnivore (KML Import) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-omnivore/0.3.4/leaflet-omnivore.min.js"></script>
+  <!-- Leaflet Omnivore (KML import) -->
+  <script src="https://unpkg.com/leaflet-omnivore@0.3.4/leaflet-omnivore.min.js"></script>
 
   <!-- FontAwesome -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 
   <style>
-    html, body { overscroll-behavior: none; }
-    #map { height: 100%; width: 100%; position: relative; z-index: 0; }
-
-    /* Leaflet panes/controls can be very “high”; keep our overlays higher */
-    .leaflet-pane, .leaflet-control { z-index: 1000; }
-    .leaflet-control-container { z-index: 1000; }
-
-    /* Balloon icon */
-    .balloon-marker {
-      width: 44px;
-      height: 44px;
-      border-radius: 9999px;
-      background: rgba(2,6,23,0.72);
-      border: 1px solid rgba(148,163,184,0.35);
-      backdrop-filter: blur(8px);
-      display: grid;
-      place-items: center;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.45);
-    }
-    .balloon-marker i { font-size: 18px; color: #e2e8f0; }
-    .balloon-needle {
-      width: 0; height: 0;
-      border-left: 7px solid transparent;
-      border-right: 7px solid transparent;
-      border-top: 12px solid rgba(34,197,94,0.95);
-      margin-top: -2px;
-    }
-    .balloon-rot { transform-origin: 50% 50%; will-change: transform; }
-
-    /* Toast animation */
-    .toast-pop { animation: toastPop 180ms ease-out; }
-    @keyframes toastPop {
-      from { transform: translateY(-8px); opacity: 0; }
-      to { transform: translateY(0); opacity: 1; }
-    }
-
-    button, input, select { touch-action: manipulation; }
+    html, body { height: 100%; }
+    body { margin: 0; overflow: hidden; -webkit-tap-highlight-color: transparent; }
+    .no-select { user-select: none; -webkit-user-select: none; }
+    .safe-bottom { padding-bottom: calc(env(safe-area-inset-bottom) + 0px); }
+    .safe-top { padding-top: env(safe-area-inset-top); }
+    #map { height: 100%; width: 100%; }
+    .leaflet-container { background: #0b1220; }
+    .btn-touch { touch-action: manipulation; }
+    .shadow-soft { box-shadow: 0 12px 30px rgba(0,0,0,.35); }
+    .panel-scroll { max-height: calc(100vh - 7.5rem); overflow: auto; -webkit-overflow-scrolling: touch; }
+    .mono { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+    .balloon-icon { width: 28px; height: 28px; display: grid; place-items: center; }
+    .balloon-rot { width: 28px; height: 28px; display: grid; place-items: center; transform-origin: 50% 50%; }
+    .leaflet-control-container { z-index: 10; }
   </style>
 </head>
 
 <body class="h-full text-slate-100">
-  <div class="h-full w-full flex flex-col">
+  <div id="app" class="h-full w-full flex flex-col bg-slate-950">
     <!-- Header -->
-    <header class="fixed top-0 left-0 right-0 z-40 bg-slate-950/80 backdrop-blur border-b border-slate-800">
+    <header class="safe-top z-40 bg-slate-950/90 backdrop-blur border-b border-slate-800">
       <div class="px-3 py-2 flex items-center gap-2">
         <div class="flex items-center gap-2 min-w-0">
           <div class="w-9 h-9 rounded-2xl bg-slate-900 border border-slate-800 grid place-items-center">
-            <i class="fa-solid fa-balloon text-slate-100"></i>
+            <i class="fa-solid fa-balloon text-sky-300"></i>
           </div>
           <div class="min-w-0">
-            <div class="text-sm font-semibold leading-tight truncate">CompNavAir</div>
-            <div id="gpsStatus" class="text-[11px] text-slate-400 leading-tight truncate">GPS: — · Fix: —</div>
+            <div class="font-extrabold leading-5 truncate">CompNavAir</div>
+            <div class="text-xs text-slate-400 leading-4 truncate">
+              <span id="gpsBadge" class="inline-flex items-center gap-1">
+                <span id="gpsDot" class="w-2 h-2 rounded-full bg-slate-500 inline-block"></span>
+                <span id="gpsText">GPS: –</span>
+              </span>
+              <span class="mx-2 text-slate-600">•</span>
+              <span id="modeText">LIVE</span>
+            </div>
           </div>
         </div>
 
-        <div class="flex-1"></div>
+        <div class="ml-auto flex items-center gap-2">
+          <button id="btnStartFlight" class="btn-touch h-10 px-3 rounded-xl bg-sky-400 hover:bg-sky-300 active:bg-sky-500 text-slate-950 font-extrabold text-sm">
+            <i class="fa-solid fa-play mr-2"></i>Start
+          </button>
+          <button id="btnFinish" class="btn-touch hidden h-10 px-3 rounded-xl bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 text-slate-950 font-extrabold text-sm">
+            <i class="fa-solid fa-flag-checkered mr-2"></i>Fertig
+          </button>
 
-        <button id="btnFinish" class="hidden h-10 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-slate-950 font-semibold text-sm">
-          <i class="fa-solid fa-flag-checkered mr-2"></i>Fertig
-        </button>
+          <button id="btnWindHud" class="btn-touch h-10 w-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800">
+            <i class="fa-solid fa-wind text-slate-200"></i>
+          </button>
 
-        <button id="btnWindHud" class="h-10 w-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800" aria-label="Wind HUD">
-          <i class="fa-solid fa-wind"></i>
-        </button>
-        <button id="btnMapSettings" class="h-10 w-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800" aria-label="Map Settings">
-          <i class="fa-solid fa-layer-group"></i>
-        </button>
-        <button id="btnCenter" class="h-10 w-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800" aria-label="Zentrieren">
-          <i class="fa-solid fa-crosshairs"></i>
-        </button>
-        <button id="btnMenu" class="h-10 w-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800" aria-label="Menü">
-          <i class="fa-solid fa-bars"></i>
-        </button>
+          <button id="btnMapSettings" class="btn-touch h-10 w-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800">
+            <i class="fa-solid fa-layer-group text-slate-200"></i>
+          </button>
+
+          <button id="btnCenter" class="btn-touch h-10 w-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800">
+            <i class="fa-solid fa-location-crosshairs text-slate-200"></i>
+          </button>
+
+          <button id="btnMenu" class="btn-touch h-10 w-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800">
+            <i class="fa-solid fa-bars text-slate-200"></i>
+          </button>
+        </div>
       </div>
     </header>
 
-    <!-- Main (Map) -->
-    <main class="flex-1">
-      <div class="pt-14 pb-20 h-full">
-        <div id="map" class="h-full w-full"></div>
-      </div>
-    </main>
+    <!-- Main -->
+    <main class="relative flex-1 min-h-0">
+      <div id="map" class="absolute inset-0 z-0"></div>
 
-    <!-- Nav Toast -->
-    <div id="navToastWrap" class="pointer-events-none fixed top-16 left-0 right-0 z-[9999] flex justify-center px-3">
-      <div id="navToast" class="hidden toast-pop pointer-events-auto max-w-[92vw] rounded-2xl bg-slate-900/80 border border-slate-700 backdrop-blur px-3 py-2 shadow-xl">
-        <div class="flex items-center gap-2">
-          <i class="fa-solid fa-location-arrow text-slate-200"></i>
-          <div class="min-w-0">
-            <div id="navToastTitle" class="text-xs font-semibold truncate">—</div>
-            <div id="navToastSub" class="text-[11px] text-slate-300 truncate">—</div>
+      <!-- Wind HUD -->
+      <div id="windHud" class="hidden absolute left-3 top-3 z-50 w-[86vw] max-w-[360px] rounded-2xl bg-slate-950/80 backdrop-blur border border-slate-800 shadow-soft">
+        <div class="px-3 py-2 flex items-center gap-2 border-b border-slate-800">
+          <div class="font-bold"><i class="fa-solid fa-wind mr-2 text-sky-300"></i>Wind HUD</div>
+          <div class="ml-auto flex items-center gap-2">
+            <button id="btnWindFetch" class="btn-touch px-3 h-9 rounded-xl bg-sky-400 text-slate-950 font-extrabold text-sm hover:bg-sky-300 active:bg-sky-500">
+              <i class="fa-solid fa-cloud-arrow-down mr-2"></i>Online
+            </button>
+            <button id="btnWindClose" class="btn-touch h-9 w-9 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+        </div>
+        <div class="px-3 py-2">
+          <div class="text-xs text-slate-400 mb-2">Schichten (Höhe / Richtung / Speed). Tippe im Menü auf „Wind“, um manuell zu editieren.</div>
+          <div id="windHudList" class="space-y-2"></div>
+        </div>
+      </div>
+
+      <!-- Nav Toast -->
+      <div id="navToast" class="hidden absolute left-1/2 top-3 -translate-x-1/2 z-50 rounded-2xl bg-slate-950/80 backdrop-blur border border-slate-800 shadow-soft px-4 py-2 max-w-[92vw]">
+        <div class="text-sm font-bold truncate">
+          <i class="fa-solid fa-route mr-2 text-emerald-300"></i>
+          <span id="navTaskName">–</span>
+        </div>
+        <div class="text-xs text-slate-300 mt-0.5">
+          <span class="mono" id="navDist">–</span>
+          <span class="mx-2 text-slate-600">•</span>
+          <span id="navRec">–</span>
+        </div>
+      </div>
+
+      <!-- Simulation Controls -->
+      <div id="simControls" class="hidden absolute left-3 top-24 z-50 flex flex-col gap-2">
+        <button id="btnBurner" class="btn-touch select-none no-select w-28 h-16 rounded-2xl bg-orange-400 text-slate-950 font-extrabold shadow-soft active:scale-[0.99]">
+          <i class="fa-solid fa-fire-flame-curved mr-2"></i>AUF
+        </button>
+        <button id="btnVent" class="btn-touch select-none no-select w-28 h-16 rounded-2xl bg-sky-300 text-slate-950 font-extrabold shadow-soft active:scale-[0.99]">
+          <i class="fa-solid fa-arrow-down-wide-short mr-2"></i>AB
+        </button>
+      </div>
+
+      <!-- Map Settings Modal -->
+      <div id="mapModal" class="hidden absolute inset-0 z-50">
+        <div id="mapModalBg" class="absolute inset-0 bg-black/60"></div>
+        <div class="absolute left-1/2 top-24 -translate-x-1/2 w-[92vw] max-w-[420px] rounded-2xl bg-slate-950 border border-slate-800 shadow-soft">
+          <div class="px-4 py-3 flex items-center border-b border-slate-800">
+            <div class="font-extrabold"><i class="fa-solid fa-layer-group mr-2 text-sky-300"></i>Karte</div>
+            <button id="btnMapModalClose" class="ml-auto h-9 w-9 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 btn-touch">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+          <div class="p-4 space-y-3">
+            <div class="grid grid-cols-2 gap-2">
+              <button id="btnBaseOSM" class="btn-touch h-11 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-bold">
+                <i class="fa-solid fa-map mr-2"></i>OSM
+              </button>
+              <button id="btnBaseSAT" class="btn-touch h-11 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-bold">
+                <i class="fa-solid fa-satellite mr-2"></i>Sat
+              </button>
+            </div>
+            <div class="flex items-center justify-between rounded-2xl bg-slate-900/60 border border-slate-800 px-3 py-2">
+              <div>
+                <div class="font-bold">GPS Follow</div>
+                <div class="text-xs text-slate-400">Wenn du die Karte ziehst, wird Follow automatisch aus.</div>
+              </div>
+              <label class="inline-flex items-center cursor-pointer">
+                <input id="tglFollow" type="checkbox" class="sr-only" />
+                <div class="w-12 h-7 bg-slate-700 rounded-full relative">
+                  <div id="tglFollowKnob" class="absolute top-1 left-1 w-5 h-5 rounded-full bg-slate-200 transition-all"></div>
+                </div>
+              </label>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Wind HUD -->
-    <div id="windHud" class="hidden fixed top-16 left-3 z-[9999] w-[320px] max-w-[90vw] rounded-2xl bg-slate-950/75 border border-slate-700 backdrop-blur shadow-2xl">
-      <div class="p-3 border-b border-slate-800 flex items-center gap-2">
-        <div class="font-semibold text-sm"><i class="fa-solid fa-wind mr-2"></i>Wind HUD</div>
-        <div class="flex-1"></div>
-        <button id="btnWindLoadOnline" class="h-9 px-3 rounded-xl bg-slate-900 border border-slate-700 hover:bg-slate-800 text-xs font-semibold">
-          <i class="fa-solid fa-cloud-arrow-down mr-2"></i>Online
+      <!-- Snackbar -->
+      <div id="snackbar" class="hidden absolute left-1/2 bottom-24 -translate-x-1/2 z-50 max-w-[92vw] rounded-2xl bg-slate-950/90 border border-slate-800 shadow-soft px-4 py-2 text-sm"></div>
+    </main>
+
+    <!-- Footer Cockpit -->
+    <footer class="safe-bottom z-40 bg-slate-950/95 backdrop-blur border-t border-slate-800">
+      <div class="px-3 py-2 flex items-center gap-2">
+        <div class="flex-1 grid grid-cols-3 gap-2">
+          <div class="rounded-2xl bg-slate-900/60 border border-slate-800 px-3 py-2">
+            <div class="text-[11px] text-slate-400">GS</div>
+            <div class="text-lg font-extrabold mono"><span id="instGS">–</span> <span class="text-xs font-bold text-slate-400">km/h</span></div>
+          </div>
+          <div class="rounded-2xl bg-slate-900/60 border border-slate-800 px-3 py-2">
+            <div class="text-[11px] text-slate-400">ALT</div>
+            <div class="text-lg font-extrabold mono"><span id="instALT">–</span> <span class="text-xs font-bold text-slate-400">m</span></div>
+          </div>
+          <div class="rounded-2xl bg-slate-900/60 border border-slate-800 px-3 py-2">
+            <div class="text-[11px] text-slate-400">VARIO</div>
+            <div class="text-lg font-extrabold mono"><span id="instVAR">–</span> <span class="text-xs font-bold text-slate-400">m/s</span></div>
+          </div>
+        </div>
+
+        <button id="btnMarker" class="btn-touch w-20 h-16 rounded-2xl bg-pink-400 hover:bg-pink-300 active:bg-pink-500 text-slate-950 font-extrabold shadow-soft">
+          <i class="fa-solid fa-location-dot mr-2"></i>MARK
         </button>
-        <button id="btnWindHudClose" class="h-9 w-9 rounded-xl bg-slate-900 border border-slate-700 hover:bg-slate-800" aria-label="Schließen">
+      </div>
+    </footer>
+  </div>
+
+  <!-- Side Drawer -->
+  <div id="drawerWrap" class="hidden fixed inset-0 z-[60]">
+    <div id="drawerBg" class="absolute inset-0 bg-black/60"></div>
+    <aside id="drawer" class="absolute right-0 top-0 h-full w-[92vw] max-w-[420px] bg-slate-950 border-l border-slate-800 shadow-soft flex flex-col">
+      <div class="safe-top px-4 py-3 flex items-center border-b border-slate-800">
+        <div class="font-extrabold"><i class="fa-solid fa-compass mr-2 text-sky-300"></i>Menü</div>
+        <button id="btnDrawerClose" class="ml-auto h-9 w-9 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 btn-touch">
           <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
-      <div class="p-3">
-        <div id="windHudEmpty" class="hidden text-sm text-slate-300">
-          Noch kein Windprofil. Lade Online oder füge manuell Einträge hinzu.
-        </div>
-        <div class="overflow-auto max-h-[45vh]">
-          <table class="w-full text-xs">
-            <thead class="text-slate-400">
-              <tr>
-                <th class="text-left py-1">Höhe</th>
-                <th class="text-left py-1">Richtung</th>
-                <th class="text-right py-1">Speed</th>
-              </tr>
-            </thead>
-            <tbody id="windHudBody"></tbody>
-          </table>
-        </div>
-        <div class="mt-3 text-[11px] text-slate-400 leading-snug">
-          Richtung ist <span class="text-slate-200 font-semibold">Wind-von</span>. Drift nutzt <span class="text-slate-200 font-semibold">Wind-nach</span>.
+
+      <div class="px-3 py-2 border-b border-slate-800">
+        <div class="grid grid-cols-4 gap-2">
+          <button data-tab="task" class="btn-touch tabBtn h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-bold text-sm">Task</button>
+          <button data-tab="wind" class="btn-touch tabBtn h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-bold text-sm">Wind</button>
+          <button data-tab="setup" class="btn-touch tabBtn h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-bold text-sm">Setup</button>
+          <button data-tab="archive" class="btn-touch tabBtn h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-bold text-sm">Archiv</button>
         </div>
       </div>
-    </div>
 
-    <!-- Simulation Controls -->
-    <div id="simControls" class="hidden fixed left-3 top-1/2 -translate-y-1/2 z-[9999] flex flex-col gap-3">
-      <button id="btnBurner" class="h-16 w-16 rounded-2xl bg-orange-500/90 text-slate-950 font-extrabold shadow-2xl active:scale-95">
-        <i class="fa-solid fa-fire text-xl"></i>
-        <div class="text-[11px] mt-1">Auf</div>
-      </button>
-      <button id="btnVent" class="h-16 w-16 rounded-2xl bg-sky-400/90 text-slate-950 font-extrabold shadow-2xl active:scale-95">
-        <i class="fa-solid fa-droplet text-xl"></i>
-        <div class="text-[11px] mt-1">Ab</div>
-      </button>
-    </div>
+      <div class="px-4 py-3 panel-scroll">
+        <!-- TASK -->
+        <section id="tab_task" class="space-y-4">
+          <div class="rounded-2xl bg-slate-900/50 border border-slate-800 p-3">
+            <div class="font-extrabold mb-2"><i class="fa-solid fa-flag mr-2 text-emerald-300"></i>Aktiver Task (Briefing)</div>
+            <div class="grid grid-cols-1 gap-2">
+              <label class="text-xs text-slate-400">Task-Typ</label>
+              <select id="taskType" class="h-11 rounded-xl bg-slate-950 border border-slate-700 px-3 font-bold"></select>
 
-    <!-- Footer Cockpit -->
-    <footer class="fixed bottom-0 left-0 right-0 z-40 bg-slate-950/80 backdrop-blur border-t border-slate-800">
-      <div class="px-3 py-2 flex items-center gap-2">
-        <div class="flex-1 grid grid-cols-3 gap-2">
-          <div class="rounded-2xl bg-slate-900 border border-slate-800 px-3 py-2">
-            <div class="text-[10px] text-slate-400">GS</div>
-            <div id="instGS" class="text-sm font-semibold">—</div>
-          </div>
-          <div class="rounded-2xl bg-slate-900 border border-slate-800 px-3 py-2">
-            <div class="text-[10px] text-slate-400">ALT</div>
-            <div id="instALT" class="text-sm font-semibold">—</div>
-          </div>
-          <div class="rounded-2xl bg-slate-900 border border-slate-800 px-3 py-2">
-            <div class="text-[10px] text-slate-400">Vario</div>
-            <div id="instVARIO" class="text-sm font-semibold">—</div>
-          </div>
-        </div>
-
-        <button id="btnMarker" class="h-16 w-16 rounded-3xl bg-fuchsia-500 text-slate-950 font-extrabold shadow-2xl active:scale-95" aria-label="Marker">
-          <i class="fa-solid fa-location-dot text-2xl"></i>
-        </button>
-      </div>
-
-      <div class="px-3 pb-2">
-        <div class="rounded-2xl bg-slate-900/70 border border-slate-800 px-3 py-2 flex items-center gap-2">
-          <i class="fa-solid fa-compass text-slate-300"></i>
-          <div class="min-w-0">
-            <div class="text-[11px] text-slate-400">Strategie</div>
-            <div id="strategyLine" class="text-xs font-semibold truncate">—</div>
-          </div>
-          <div class="flex-1"></div>
-          <div id="wakeLockBadge" class="hidden text-[11px] px-2 py-1 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-200">
-            <i class="fa-solid fa-sun mr-1"></i>Wake
-          </div>
-        </div>
-      </div>
-    </footer>
-
-    <!-- Right Side Menu -->
-    <div id="menuOverlay" class="hidden fixed inset-0 z-[9999]">
-      <div id="menuBackdrop" class="absolute inset-0 bg-black/50"></div>
-
-      <aside class="absolute right-0 top-0 bottom-0 w-[390px] max-w-[92vw] bg-slate-950 border-l border-slate-800 shadow-2xl flex flex-col">
-        <div class="p-3 border-b border-slate-800 flex items-center gap-2">
-          <div class="font-semibold">Menü</div>
-          <div class="flex-1"></div>
-          <button id="btnMenuClose" class="h-10 w-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800" aria-label="Schließen">
-            <i class="fa-solid fa-xmark"></i>
-          </button>
-        </div>
-
-        <div class="p-3 border-b border-slate-800">
-          <div class="grid grid-cols-4 gap-2">
-            <button data-tab="task" class="tabBtn h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 text-sm font-semibold">
-              <i class="fa-solid fa-bullseye mr-2"></i>Task
-            </button>
-            <button data-tab="wind" class="tabBtn h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 text-sm font-semibold">
-              <i class="fa-solid fa-wind mr-2"></i>Wind
-            </button>
-            <button data-tab="setup" class="tabBtn h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 text-sm font-semibold">
-              <i class="fa-solid fa-gear mr-2"></i>Setup
-            </button>
-            <button data-tab="archive" class="tabBtn h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 text-sm font-semibold">
-              <i class="fa-solid fa-box-archive mr-2"></i>Archiv
-            </button>
-          </div>
-        </div>
-
-        <div class="flex-1 overflow-auto p-3">
-          <!-- TASK TAB -->
-          <section id="tab-task" class="tabPanel space-y-4">
-            <div class="rounded-2xl bg-slate-900/70 border border-slate-800 p-3">
-              <div class="flex items-center gap-2">
-                <div class="font-semibold"><i class="fa-solid fa-bullseye mr-2"></i>Aktive Aufgabe</div>
-                <div class="flex-1"></div>
-                <button id="btnTaskDeactivate" class="h-9 px-3 rounded-xl bg-slate-900 border border-slate-700 hover:bg-slate-800 text-xs font-semibold">
-                  Deaktivieren
-                </button>
-              </div>
-              <div class="mt-2 text-sm">
-                <div id="activeTaskLabel" class="text-slate-200 font-semibold">—</div>
-                <div id="activeTaskHint" class="text-[12px] text-slate-400">—</div>
-              </div>
+              <label class="text-xs text-slate-400 mt-2">Task-Titel (optional)</label>
+              <input id="taskTitle" type="text" placeholder="z.B. Abendfahrt JDG" class="h-11 rounded-xl bg-slate-950 border border-slate-700 px-3" />
             </div>
 
-            <div class="rounded-2xl bg-slate-900/70 border border-slate-800 p-3">
-              <div class="font-semibold mb-2"><i class="fa-solid fa-plus mr-2"></i>Task anlegen</div>
+            <div id="taskFields" class="mt-3 space-y-3"></div>
 
-              <div class="space-y-2">
-                <label class="text-xs text-slate-400">CIA Task</label>
-                <select id="taskType" class="w-full h-11 rounded-xl bg-slate-950 border border-slate-700 px-3"></select>
-
-                <label class="text-xs text-slate-400">Titel</label>
-                <input id="taskTitle" class="w-full h-11 rounded-xl bg-slate-950 border border-slate-700 px-3" placeholder="z.B. Task 3 · JDG Speyer" />
-
-                <div class="grid grid-cols-2 gap-2">
-                  <div>
-                    <label class="text-xs text-slate-400">Marker-Farbe</label>
-                    <select id="taskMarkerColor" class="w-full h-11 rounded-xl bg-slate-950 border border-slate-700 px-3">
-                      <option value="fuchsia">Fuchsia</option>
-                      <option value="orange">Orange</option>
-                      <option value="emerald">Grün</option>
-                      <option value="sky">Blau</option>
-                      <option value="rose">Rosa</option>
-                      <option value="amber">Gelb</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label class="text-xs text-slate-400">Punkte (A/B/C)</label>
-                    <select id="taskPointsCount" class="w-full h-11 rounded-xl bg-slate-950 border border-slate-700 px-3">
-                      <option value="1">1 Punkt</option>
-                      <option value="2">2 Punkte</option>
-                      <option value="3">3 Punkte</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-2">
-                  <div>
-                    <label class="text-xs text-slate-400">Lat (A)</label>
-                    <input id="taskLatA" class="w-full h-11 rounded-xl bg-slate-950 border border-slate-700 px-3" placeholder="49.3033" inputmode="decimal" />
-                  </div>
-                  <div>
-                    <label class="text-xs text-slate-400">Lon (A)</label>
-                    <input id="taskLonA" class="w-full h-11 rounded-xl bg-slate-950 border border-slate-700 px-3" placeholder="8.4519" inputmode="decimal" />
-                  </div>
-                </div>
-
-                <div id="taskPointB" class="hidden grid grid-cols-2 gap-2">
-                  <div>
-                    <label class="text-xs text-slate-400">Lat (B)</label>
-                    <input id="taskLatB" class="w-full h-11 rounded-xl bg-slate-950 border border-slate-700 px-3" placeholder="..." inputmode="decimal" />
-                  </div>
-                  <div>
-                    <label class="text-xs text-slate-400">Lon (B)</label>
-                    <input id="taskLonB" class="w-full h-11 rounded-xl bg-slate-950 border border-slate-700 px-3" placeholder="..." inputmode="decimal" />
-                  </div>
-                </div>
-
-                <div id="taskPointC" class="hidden grid grid-cols-2 gap-2">
-                  <div>
-                    <label class="text-xs text-slate-400">Lat (C)</label>
-                    <input id="taskLatC" class="w-full h-11 rounded-xl bg-slate-950 border border-slate-700 px-3" placeholder="..." inputmode="decimal" />
-                  </div>
-                  <div>
-                    <label class="text-xs text-slate-400">Lon (C)</label>
-                    <input id="taskLonC" class="w-full h-11 rounded-xl bg-slate-950 border border-slate-700 px-3" placeholder="..." inputmode="decimal" />
-                  </div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-2">
-                  <div>
-                    <label class="text-xs text-slate-400">Radius 1 (m)</label>
-                    <input id="taskR1" class="w-full h-11 rounded-xl bg-slate-950 border border-slate-700 px-3" placeholder="0" inputmode="numeric" />
-                  </div>
-                  <div>
-                    <label class="text-xs text-slate-400">Radius 2 (m)</label>
-                    <input id="taskR2" class="w-full h-11 rounded-xl bg-slate-950 border border-slate-700 px-3" placeholder="0" inputmode="numeric" />
-                  </div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-2">
-                  <div>
-                    <label class="text-xs text-slate-400">Winkel / Richtung (°)</label>
-                    <input id="taskAngle" class="w-full h-11 rounded-xl bg-slate-950 border border-slate-700 px-3" placeholder="0" inputmode="numeric" />
-                  </div>
-                  <div>
-                    <label class="text-xs text-slate-400">Min/Max Höhe (m)</label>
-                    <div class="grid grid-cols-2 gap-2">
-                      <input id="taskAltMin" class="w-full h-11 rounded-xl bg-slate-950 border border-slate-700 px-3" placeholder="0" inputmode="numeric" />
-                      <input id="taskAltMax" class="w-full h-11 rounded-xl bg-slate-950 border border-slate-700 px-3" placeholder="9999" inputmode="numeric" />
-                    </div>
-                  </div>
-                </div>
-
-                <div class="flex gap-2">
-                  <button id="btnUseCurrentPos" class="flex-1 h-11 rounded-xl bg-slate-900 border border-slate-700 hover:bg-slate-800 text-sm font-semibold">
-                    <i class="fa-solid fa-location-crosshairs mr-2"></i>Aktuelle Pos
-                  </button>
-                  <button id="btnCreateTask" class="flex-1 h-11 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 text-sm font-extrabold">
-                    <i class="fa-solid fa-check mr-2"></i>Anlegen
-                  </button>
-                </div>
-
-                <div class="mt-2 text-[11px] text-slate-400 leading-snug">
-                  Tipp: Für 3DT setze Radius 1 = innerer Kreis (ungültig), Radius 2 = äußerer Kreis (Ring).
-                </div>
-              </div>
-            </div>
-
-            <div class="rounded-2xl bg-slate-900/70 border border-slate-800 p-3">
-              <div class="font-semibold mb-2"><i class="fa-solid fa-list mr-2"></i>Tasks</div>
-              <div id="taskList" class="space-y-2"></div>
-            </div>
-          </section>
-
-          <!-- WIND TAB -->
-          <section id="tab-wind" class="tabPanel hidden space-y-4">
-            <div class="rounded-2xl bg-slate-900/70 border border-slate-800 p-3 space-y-3">
-              <div class="flex items-center gap-2">
-                <div class="font-semibold"><i class="fa-solid fa-wind mr-2"></i>Windprofil</div>
-                <div class="flex-1"></div>
-                <button id="btnWindClear" class="h-9 px-3 rounded-xl bg-slate-900 border border-slate-700 hover:bg-slate-800 text-xs font-semibold">Leeren</button>
-              </div>
-
-              <div class="grid grid-cols-3 gap-2">
-                <div>
-                  <label class="text-xs text-slate-400">Höhe (m)</label>
-                  <input id="windAlt" class="w-full h-11 rounded-xl bg-slate-950 border border-slate-700 px-3" placeholder="500" inputmode="numeric" />
-                </div>
-                <div>
-                  <label class="text-xs text-slate-400">Richtung von (°)</label>
-                  <input id="windDirFrom" class="w-full h-11 rounded-xl bg-slate-950 border border-slate-700 px-3" placeholder="270" inputmode="numeric" />
-                </div>
-                <div>
-                  <label class="text-xs text-slate-400">Speed (km/h)</label>
-                  <input id="windSpd" class="w-full h-11 rounded-xl bg-slate-950 border border-slate-700 px-3" placeholder="15" inputmode="numeric" />
-                </div>
-              </div>
-
-              <button id="btnWindAdd" class="w-full h-11 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-extrabold">
-                <i class="fa-solid fa-plus mr-2"></i>Wind-Eintrag hinzufügen
+            <div class="mt-3 grid grid-cols-2 gap-2">
+              <button id="btnApplyTask" class="btn-touch h-11 rounded-xl bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 text-slate-950 font-extrabold">
+                <i class="fa-solid fa-check mr-2"></i>Auf Karte
               </button>
-
-              <div class="grid grid-cols-2 gap-2">
-                <button id="btnWindFetchOnline2" class="h-11 rounded-xl bg-slate-900 border border-slate-700 hover:bg-slate-800 text-sm font-semibold">
-                  <i class="fa-solid fa-cloud-arrow-down mr-2"></i>Open-Meteo laden
-                </button>
-                <button id="btnWindShowHud" class="h-11 rounded-xl bg-slate-900 border border-slate-700 hover:bg-slate-800 text-sm font-semibold">
-                  <i class="fa-solid fa-up-right-and-down-left-from-center mr-2"></i>HUD anzeigen
-                </button>
-              </div>
-
-              <div class="text-[11px] text-slate-400 leading-snug">
-                Auto-Recording (Real): Wenn GS &gt; 10 km/h und ALT Δ&gt;50m oder Kurs Δ&gt;5°, wird ein Windpunkt aus Drift geschätzt.
-              </div>
-            </div>
-
-            <div class="rounded-2xl bg-slate-900/70 border border-slate-800 p-3">
-              <div class="font-semibold mb-2"><i class="fa-solid fa-layer-group mr-2"></i>Einträge</div>
-              <div id="windList" class="space-y-2"></div>
-            </div>
-          </section>
-
-          <!-- SETUP TAB -->
-          <section id="tab-setup" class="tabPanel hidden space-y-4">
-            <div class="rounded-2xl bg-slate-900/70 border border-slate-800 p-3 space-y-3">
-              <div class="font-semibold"><i class="fa-solid fa-gear mr-2"></i>Allgemein</div>
-
-              <div class="rounded-2xl bg-slate-950/60 border border-slate-800 p-3">
-                <div class="font-semibold text-sm">App-Modus</div>
-                <div id="standaloneHint" class="text-[12px] text-slate-400 mt-1">
-                  Für “ohne Browser-Leiste”: in Chrome öffnen → Menü (⋮) → <b>App installieren</b> / “Zum Startbildschirm”.
-                </div>
-              </div>
-
-              <div class="flex items-center justify-between gap-3 rounded-2xl bg-slate-950/60 border border-slate-800 p-3">
-                <div>
-                  <div class="font-semibold text-sm">Simulation</div>
-                  <div class="text-[12px] text-slate-400">GPS wird ignoriert, Ballon driftet im Windprofil.</div>
-                </div>
-                <label class="inline-flex items-center cursor-pointer">
-                  <input id="toggleSim" type="checkbox" class="sr-only peer">
-                  <div class="w-12 h-7 bg-slate-800 peer-checked:bg-emerald-600 rounded-full relative transition">
-                    <div class="w-5 h-5 bg-white rounded-full absolute top-1 left-1 peer-checked:left-6 transition"></div>
-                  </div>
-                </label>
-              </div>
-
-              <div class="flex items-center justify-between gap-3 rounded-2xl bg-slate-950/60 border border-slate-800 p-3">
-                <div>
-                  <div class="font-semibold text-sm">Wake Lock</div>
-                  <div class="text-[12px] text-slate-400">Bildschirm bleibt an (wenn unterstützt).</div>
-                </div>
-                <button id="btnWakeLock" class="h-10 px-3 rounded-xl bg-slate-900 border border-slate-700 hover:bg-slate-800 text-sm font-semibold">
-                  Aktivieren
-                </button>
-              </div>
-
-              <div class="grid grid-cols-2 gap-2">
-                <div>
-                  <label class="text-xs text-slate-400">Einheit Speed</label>
-                  <select id="unitSpeed" class="w-full h-11 rounded-xl bg-slate-950 border border-slate-700 px-3">
-                    <option value="kmh">km/h</option>
-                    <option value="kn">kn</option>
-                    <option value="ms">m/s</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="text-xs text-slate-400">Traj Vektor</label>
-                  <select id="trajMinutes" class="w-full h-11 rounded-xl bg-slate-950 border border-slate-700 px-3">
-                    <option value="5,10,15">5/10/15 min</option>
-                    <option value="5,10">5/10 min</option>
-                    <option value="10">10 min</option>
-                  </select>
-                </div>
-              </div>
-
-              <div class="grid grid-cols-2 gap-2">
-                <div>
-                  <label class="text-xs text-slate-400">GPS Update (ms)</label>
-                  <input id="gpsMinInterval" class="w-full h-11 rounded-xl bg-slate-950 border border-slate-700 px-3" placeholder="1000" inputmode="numeric" />
-                </div>
-                <div>
-                  <label class="text-xs text-slate-400">Track Punkt Dist (m)</label>
-                  <input id="trackMinDist" class="w-full h-11 rounded-xl bg-slate-950 border border-slate-700 px-3" placeholder="8" inputmode="numeric" />
-                </div>
-              </div>
-
-              <button id="btnSetupSave" class="w-full h-11 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-extrabold">
-                <i class="fa-solid fa-floppy-disk mr-2"></i>Setup speichern
+              <button id="btnClearTask" class="btn-touch h-11 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-extrabold">
+                <i class="fa-solid fa-trash mr-2"></i>Leeren
               </button>
             </div>
 
-            <div class="rounded-2xl bg-slate-900/70 border border-slate-800 p-3 space-y-3">
-              <div class="font-semibold"><i class="fa-solid fa-file-import mr-2"></i>KML Import</div>
-              <input id="kmlFile" type="file" accept=".kml,application/vnd.google-earth.kml+xml"
-                class="block w-full text-sm text-slate-300 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:bg-slate-900 file:text-slate-100 hover:file:bg-slate-800" />
-              <div class="text-[11px] text-slate-400 leading-snug">
-                Importierte KML wird als Overlay angezeigt (z.B. Scoring Areas, Briefing-Layer, Lufträume).
+            <div class="mt-3 rounded-2xl bg-slate-950/60 border border-slate-800 p-3">
+              <div class="font-bold text-sm mb-2"><i class="fa-solid fa-bullseye mr-2 text-sky-300"></i>Navigation</div>
+              <div class="text-xs text-slate-400">Aktiver Task wird im Toast angezeigt (Distanz + Layer-Empfehlung). Fahrt startet **nicht** automatisch.</div>
+              <div class="mt-2 grid grid-cols-2 gap-2">
+                <button id="btnSetTargetFromMap" class="btn-touch h-11 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-bold text-sm">
+                  <i class="fa-solid fa-crosshairs mr-2"></i>Ziel picken
+                </button>
+                <button id="btnAPTStart" class="btn-touch hidden h-11 rounded-xl bg-sky-400 hover:bg-sky-300 active:bg-sky-500 text-slate-950 font-extrabold text-sm">
+                  <i class="fa-solid fa-stopwatch mr-2"></i>APT Start
+                </button>
               </div>
-              <div id="kmlLayersList" class="space-y-2"></div>
-            </div>
-          </section>
-
-          <!-- ARCHIVE TAB -->
-          <section id="tab-archive" class="tabPanel hidden space-y-4">
-            <div class="rounded-2xl bg-slate-900/70 border border-slate-800 p-3">
-              <div class="flex items-center gap-2">
-                <div class="font-semibold"><i class="fa-solid fa-box-archive mr-2"></i>Fahrten</div>
-                <div class="flex-1"></div>
-                <button id="btnArchiveClear" class="h-9 px-3 rounded-xl bg-slate-900 border border-slate-700 hover:bg-slate-800 text-xs font-semibold">Leeren</button>
-              </div>
-              <div class="mt-2 text-[12px] text-slate-400">
-                “Fertig” beendet eine Fahrt und legt sie hier ab. Export enthält Track + Marker (Zeitstempel).
+              <div id="mapPickHint" class="hidden mt-2 text-xs text-amber-300">
+                Tippe auf die Karte, um Punkt A zu setzen (Briefing).
               </div>
             </div>
+          </div>
 
+          <div class="rounded-2xl bg-slate-900/50 border border-slate-800 p-3">
+            <div class="font-extrabold mb-2"><i class="fa-solid fa-diagram-project mr-2 text-sky-300"></i>ELB / ANG Helper</div>
+            <div class="text-xs text-slate-400 mb-3">Optional: Trackpunkte während der Fahrt setzen (nur wenn Fahrt aktiv).</div>
+            <div class="grid grid-cols-3 gap-2">
+              <button id="btnSetA" class="btn-touch h-11 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-bold text-sm">Set A</button>
+              <button id="btnSetB" class="btn-touch h-11 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-bold text-sm">Set B</button>
+              <button id="btnSetC" class="btn-touch h-11 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-bold text-sm">Set C</button>
+            </div>
+            <div class="mt-3 text-sm">
+              <div class="text-xs text-slate-400">ELB Ergebnis (°):</div>
+              <div class="font-extrabold mono text-lg" id="elbowResult">–</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- WIND -->
+        <section id="tab_wind" class="hidden space-y-4">
+          <div class="rounded-2xl bg-slate-900/50 border border-slate-800 p-3">
+            <div class="font-extrabold mb-2"><i class="fa-solid fa-wind mr-2 text-sky-300"></i>Windprofil</div>
+            <div class="text-xs text-slate-400 mb-3">Manuell editieren oder Online holen. Auto-Record: wenn GS &gt; 10 km/h und ΔH&gt;50 m oder ΔKurs&gt;5° (nur während Fahrt).</div>
+
+            <div class="grid grid-cols-3 gap-2">
+              <input id="windAlt" type="number" placeholder="Höhe m" class="h-11 rounded-xl bg-slate-950 border border-slate-700 px-3" />
+              <input id="windDirFrom" type="number" placeholder="Richtung FROM °" class="h-11 rounded-xl bg-slate-950 border border-slate-700 px-3" />
+              <input id="windSpd" type="number" placeholder="Speed km/h" class="h-11 rounded-xl bg-slate-950 border border-slate-700 px-3" />
+            </div>
+            <div class="mt-2 grid grid-cols-2 gap-2">
+              <button id="btnAddWind" class="btn-touch h-11 rounded-xl bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 text-slate-950 font-extrabold">
+                <i class="fa-solid fa-plus mr-2"></i>Hinzufügen
+              </button>
+              <button id="btnClearWind" class="btn-touch h-11 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-extrabold">
+                <i class="fa-solid fa-trash mr-2"></i>Alle löschen
+              </button>
+            </div>
+
+            <div class="mt-3 space-y-2" id="windList"></div>
+          </div>
+        </section>
+
+        <!-- SETUP -->
+        <section id="tab_setup" class="hidden space-y-4">
+          <div class="rounded-2xl bg-slate-900/50 border border-slate-800 p-3">
+            <div class="font-extrabold mb-2"><i class="fa-solid fa-gear mr-2 text-sky-300"></i>Setup</div>
+
+            <div class="flex items-center justify-between rounded-2xl bg-slate-950/60 border border-slate-800 px-3 py-2">
+              <div>
+                <div class="font-bold">Simulation</div>
+                <div class="text-xs text-slate-400">GPS wird pausiert. Drift basiert auf Windprofil.</div>
+              </div>
+              <label class="inline-flex items-center cursor-pointer">
+                <input id="tglSim" type="checkbox" class="sr-only" />
+                <div class="w-12 h-7 bg-slate-700 rounded-full relative">
+                  <div id="tglSimKnob" class="absolute top-1 left-1 w-5 h-5 rounded-full bg-slate-200 transition-all"></div>
+                </div>
+              </label>
+            </div>
+
+            <div class="mt-3 grid grid-cols-2 gap-2">
+              <button id="btnWakeLock" class="btn-touch h-11 rounded-xl bg-sky-400 hover:bg-sky-300 active:bg-sky-500 text-slate-950 font-extrabold">
+                <i class="fa-solid fa-mobile-screen mr-2"></i>WakeLock
+              </button>
+              <button id="btnReset" class="btn-touch h-11 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-extrabold">
+                <i class="fa-solid fa-rotate mr-2"></i>Reset UI
+              </button>
+            </div>
+
+            <div class="mt-3 rounded-2xl bg-slate-950/60 border border-slate-800 p-3">
+              <div class="font-bold mb-2"><i class="fa-solid fa-file-import mr-2 text-emerald-300"></i>KML Import</div>
+              <input id="kmlFile" type="file" accept=".kml,.xml" class="block w-full text-sm text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-slate-900 file:text-slate-200 hover:file:bg-slate-800" />
+              <div class="text-xs text-slate-400 mt-2">Importiertes KML wird als Overlay dargestellt (nur Ansicht).</div>
+            </div>
+
+            <div class="mt-3 rounded-2xl bg-slate-950/60 border border-slate-800 p-3">
+              <div class="font-bold mb-2"><i class="fa-solid fa-download mr-2 text-amber-300"></i>PWA Hinweis</div>
+              <div class="text-xs text-slate-400">
+                Für „ohne Browser“-Look: im Chrome-Menü „Zum Startbildschirm hinzufügen“ → App öffnen.
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ARCHIVE -->
+        <section id="tab_archive" class="hidden space-y-4">
+          <div class="rounded-2xl bg-slate-900/50 border border-slate-800 p-3">
+            <div class="font-extrabold mb-2"><i class="fa-solid fa-box-archive mr-2 text-sky-300"></i>Archiv</div>
+            <div class="text-xs text-slate-400 mb-3">Beendete Fahrten + KML Export (Track + Marker).</div>
             <div id="archiveList" class="space-y-2"></div>
-          </section>
-        </div>
-
-        <div class="p-3 border-t border-slate-800">
-          <div id="appStatus" class="text-[11px] text-slate-400">—</div>
-        </div>
-      </aside>
-    </div>
-
-    <!-- Map Settings Panel -->
-    <div id="mapSettings" class="hidden fixed inset-0 z-[9999]">
-      <div id="mapSettingsBackdrop" class="absolute inset-0 bg-black/50"></div>
-      <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[360px] max-w-[92vw] rounded-2xl bg-slate-950 border border-slate-800 shadow-2xl">
-        <div class="p-3 border-b border-slate-800 flex items-center gap-2">
-          <div class="font-semibold"><i class="fa-solid fa-layer-group mr-2"></i>Karte</div>
-          <div class="flex-1"></div>
-          <button id="btnMapSettingsClose" class="h-10 w-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800" aria-label="Schließen">
-            <i class="fa-solid fa-xmark"></i>
-          </button>
-        </div>
-        <div class="p-3 space-y-3">
-          <div class="grid grid-cols-2 gap-2">
-            <button id="btnBaseOSM" class="h-11 rounded-xl bg-slate-900 border border-slate-700 hover:bg-slate-800 text-sm font-semibold">OSM</button>
-            <button id="btnBaseSAT" class="h-11 rounded-xl bg-slate-900 border border-slate-700 hover:bg-slate-800 text-sm font-semibold">Satellit</button>
+            <button id="btnClearArchive" class="btn-touch mt-3 w-full h-11 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-extrabold">
+              <i class="fa-solid fa-trash mr-2"></i>Archiv löschen
+            </button>
           </div>
-
-          <div class="flex items-center justify-between gap-3 rounded-2xl bg-slate-950/60 border border-slate-800 p-3">
-            <div>
-              <div class="font-semibold text-sm">Track</div>
-              <div class="text-[12px] text-slate-400">Roter Pfad (Trackpunkte).</div>
-            </div>
-            <label class="inline-flex items-center cursor-pointer">
-              <input id="toggleTrack" type="checkbox" class="sr-only peer" checked>
-              <div class="w-12 h-7 bg-slate-800 peer-checked:bg-emerald-600 rounded-full relative transition">
-                <div class="w-5 h-5 bg-white rounded-full absolute top-1 left-1 peer-checked:left-6 transition"></div>
-              </div>
-            </label>
-          </div>
-
-          <div class="flex items-center justify-between gap-3 rounded-2xl bg-slate-950/60 border border-slate-800 p-3">
-            <div>
-              <div class="font-semibold text-sm">Trajectory</div>
-              <div class="text-[12px] text-slate-400">Grüne Vektor-Vorschau (5/10/15 min).</div>
-            </div>
-            <label class="inline-flex items-center cursor-pointer">
-              <input id="toggleTraj" type="checkbox" class="sr-only peer" checked>
-              <div class="w-12 h-7 bg-slate-800 peer-checked:bg-emerald-600 rounded-full relative transition">
-                <div class="w-5 h-5 bg-white rounded-full absolute top-1 left-1 peer-checked:left-6 transition"></div>
-              </div>
-            </label>
-          </div>
-
-          <button id="btnRebuildOverlays" class="w-full h-11 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-extrabold">
-            <i class="fa-solid fa-rotate mr-2"></i>Overlays neu zeichnen
-          </button>
-        </div>
+        </section>
       </div>
-    </div>
-
-    <!-- Snackbar -->
-    <div id="snackbar" class="hidden fixed bottom-24 left-0 right-0 z-[9999] flex justify-center px-3">
-      <div class="toast-pop max-w-[92vw] rounded-2xl bg-slate-900/90 border border-slate-700 backdrop-blur px-3 py-2 shadow-xl text-sm">
-        <span id="snackbarText">—</span>
-      </div>
-    </div>
+    </aside>
   </div>
 
   <script>
-    /*********************************************************************
-     * 1) Konstanten & Konfiguration
-     *********************************************************************/
-    const CONFIG = {
-      APP_VERSION: "1.0.1",
-      DEFAULT_CENTER: { lat: 49.3033, lon: 8.4519, zoom: 12 },
-      STORAGE_KEY: "compnavair_state_v1",
-      STORAGE_ARCHIVE_KEY: "compnavair_archive_v1",
-      STORAGE_KML_KEY: "compnavair_kml_overlays_v1",
-      STORAGE_WIND_KEY: "compnavair_wind_v1",
-      STORAGE_SETUP_KEY: "compnavair_setup_v1",
-      GPS: {
-        ENABLE_HIGH_ACCURACY: true,
-        TIMEOUT_MS: 12000,
-        MAX_AGE_MS: 0,        // <- IMPORTANT: avoid stale cached fixes that "jump"
-        MIN_INTERVAL_MS: 1000,
-        MIN_DIST_M: 8
+    /********************************************************************
+     * 1) KONSTANTEN & KONFIGURATION
+     ********************************************************************/
+    const APP = {
+      name: "CompNavAir",
+      version: "1.0.0",
+      defaultCenter: { lat: 49.317, lon: 8.448 }, // Speyer/EDRY Nähe
+      defaultZoom: 13,
+      storageKey: "compnavair_v1",
+      maxTrackPoints: 20000,
+      trackMinDistM: 8,
+      maxGpsJumpM: 160,            // hartes Jump-Limit
+      gpsSmoothingAlpha: 0.25,     // 0..1 (höher = weniger smoothing)
+      followPanMinMs: 800,
+      kmlName: "CompNavAir_Export",
+    };
+
+    const TILE = {
+      osm: {
+        url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        attr: '&copy; OpenStreetMap-Mitwirkende'
       },
-      UNITS: { SPEED: "kmh" },
-      TRAJ_MINUTES: [5, 10, 15],
-      WIND_AUTO: { MIN_GS_KMH: 10, ALT_DELTA_M: 50, CRS_DELTA_DEG: 5 },
-      GPS_FILTER: {
-        MAX_BAD_ACCURACY_M: 80,   // discard if worse (when already locked)
-        ALPHA_GOOD: 0.35,         // smoothing good accuracy
-        ALPHA_MED: 0.22,          // smoothing medium accuracy
-        ALPHA_BAD: 0.12           // smoothing bad accuracy
-      },
-      OPEN_METEO: {
-        BASE_URL: "https://api.open-meteo.com/v1/forecast",
-        PRESSURE_LEVELS: [
-          { hPa: 1000, approxM: 110 },
-          { hPa: 975,  approxM: 320 },
-          { hPa: 950,  approxM: 500 },
-          { hPa: 925,  approxM: 800 },
-          { hPa: 900,  approxM: 1000 },
-          { hPa: 850,  approxM: 1500 },
-          { hPa: 800,  approxM: 1900 }
-        ]
+      esri: {
+        url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        attr: "Tiles &copy; Esri"
       }
     };
 
+    // CIA Task List (inkl. 15.21 APT) basierend auf AX Model Event Rules (Apr 2025)
     const CIA_TASKS = [
-      { id: "15.1", code: "PDG", title: "SELBST GEWÄHLTES ZIEL", kind: "target", defaultPoints: 1 },
-      { id: "15.2", code: "JDG", title: "VORGEGEBENES ZIEL", kind: "target", defaultPoints: 1 },
-      { id: "15.3", code: "HWZ", title: "QUAL DER WAHL", kind: "multi_target", defaultPoints: 2 },
-      { id: "15.4", code: "FIN", title: "FLY IN", kind: "target", defaultPoints: 1 },
-      { id: "15.5", code: "FON", title: "FLY ON", kind: "target", defaultPoints: 1 },
-      { id: "15.6", code: "HNH", title: "FUCHSJAGD", kind: "target", defaultPoints: 1 },
-      { id: "15.7", code: "WSD", title: "FUCHSJAGD MIT ANLAUF", kind: "target", defaultPoints: 1 },
-      { id: "15.8", code: "GBM", title: "GORDON BENNETT MEMORIAL", kind: "area_target", defaultPoints: 1 },
-      { id: "15.9", code: "CRT", title: "ZIELFAHRT MIT ZEITFENSTER", kind: "area_target", defaultPoints: 1 },
-      { id: "15.10", code: "RTA", title: "RENNEN ZUM WERTUNGSGEBIET", kind: "area_time", defaultPoints: 1 },
-      { id: "15.11", code: "ELB", title: "ELLENBOGEN", kind: "logger_3pt", defaultPoints: 3 },
-      { id: "15.12", code: "LRN", title: "DREIECKSFLÄCHE", kind: "logger_3pt", defaultPoints: 3 },
-      { id: "15.13", code: "MDT", title: "MINIMUM DISTANCE MIT ZEITVORGABE", kind: "ref_target", defaultPoints: 1 },
-      { id: "15.14", code: "SFL", title: "MINIMUM DISTANCE MIT WERTUNGSGEBIET", kind: "area_ref", defaultPoints: 1 },
-      { id: "15.15", code: "MDD", title: "MINIMUM DISTANCE ZWEI MARKER", kind: "area_2mark", defaultPoints: 1 },
-      { id: "15.16", code: "XDT", title: "MAXIMUM DISTANCE MIT ZEITVORGABE", kind: "ref_target", defaultPoints: 1 },
-      { id: "15.17", code: "XDI", title: "MAXIMUM DISTANCE MIT WERTUNGSGEBIET", kind: "area_ref", defaultPoints: 1 },
-      { id: "15.18", code: "XDD", title: "MAXIMUM DISTANCE ZWEI MARKER", kind: "area_2mark", defaultPoints: 1 },
-      { id: "15.19", code: "ANG", title: "WINKEL", kind: "angle_2pt", defaultPoints: 2 },
-      { id: "15.20", code: "3DT", title: "3D-AUFGABE", kind: "donut_track", defaultPoints: 1 },
-      { id: "15.21", code: "APT", title: "HÖHENPROFIL-AUFGABE", kind: "alt_profile", defaultPoints: 1 }
+      { num: "15.1",  code: "PDG", title: "SELBST GEWÄHLTES ZIEL" },
+      { num: "15.2",  code: "JDG", title: "VORGEGEBENES ZIEL" },
+      { num: "15.3",  code: "HWZ", title: "QUAL DER WAHL" },
+      { num: "15.4",  code: "FIN", title: "FLY IN" },
+      { num: "15.5",  code: "FON", title: "FLY ON" },
+      { num: "15.6",  code: "HNH", title: "FUCHSJAGD" },
+      { num: "15.7",  code: "WSD", title: "FUCHSJAGD MIT ANLAUF" },
+      { num: "15.8",  code: "GBM", title: "GORDON BENNETT MEMORIAL" },
+      { num: "15.9",  code: "CRT", title: "ZIELFAHRT MIT ZEITFENSTER" },
+      { num: "15.10", code: "RTA", title: "RENNEN ZUM WERTUNGSGEBIET" },
+      { num: "15.11", code: "ELB", title: "ELLENBOGEN" },
+      { num: "15.12", code: "LRN", title: "DREIECKSFLÄCHE" },
+      { num: "15.13", code: "MDT", title: "MINIMUM DISTANCE MIT ZEITVORGABE" },
+      { num: "15.14", code: "SFL", title: "MINIMUM DISTANCE MIT WERTUNGSGEBIET" },
+      { num: "15.15", code: "MDD", title: "MINIMUM DISTANCE ZWEI MARKER" },
+      { num: "15.16", code: "XDT", title: "MAXIMUM DISTANCE MIT ZEITVORGABE" },
+      { num: "15.17", code: "XDI", title: "MAXIMUM DISTANCE MIT WERTUNGSGEBIET" },
+      { num: "15.18", code: "XDD", title: "MAXIMUM DISTANCE ZWEI MARKER" },
+      { num: "15.19", code: "ANG", title: "WINKEL" },
+      { num: "15.20", code: "3DT", title: "3D-AUFGABE" },
+      { num: "15.21", code: "APT", title: "HÖHENPROFIL-AUFGABE" },
     ];
 
-    /*********************************************************************
-     * 2) Globale Variablen (State)
-     *********************************************************************/
+    const MARKER_COLORS = ["pink","amber","emerald","sky","violet","rose","lime","orange"];
+    const COLOR_HEX = {
+      pink:   "#fb7185",
+      amber:  "#fbbf24",
+      emerald:"#34d399",
+      sky:    "#38bdf8",
+      violet: "#a78bfa",
+      rose:   "#f43f5e",
+      lime:   "#a3e635",
+      orange: "#fb923c",
+    };
+
+    /********************************************************************
+     * 2) GLOBALE VARIABLEN (STATE)
+     ********************************************************************/
     const STATE = {
       map: null,
       layers: {
         baseOSM: null,
         baseSAT: null,
-        activeBase: "OSM",
-        track: null,
-        trackLine: null,
-        trajLines: [],
         tasksLayer: null,
+        trackLayer: null,
         markersLayer: null,
-        kmlOverlays: [],
-        balloonMarker: null
+        kmlLayer: null,
+        trackLine: null,
       },
       ui: {
-        menuOpen: false,
-        activeTab: "task",
+        drawerOpen: false,
+        drawerTab: "task",
+        followGps: true,
+        base: "osm",
         windHudOpen: false,
-        mapSettingsOpen: false,
-        trackVisible: true,
-        trajVisible: true
-      },
-      setup: {
-        unitSpeed: CONFIG.UNITS.SPEED,
-        trajMinutes: CONFIG.TRAJ_MINUTES.slice(),
-        gpsMinInterval: CONFIG.GPS.MIN_INTERVAL_MS,
-        trackMinDist: CONFIG.GPS.MIN_DIST_M
+        mapPickMode: false,
+        mapPickWhich: "A",
+        snackbarTimer: null,
+        wakeLock: null,
+        mapUserInteracting: false,
       },
       gps: {
-        supported: "geolocation" in navigator,
-        watching: false,
         watchId: null,
-        lastUIUpdateTs: 0,
-        lastTrackPt: null,
+        hasFix: false,
+        fixTs: 0,
+        lat: null,
+        lon: null,
+        altM: null,
+        speedKmh: 0,
+        headingDeg: 0,
+        accuracyM: null,
+        smoothLat: null,
+        smoothLon: null,
         lastAltM: null,
-        lastWindAuto: null,
-        filtered: null  // {lat,lon,altM,ts}
+        lastAltTs: null,
+        lastCourseDeg: null,
+        lastCourseTs: null,
+        lastPanTs: 0,
       },
-      wake: { supported: "wakeLock" in navigator, lock: null },
       sim: {
         enabled: false,
-        timerId: null,
-        verticalRateMps: 0,
-        state: { lat: CONFIG.DEFAULT_CENTER.lat, lon: CONFIG.DEFAULT_CENTER.lon, altM: 120, headingDeg: 0, speedKmh: 0, ts: Date.now() }
+        running: false,
+        lat: null,
+        lon: null,
+        altM: 180,
+        headingDeg: 0,
+        speedKmh: 0,
+        vRateMps: 0,
+        timer: null,
+        lastTickTs: 0,
       },
-      wind: { entries: [] },
-      tasks: { list: [], activeTaskId: null },
-      flight: { active: false, startedTs: null, track: [], markers: [] },
-      archive: []
+      flight: {
+        active: false,
+        title: "",
+        startedTs: 0,
+        track: [],
+        markers: [],
+        archive: [],
+      },
+      wind: {
+        layers: [], // { altM, fromDeg, speedKmh, ts, source }
+        lastAuto: { altM: null, courseDeg: null, ts: 0 },
+      },
+      task: {
+        active: null,      // task object
+        pointsABC: { A:null, B:null, C:null }, // helper for ELB/ANG
+        apt: { startTs: null }, // for APT
+      },
+      balloon: {
+        marker: null,
+      }
     };
 
-    /*********************************************************************
-     * 3) Helfer-Funktionen (Math, Formatting)
-     *********************************************************************/
-    function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
-    function isFiniteNum(x) { return typeof x === "number" && Number.isFinite(x); }
-    function toNumOrNull(v) {
-      if (v === null || v === undefined) return null;
-      const n = Number(String(v).trim().replace(",", "."));
-      return Number.isFinite(n) ? n : null;
-    }
-    function fmtTs(ts) {
-      try {
-        const d = new Date(ts);
-        return d.toLocaleString(undefined, { year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", second:"2-digit" });
-      } catch { return String(ts); }
-    }
-    function fmtDist(m) {
-      if (!isFiniteNum(m)) return "—";
-      if (m < 1000) return `${Math.round(m)} m`;
-      return `${(m/1000).toFixed(2)} km`;
-    }
-    function fmtAlt(m) { return isFiniteNum(m) ? `${Math.round(m)} m` : "—"; }
-    function fmtSpeedKmh(kmh) {
-      if (!isFiniteNum(kmh)) return "—";
-      const u = STATE.setup.unitSpeed;
-      if (u === "kmh") return `${Math.round(kmh)} km/h`;
-      if (u === "kn") return `${Math.round(kmh / 1.852)} kn`;
-      if (u === "ms") return `${(kmh / 3.6).toFixed(1)} m/s`;
-      return `${Math.round(kmh)} km/h`;
-    }
-    function fmtVario(mps) {
-      if (!isFiniteNum(mps)) return "—";
-      const sign = mps > 0.05 ? "+" : (mps < -0.05 ? "−" : "");
-      return `${sign}${Math.abs(mps).toFixed(1)} m/s`;
-    }
-    function degToRad(d) { return d * Math.PI / 180; }
-    function radToDeg(r) { return r * 180 / Math.PI; }
-    function normDeg(d) { let x = d % 360; if (x < 0) x += 360; return x; }
-    function angDiffDeg(a, b) { const d = Math.abs(normDeg(a) - normDeg(b)); return Math.min(d, 360 - d); }
+    /********************************************************************
+     * 3) HELFER-FUNKTIONEN (Math, Formatting)
+     ********************************************************************/
+    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+    function now() { return Date.now(); }
 
-    function distMeters(a, b) {
+    function toRad(deg) { return deg * Math.PI / 180; }
+    function toDeg(rad) { return rad * 180 / Math.PI; }
+
+    function haversineM(a, b) {
       const R = 6371000;
-      const lat1 = degToRad(a.lat), lat2 = degToRad(b.lat);
-      const dLat = degToRad(b.lat - a.lat);
-      const dLon = degToRad(b.lon - a.lon);
+      const lat1 = toRad(a.lat), lat2 = toRad(b.lat);
+      const dLat = toRad(b.lat - a.lat);
+      const dLon = toRad(b.lon - a.lon);
       const s = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
       const c = 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1-s));
       return R * c;
     }
 
     function bearingDeg(a, b) {
-      const lat1 = degToRad(a.lat), lat2 = degToRad(b.lat);
-      const dLon = degToRad(b.lon - a.lon);
+      const lat1 = toRad(a.lat), lat2 = toRad(b.lat);
+      const dLon = toRad(b.lon - a.lon);
       const y = Math.sin(dLon) * Math.cos(lat2);
       const x = Math.cos(lat1)*Math.sin(lat2) - Math.sin(lat1)*Math.cos(lat2)*Math.cos(dLon);
-      return normDeg(radToDeg(Math.atan2(y, x)));
+      return (toDeg(Math.atan2(y, x)) + 360) % 360;
     }
 
-    function movePoint(a, bearing, distM) {
+    function destPoint(a, bearingDegVal, distM) {
       const R = 6371000;
-      const br = degToRad(bearing);
-      const lat1 = degToRad(a.lat);
-      const lon1 = degToRad(a.lon);
-      const dr = distM / R;
-      const lat2 = Math.asin(Math.sin(lat1)*Math.cos(dr) + Math.cos(lat1)*Math.sin(dr)*Math.cos(br));
-      const lon2 = lon1 + Math.atan2(Math.sin(br)*Math.sin(dr)*Math.cos(lat1), Math.cos(dr)-Math.sin(lat1)*Math.sin(lat2));
-      return { lat: radToDeg(lat2), lon: radToDeg(lon2) };
+      const brng = toRad(bearingDegVal);
+      const lat1 = toRad(a.lat);
+      const lon1 = toRad(a.lon);
+      const lat2 = Math.asin(Math.sin(lat1)*Math.cos(distM/R) + Math.cos(lat1)*Math.sin(distM/R)*Math.cos(brng));
+      const lon2 = lon1 + Math.atan2(Math.sin(brng)*Math.sin(distM/R)*Math.cos(lat1), Math.cos(distM/R)-Math.sin(lat1)*Math.sin(lat2));
+      return { lat: toDeg(lat2), lon: ((toDeg(lon2)+540)%360)-180 };
     }
 
-    function windFromTo(windFromDeg) { return normDeg(windFromDeg + 180); }
-
-    function safeJsonParse(s, fallback) { try { return JSON.parse(s); } catch { return fallback; } }
-    function genId(prefix="id") { return `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now().toString(16)}`; }
-    function setStatus(msg) { const el = document.getElementById("appStatus"); if (el) el.textContent = msg; }
-    function showSnackbar(msg, ms=2000) {
-      const wrap = document.getElementById("snackbar");
-      const text = document.getElementById("snackbarText");
-      if (!wrap || !text) return;
-      text.textContent = msg;
-      wrap.classList.remove("hidden");
-      window.clearTimeout(showSnackbar._t);
-      showSnackbar._t = window.setTimeout(() => wrap.classList.add("hidden"), ms);
+    function angDiffDeg(a, b) {
+      let d = ((a - b + 540) % 360) - 180;
+      return Math.abs(d);
     }
 
-    function colorToTailwind(color) {
-      const map = {
-        fuchsia: { btn: "bg-fuchsia-500", ring: "#d946ef" },
-        orange:  { btn: "bg-orange-500",  ring: "#f97316" },
-        emerald: { btn: "bg-emerald-500", ring: "#10b981" },
-        sky:     { btn: "bg-sky-400",     ring: "#38bdf8" },
-        rose:    { btn: "bg-rose-500",    ring: "#f43f5e" },
-        amber:   { btn: "bg-amber-400",   ring: "#fbbf24" }
-      };
-      return map[color] || map.fuchsia;
+    function fmtDist(m) {
+      if (m == null || !isFinite(m)) return "–";
+      if (m < 1000) return `${Math.round(m)} m`;
+      return `${(m/1000).toFixed(2)} km`;
+    }
+    function fmtNum(n, digits=0) {
+      if (n == null || !isFinite(n)) return "–";
+      return n.toFixed(digits);
     }
 
-    function persistAll() {
-      try {
-        localStorage.setItem(CONFIG.STORAGE_SETUP_KEY, JSON.stringify(STATE.setup));
-        localStorage.setItem(CONFIG.STORAGE_WIND_KEY, JSON.stringify(STATE.wind.entries));
-        localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify({
-          tasks: STATE.tasks,
-          flight: STATE.flight,
-          ui: { trackVisible: STATE.ui.trackVisible, trajVisible: STATE.ui.trajVisible }
-        }));
-        localStorage.setItem(CONFIG.STORAGE_ARCHIVE_KEY, JSON.stringify(STATE.archive));
-        localStorage.setItem(CONFIG.STORAGE_KML_KEY, JSON.stringify(STATE.layers.kmlOverlays.map(o => ({ id: o.id, name: o.name, visible: o.visible }))));
-      } catch (e) { console.warn("persistAll failed", e); }
+    function safeFloat(v, fallback=null) {
+      const n = parseFloat(String(v).replace(",", "."));
+      return Number.isFinite(n) ? n : fallback;
     }
 
-    function restoreAll() {
-      try {
-        const setup = safeJsonParse(localStorage.getItem(CONFIG.STORAGE_SETUP_KEY) || "", null);
-        if (setup && typeof setup === "object") {
-          STATE.setup.unitSpeed = setup.unitSpeed || STATE.setup.unitSpeed;
-          STATE.setup.gpsMinInterval = isFiniteNum(setup.gpsMinInterval) ? setup.gpsMinInterval : STATE.setup.gpsMinInterval;
-          STATE.setup.trackMinDist = isFiniteNum(setup.trackMinDist) ? setup.trackMinDist : STATE.setup.trackMinDist;
-          STATE.setup.trajMinutes = Array.isArray(setup.trajMinutes) ? setup.trajMinutes.map(n => Number(n)).filter(Number.isFinite) : STATE.setup.trajMinutes;
-        }
-
-        const wind = safeJsonParse(localStorage.getItem(CONFIG.STORAGE_WIND_KEY) || "", null);
-        if (Array.isArray(wind)) {
-          STATE.wind.entries = wind.filter(e => e && isFiniteNum(e.altM) && isFiniteNum(e.dirFromDeg) && isFiniteNum(e.speedKmh));
-        }
-
-        const core = safeJsonParse(localStorage.getItem(CONFIG.STORAGE_KEY) || "", null);
-        if (core && typeof core === "object") {
-          if (core.tasks && typeof core.tasks === "object") {
-            STATE.tasks.list = Array.isArray(core.tasks.list) ? core.tasks.list : [];
-            STATE.tasks.activeTaskId = core.tasks.activeTaskId || null;
-          }
-          if (core.flight && typeof core.flight === "object") {
-            STATE.flight.active = !!core.flight.active;
-            STATE.flight.startedTs = core.flight.startedTs || null;
-            STATE.flight.track = Array.isArray(core.flight.track) ? core.flight.track : [];
-            STATE.flight.markers = Array.isArray(core.flight.markers) ? core.flight.markers : [];
-          }
-          if (core.ui && typeof core.ui === "object") {
-            STATE.ui.trackVisible = core.ui.trackVisible !== false;
-            STATE.ui.trajVisible = core.ui.trajVisible !== false;
-          }
-        }
-
-        const arch = safeJsonParse(localStorage.getItem(CONFIG.STORAGE_ARCHIVE_KEY) || "", null);
-        if (Array.isArray(arch)) STATE.archive = arch;
-      } catch (e) { console.warn("restoreAll failed", e); }
+    function smooth(prev, next, alpha) {
+      if (prev == null || !isFinite(prev)) return next;
+      return prev + alpha * (next - prev);
     }
 
-    // Low-pass GPS filter to remove jitter + avoid "jumping" visuals
-    function filterGpsSample({ lat, lon, altM, accM, ts }) {
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-
-      const prev = STATE.gps.filtered;
-      if (prev && ts <= prev.ts) return null;
-
-      // If accuracy is very bad, ignore unless we have nothing yet
-      if (Number.isFinite(accM) && accM > CONFIG.GPS_FILTER.MAX_BAD_ACCURACY_M && prev) return null;
-
-      if (!prev) {
-        STATE.gps.filtered = { lat, lon, altM: Number.isFinite(altM) ? altM : null, ts };
-        return STATE.gps.filtered;
-      }
-
-      let alpha = CONFIG.GPS_FILTER.ALPHA_GOOD;
-      if (Number.isFinite(accM)) {
-        if (accM > 50) alpha = CONFIG.GPS_FILTER.ALPHA_BAD;
-        else if (accM > 25) alpha = CONFIG.GPS_FILTER.ALPHA_MED;
-      }
-
-      const fLat = prev.lat + alpha * (lat - prev.lat);
-      const fLon = prev.lon + alpha * (lon - prev.lon);
-
-      let fAlt = prev.altM;
-      if (Number.isFinite(altM)) {
-        const aAlt = alpha * 0.7;
-        fAlt = (prev.altM === null || prev.altM === undefined) ? altM : (prev.altM + aAlt * (altM - prev.altM));
-      }
-
-      STATE.gps.filtered = { lat: fLat, lon: fLon, altM: fAlt, ts };
-      return STATE.gps.filtered;
+    function windToDegFrom(fromDeg) {
+      return (fromDeg + 180) % 360;
     }
 
-    /*********************************************************************
-     * 4) UI-Render-Funktionen
-     *********************************************************************/
-    function escapeHtml(s) {
-      return String(s)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-    }
+    function isTaskActive() { return !!STATE.task.active; }
+    function getActiveTask() { return STATE.task.active; }
 
-    function renderTaskTypeDropdown() {
-      const sel = document.getElementById("taskType");
-      if (!sel) return;
-      sel.innerHTML = "";
-      for (const t of CIA_TASKS) {
-        const opt = document.createElement("option");
-        opt.value = t.id;
-        opt.textContent = `${t.id} ${t.code} — ${t.title}`;
-        sel.appendChild(opt);
-      }
-    }
-
-    function renderTaskPointsVisibility() {
-      const cntSel = document.getElementById("taskPointsCount");
-      const cnt = Number(cntSel?.value || 1);
-      const b = document.getElementById("taskPointB");
-      const c = document.getElementById("taskPointC");
-      if (b) b.classList.toggle("hidden", cnt < 2);
-      if (c) c.classList.toggle("hidden", cnt < 3);
-    }
-
-    function taskHint(task) {
-      if (!task) return "—";
-      if (task.typeCode === "3DT") return "3DT: Innerer Kreis ungültig · Ring = Distanz maximieren · Außen = Zentrum anfliegen.";
-      if (task.typeCode === "ANG") return "ANG: Winkel zwischen Vorgaberichtung und Linie A–B maximieren.";
-      if (task.typeCode === "LRN") return "LRN: Fläche Dreieck A–B–C maximieren (Logger/Track).";
-      if (task.typeCode === "ELB") return "ELB: Größte Richtungsänderung (180° − Winkel ABC).";
-      if (String(task.kind||"").includes("area")) return "Area-Task: Nutze KML-Overlay oder setze Radius als Näherung.";
-      return "Zielnavigation: Distanz/Bearing zum Ziel wird angezeigt.";
-    }
-
-    function getActiveTask() {
-      const id = STATE.tasks.activeTaskId;
-      if (!id) return null;
-      return STATE.tasks.list.find(t => t.id === id) || null;
-    }
-
-    function renderActiveTaskBox() {
-      const label = document.getElementById("activeTaskLabel");
-      const hint  = document.getElementById("activeTaskHint");
-      const btnFinish = document.getElementById("btnFinish");
-      const task = getActiveTask();
-      if (!label || !hint || !btnFinish) return;
-
-      if (!task) {
-        label.textContent = "—";
-        hint.textContent = "Keine Aufgabe aktiv.";
-        btnFinish.classList.toggle("hidden", !STATE.flight.active);
-        return;
-      }
-
-      label.textContent = `${task.typeId} ${task.typeCode} — ${task.title || task.typeTitle}`;
-      hint.textContent = taskHint(task);
-      btnFinish.classList.toggle("hidden", !STATE.flight.active);
-    }
-
-    function pointSummary(t) {
-      if (!t || !Array.isArray(t.points) || !t.points.length) return "—";
-      const first = t.points[0];
-      const s = `${first.label}: ${first.lat.toFixed(5)}, ${first.lon.toFixed(5)}`;
-      const r = [];
-      if (isFiniteNum(t.r1M) && t.r1M > 0) r.push(`R1=${Math.round(t.r1M)}m`);
-      if (isFiniteNum(t.r2M) && t.r2M > 0) r.push(`R2=${Math.round(t.r2M)}m`);
-      return `${s}${r.length ? " · " + r.join(" · ") : ""}`;
-    }
-
-    function renderTaskList() {
-      const wrap = document.getElementById("taskList");
-      if (!wrap) return;
-      wrap.innerHTML = "";
-
-      if (!STATE.tasks.list.length) {
-        const empty = document.createElement("div");
-        empty.className = "text-sm text-slate-400";
-        empty.textContent = "Noch keine Tasks angelegt.";
-        wrap.appendChild(empty);
-        return;
-      }
-
-      for (const t of STATE.tasks.list.slice().sort((a,b) => (b.createdTs||0)-(a.createdTs||0))) {
-        const active = t.id === STATE.tasks.activeTaskId;
-        const row = document.createElement("div");
-        row.className = `rounded-2xl border ${active ? "border-emerald-500/40 bg-emerald-500/10" : "border-slate-800 bg-slate-950/40"} p-3`;
-        row.innerHTML = `
-          <div class="flex items-center gap-2">
-            <div class="min-w-0">
-              <div class="text-sm font-semibold truncate">${escapeHtml(`${t.typeId} ${t.typeCode} — ${t.title || t.typeTitle}`)}</div>
-              <div class="text-[12px] text-slate-400 truncate">${escapeHtml(pointSummary(t))}</div>
-            </div>
-            <div class="flex-1"></div>
-            <button data-act="activate" data-id="${t.id}" class="h-9 px-3 rounded-xl bg-slate-900 border border-slate-700 hover:bg-slate-800 text-xs font-semibold">${active ? "Aktiv" : "Aktivieren"}</button>
-          </div>
-          <div class="mt-2 flex gap-2">
-            <button data-act="zoom" data-id="${t.id}" class="flex-1 h-10 rounded-xl bg-slate-900 border border-slate-700 hover:bg-slate-800 text-xs font-semibold"><i class="fa-solid fa-magnifying-glass-location mr-2"></i>Zoom</button>
-            <button data-act="delete" data-id="${t.id}" class="h-10 px-3 rounded-xl bg-slate-900 border border-rose-700/50 hover:bg-rose-900/30 text-xs font-semibold text-rose-200"><i class="fa-solid fa-trash mr-2"></i>Löschen</button>
-          </div>
-        `;
-        wrap.appendChild(row);
-      }
-
-      wrap.querySelectorAll("button[data-act]").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const act = btn.getAttribute("data-act");
-          const id = btn.getAttribute("data-id");
-          if (!id) return;
-          if (act === "activate") setActiveTask(id);
-          if (act === "zoom") zoomToTask(id);
-          if (act === "delete") deleteTask(id);
-        });
-      });
-    }
-
-    function renderWindList() {
-      const wrap = document.getElementById("windList");
-      if (!wrap) return;
-      wrap.innerHTML = "";
-
-      const entries = STATE.wind.entries.slice().sort((a,b) => a.altM - b.altM);
-      if (!entries.length) {
-        const empty = document.createElement("div");
-        empty.className = "text-sm text-slate-400";
-        empty.textContent = "Noch keine Wind-Einträge.";
-        wrap.appendChild(empty);
-        return;
-      }
-
-      for (const e of entries) {
-        const row = document.createElement("div");
-        row.className = "rounded-2xl bg-slate-950/40 border border-slate-800 p-3";
-        row.innerHTML = `
-          <div class="flex items-center gap-2">
-            <div class="min-w-0">
-              <div class="text-sm font-semibold">${Math.round(e.altM)} m</div>
-              <div class="text-[12px] text-slate-400 truncate">${Math.round(e.dirFromDeg)}° von · ${Math.round(e.speedKmh)} km/h · ${escapeHtml(e.source || "manuell")}</div>
-            </div>
-            <div class="flex-1"></div>
-            <button data-del="${e.ts}" class="h-9 w-9 rounded-xl bg-slate-900 border border-rose-700/50 hover:bg-rose-900/30 text-rose-200" aria-label="Löschen">
-              <i class="fa-solid fa-trash"></i>
-            </button>
-          </div>
-        `;
-        wrap.appendChild(row);
-      }
-
-      wrap.querySelectorAll("button[data-del]").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const ts = Number(btn.getAttribute("data-del"));
-          STATE.wind.entries = STATE.wind.entries.filter(x => x.ts !== ts);
-          persistAll();
-          renderWindList();
-          renderWindHud();
-          rebuildTrajectory();
-          showSnackbar("Wind-Eintrag gelöscht.");
-        });
-      });
-    }
-
-    function renderWindHud() {
-      const body = document.getElementById("windHudBody");
-      const empty = document.getElementById("windHudEmpty");
-      if (!body || !empty) return;
-
-      body.innerHTML = "";
-      const entries = STATE.wind.entries.slice().sort((a,b) => a.altM - b.altM);
-      empty.classList.toggle("hidden", entries.length > 0);
-
-      for (const e of entries) {
-        const to = windFromTo(e.dirFromDeg);
-        const tr = document.createElement("tr");
-        tr.className = "border-t border-slate-800/60";
-        tr.innerHTML = `
-          <td class="py-2">${Math.round(e.altM)} m</td>
-          <td class="py-2">
-            <span class="inline-flex items-center gap-2">
-              <span class="inline-block" style="transform: rotate(${Math.round(to)}deg)">➤</span>
-              <span class="text-slate-300">${Math.round(e.dirFromDeg)}°</span>
-            </span>
-          </td>
-          <td class="py-2 text-right">${Math.round(e.speedKmh)} km/h</td>
-        `;
-        body.appendChild(tr);
-      }
-    }
-
-    function renderArchive() {
-      const wrap = document.getElementById("archiveList");
-      if (!wrap) return;
-      wrap.innerHTML = "";
-
-      if (!STATE.archive.length) {
-        const empty = document.createElement("div");
-        empty.className = "text-sm text-slate-400";
-        empty.textContent = "Archiv ist leer.";
-        wrap.appendChild(empty);
-        return;
-      }
-
-      for (const f of STATE.archive.slice().sort((a,b)=> (b.finishedTs||0)-(a.finishedTs||0))) {
-        const row = document.createElement("div");
-        row.className = "rounded-2xl bg-slate-900/70 border border-slate-800 p-3";
-        const pts = Array.isArray(f.track) ? f.track.length : 0;
-        const mks = Array.isArray(f.markers) ? f.markers.length : 0;
-        row.innerHTML = `
-          <div class="flex items-center gap-2">
-            <div class="min-w-0">
-              <div class="text-sm font-semibold truncate">${escapeHtml(f.title || "Fahrt")}</div>
-              <div class="text-[12px] text-slate-400 truncate">${escapeHtml(fmtTs(f.startedTs))} → ${escapeHtml(fmtTs(f.finishedTs))} · Track ${pts} · Marker ${mks}</div>
-            </div>
-            <div class="flex-1"></div>
-            <button data-kml="${f.id}" class="h-9 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 text-xs font-extrabold">
-              <i class="fa-solid fa-file-arrow-down mr-2"></i>KML Export
-            </button>
-          </div>
-          <div class="mt-2 flex gap-2">
-            <button data-zoomflight="${f.id}" class="flex-1 h-10 rounded-xl bg-slate-900 border border-slate-700 hover:bg-slate-800 text-xs font-semibold"><i class="fa-solid fa-magnifying-glass-location mr-2"></i>Zoom Track</button>
-            <button data-delarch="${f.id}" class="h-10 px-3 rounded-xl bg-slate-900 border border-rose-700/50 hover:bg-rose-900/30 text-xs font-semibold text-rose-200"><i class="fa-solid fa-trash mr-2"></i>Löschen</button>
-          </div>
-        `;
-        wrap.appendChild(row);
-      }
-
-      wrap.querySelectorAll("button[data-kml]").forEach(btn => btn.addEventListener("click", () => exportFlightKml(btn.getAttribute("data-kml"))));
-      wrap.querySelectorAll("button[data-delarch]").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const id = btn.getAttribute("data-delarch");
-          if (!id) return;
-          STATE.archive = STATE.archive.filter(x => x.id !== id);
-          persistAll();
-          renderArchive();
-          showSnackbar("Archiv-Eintrag gelöscht.");
-        });
-      });
-      wrap.querySelectorAll("button[data-zoomflight]").forEach(btn => btn.addEventListener("click", () => zoomToFlight(btn.getAttribute("data-zoomflight"))));
-    }
-
-    function renderKmlLayersList() {
-      const wrap = document.getElementById("kmlLayersList");
-      if (!wrap) return;
-      wrap.innerHTML = "";
-
-      if (!STATE.layers.kmlOverlays.length) {
-        const empty = document.createElement("div");
-        empty.className = "text-sm text-slate-400";
-        empty.textContent = "Keine KML Overlays geladen.";
-        wrap.appendChild(empty);
-        return;
-      }
-
-      for (const o of STATE.layers.kmlOverlays) {
-        const row = document.createElement("div");
-        row.className = "rounded-2xl bg-slate-950/40 border border-slate-800 p-3 flex items-center gap-2";
-        row.innerHTML = `
-          <div class="min-w-0">
-            <div class="text-sm font-semibold truncate">${escapeHtml(o.name || "KML")}</div>
-            <div class="text-[12px] text-slate-400 truncate">${o.visible ? "sichtbar" : "versteckt"}</div>
-          </div>
-          <div class="flex-1"></div>
-          <button data-kmltoggle="${o.id}" class="h-9 px-3 rounded-xl bg-slate-900 border border-slate-700 hover:bg-slate-800 text-xs font-semibold">${o.visible ? "Ausblenden" : "Einblenden"}</button>
-          <button data-kmldel="${o.id}" class="h-9 w-9 rounded-xl bg-slate-900 border border-rose-700/50 hover:bg-rose-900/30 text-rose-200" aria-label="Löschen">
-            <i class="fa-solid fa-trash"></i>
-          </button>
-        `;
-        wrap.appendChild(row);
-      }
-
-      wrap.querySelectorAll("button[data-kmltoggle]").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const id = btn.getAttribute("data-kmltoggle");
-          const ov = STATE.layers.kmlOverlays.find(x => x.id === id);
-          if (!ov || !STATE.map) return;
-          ov.visible = !ov.visible;
-          if (ov.visible) ov.layer.addTo(STATE.map);
-          else STATE.map.removeLayer(ov.layer);
-          persistAll();
-          renderKmlLayersList();
-          showSnackbar(ov.visible ? "KML eingeblendet." : "KML ausgeblendet.");
-        });
-      });
-
-      wrap.querySelectorAll("button[data-kmldel]").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const id = btn.getAttribute("data-kmldel");
-          const idx = STATE.layers.kmlOverlays.findIndex(x => x.id === id);
-          if (idx < 0 || !STATE.map) return;
-          const ov = STATE.layers.kmlOverlays[idx];
-          try { STATE.map.removeLayer(ov.layer); } catch {}
-          STATE.layers.kmlOverlays.splice(idx,1);
-          persistAll();
-          renderKmlLayersList();
-          showSnackbar("KML Overlay entfernt.");
-        });
-      });
-    }
-
-    function updateHeaderGpsStatus({ ok, accM, altM, speedKmh, provider }) {
-      const el = document.getElementById("gpsStatus");
+    function showSnackbar(msg, ms=2200) {
+      const el = document.getElementById("snackbar");
       if (!el) return;
-      const fix = ok ? `Fix: ${Math.round(accM)}m` : "Fix: —";
-      const spd = isFiniteNum(speedKmh) ? ` · ${fmtSpeedKmh(speedKmh)}` : "";
-      const alt = isFiniteNum(altM) ? ` · ${Math.round(altM)}m` : "";
-      el.textContent = `GPS: ${provider || "Real"} · ${fix}${alt}${spd}`;
+      el.textContent = msg;
+      el.classList.remove("hidden");
+      clearTimeout(STATE.ui.snackbarTimer);
+      STATE.ui.snackbarTimer = setTimeout(() => el.classList.add("hidden"), ms);
     }
 
-    function updateCockpitInstruments({ speedKmh, altM, varioMps }) {
-      const gs = document.getElementById("instGS");
-      const alt = document.getElementById("instALT");
-      const vario = document.getElementById("instVARIO");
-      if (gs) gs.textContent = fmtSpeedKmh(speedKmh);
-      if (alt) alt.textContent = fmtAlt(altM);
-      if (vario) vario.textContent = fmtVario(varioMps);
+    function setToggleUI(inputEl, knobEl, on) {
+      inputEl.checked = !!on;
+      knobEl.style.left = on ? "1.6rem" : "0.25rem";
+      knobEl.style.background = on ? "#34d399" : "#e2e8f0";
     }
 
-    function updateMarkerButtonColor(colorName) {
-      const btn = document.getElementById("btnMarker");
-      if (!btn) return;
-      btn.classList.remove("bg-fuchsia-500","bg-orange-500","bg-emerald-500","bg-sky-400","bg-rose-500","bg-amber-400");
-      btn.classList.add(colorToTailwind(colorName).btn);
-    }
+    function uid() { return Math.random().toString(36).slice(2, 10); }
 
-    function showNavToast(title, sub) {
-      const wrap = document.getElementById("navToast");
-      const t = document.getElementById("navToastTitle");
-      const s = document.getElementById("navToastSub");
-      if (!wrap || !t || !s) return;
-      t.textContent = title || "—";
-      s.textContent = sub || "—";
-      wrap.classList.remove("hidden");
-    }
-    function hideNavToast() { const wrap = document.getElementById("navToast"); if (wrap) wrap.classList.add("hidden"); }
-    function updateStrategyLine(text) { const el = document.getElementById("strategyLine"); if (el) el.textContent = text || "—"; }
-    function updateWakeBadge() { const badge = document.getElementById("wakeLockBadge"); if (badge) badge.classList.toggle("hidden", !STATE.wake.lock); }
-
-    function renderAll() {
-      renderActiveTaskBox();
-      renderTaskList();
-      renderWindList();
-      renderWindHud();
-      renderArchive();
-      renderKmlLayersList();
-      updateMarkerButtonColor(getActiveTask()?.markerColor || "fuchsia");
-    }
-
-    /*********************************************************************
-     * 5) Kern-Logik (GPS, Map, Simulation)
-     *********************************************************************/
-    function initMap() {
-      const map = L.map("map", { zoomControl: false });
-
-      STATE.layers.baseOSM = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-        attribution: "&copy; OpenStreetMap"
-      });
-      STATE.layers.baseSAT = L.tileLayer(
-        "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        { maxZoom: 19, attribution: "Tiles &copy; Esri" }
-      );
-
-      STATE.layers.baseOSM.addTo(map);
-      STATE.layers.activeBase = "OSM";
-
-      STATE.layers.track = L.layerGroup().addTo(map);
-      STATE.layers.tasksLayer = L.layerGroup().addTo(map);
-      STATE.layers.markersLayer = L.layerGroup().addTo(map);
-
-      STATE.layers.trackLine = L.polyline([], { color: "#ef4444", weight: 4, opacity: 0.9 }).addTo(STATE.layers.track);
-      STATE.layers.trajLines = [];
-
-      const balloonIcon = L.divIcon({
-        className: "",
-        html: `
-          <div class="balloon-marker">
-            <div class="balloon-rot" style="display:flex;flex-direction:column;align-items:center;line-height:1;">
-              <i class="fa-solid fa-location-arrow"></i>
-              <div class="balloon-needle"></div>
-            </div>
-          </div>
-        `,
-        iconSize: [44, 44],
-        iconAnchor: [22, 22]
-      });
-      STATE.layers.balloonMarker = L.marker([CONFIG.DEFAULT_CENTER.lat, CONFIG.DEFAULT_CENTER.lon], { icon: balloonIcon, interactive: false }).addTo(map);
-
-      map.setView([CONFIG.DEFAULT_CENTER.lat, CONFIG.DEFAULT_CENTER.lon], CONFIG.DEFAULT_CENTER.zoom);
-      L.control.zoom({ position: "bottomright" }).addTo(map);
-
-      STATE.map = map;
-
-      if (STATE.flight.track.length) {
-        const latlngs = STATE.flight.track.map(p => [p.lat, p.lon]);
-        STATE.layers.trackLine.setLatLngs(latlngs);
-      }
-
-      rebuildTaskOverlays();
-      rebuildMarkersOverlays();
-      rebuildTrajectory();
-
-      setStatus(`Bereit · v${CONFIG.APP_VERSION}`);
-    }
-
-    function startGps() {
-      if (!STATE.gps.supported) {
-        showSnackbar("Geolocation nicht verfügbar.");
-        updateHeaderGpsStatus({ ok:false, provider:"Real" });
-        return;
-      }
-      stopGps();
-
-      try {
-        STATE.gps.watching = true;
-        const opts = {
-          enableHighAccuracy: CONFIG.GPS.ENABLE_HIGH_ACCURACY,
-          timeout: CONFIG.GPS.TIMEOUT_MS,
-          maximumAge: CONFIG.GPS.MAX_AGE_MS
-        };
-
-        // Optional: one immediate fix to reduce initial "jump"
-        navigator.geolocation.getCurrentPosition(
-          (pos) => { if (!STATE.sim.enabled) onGpsPosition(pos, true); },
-          () => {},
-          opts
-        );
-
-        STATE.gps.watchId = navigator.geolocation.watchPosition(
-          (pos) => { if (!STATE.sim.enabled) onGpsPosition(pos, false); },
-          (err) => {
-            console.warn("GPS error", err);
-            updateHeaderGpsStatus({ ok:false, provider:"Real" });
-            showSnackbar(`GPS Fehler: ${err?.message || err}`);
-          },
-          opts
-        );
-      } catch (e) {
-        console.warn("startGps failed", e);
-        showSnackbar("GPS konnte nicht gestartet werden.");
-      }
-    }
-
-    function stopGps() {
-      try { if (STATE.gps.watchId !== null) navigator.geolocation.clearWatch(STATE.gps.watchId); } catch {}
-      STATE.gps.watchId = null;
-      STATE.gps.watching = false;
-    }
-
-    function onGpsPosition(pos, isFirst) {
-      const ts = pos?.timestamp || Date.now();
-      const c = pos?.coords;
-      if (!c) return;
-
-      if (ts - STATE.gps.lastUIUpdateTs < STATE.setup.gpsMinInterval) return;
-      STATE.gps.lastUIUpdateTs = ts;
-
-      const rawLat = c.latitude;
-      const rawLon = c.longitude;
-      const acc = c.accuracy;
-      const rawAlt = isFiniteNum(c.altitude) ? c.altitude : null;
-      const spdMps = isFiniteNum(c.speed) ? c.speed : null;
-      const spdKmh = isFiniteNum(spdMps) ? (spdMps * 3.6) : null;
-
-      // Filtered position for stable map + track
-      const filtered = filterGpsSample({ lat: rawLat, lon: rawLon, altM: rawAlt, accM: acc, ts });
-      if (!filtered) return;
-
-      const lat = filtered.lat;
-      const lon = filtered.lon;
-      const alt = filtered.altM;
-
-      // Heading: prefer sensor; else compute from last track pt (filtered)
-      let heading = isFiniteNum(c.heading) ? c.heading : null;
-      if (heading === null && STATE.gps.lastTrackPt) {
-        const last = STATE.gps.lastTrackPt;
-        heading = bearingDeg({ lat:last.lat, lon:last.lon }, { lat, lon });
-      }
-
-      let vario = null;
-      if (STATE.gps.lastAltM !== null && alt !== null && STATE.gps.lastTrackPt) {
-        const dt = (ts - STATE.gps.lastTrackPt.ts) / 1000;
-        if (dt > 0.2) vario = (alt - STATE.gps.lastAltM) / dt;
-      }
-      STATE.gps.lastAltM = alt !== null ? alt : STATE.gps.lastAltM;
-
-      updateHeaderGpsStatus({ ok:true, accM: acc, altM: alt, speedKmh: spdKmh, provider:"Real" });
-      updateCockpitInstruments({ speedKmh: spdKmh, altM: alt, varioMps: vario });
-
-      updateBalloonMarker(lat, lon, heading);
-
-      if (!STATE.flight.active) beginFlight("Live Flight");
-
-      maybeAddTrackPoint({ lat, lon, altM: alt, ts });
-
-      maybeAutoRecordWind({ altM: alt, headingToDeg: heading, speedKmh: spdKmh, ts });
-
-      updateNavAndStrategy();
-
-      // center once at first stable fix (nice UX)
-      if (isFirst) {
-        try { STATE.map?.setView([lat, lon], Math.max(STATE.map.getZoom(), 14), { animate: true }); } catch {}
-      }
-
-      persistAll();
-    }
-
-    function updateBalloonMarker(lat, lon, headingDegVal) {
-      if (!STATE.layers.balloonMarker) return;
-      try {
-        STATE.layers.balloonMarker.setLatLng([lat, lon]);
-
-        // IMPORTANT: do NOT overwrite Leaflet's transform on the root element (causes “jumping”)
-        const root = STATE.layers.balloonMarker.getElement();
-        const rot = root ? root.querySelector(".balloon-rot") : null;
-        if (rot && headingDegVal !== null && headingDegVal !== undefined && Number.isFinite(headingDegVal)) {
-          rot.style.transform = `rotate(${Math.round(headingDegVal)}deg)`;
-        }
-      } catch {}
-    }
-
-    function beginFlight(title) {
-      STATE.flight.active = true;
-      STATE.flight.startedTs = Date.now();
-      STATE.flight.track = STATE.flight.track || [];
-      STATE.flight.markers = STATE.flight.markers || [];
-      document.getElementById("btnFinish")?.classList.remove("hidden");
-      showSnackbar("Fahrt gestartet.");
-    }
-
-    function finishFlight() {
-      if (!STATE.flight.active) return;
-
-      const finishedTs = Date.now();
-      const activeTask = getActiveTask();
-      const title = activeTask ? `${activeTask.typeCode} — ${activeTask.title || activeTask.typeTitle}` : "Fahrt";
-
-      const entry = {
-        id: genId("flight"),
-        title,
-        startedTs: STATE.flight.startedTs,
-        finishedTs,
-        track: STATE.flight.track.slice(),
-        markers: STATE.flight.markers.slice(),
-        tasksSnapshot: { activeTaskId: STATE.tasks.activeTaskId, list: STATE.tasks.list.slice() },
-        windSnapshot: STATE.wind.entries.slice()
-      };
-
-      STATE.archive.push(entry);
-
-      STATE.flight.active = false;
-      STATE.flight.startedTs = null;
-      STATE.flight.track = [];
-      STATE.flight.markers = [];
-
-      try { STATE.layers.trackLine.setLatLngs([]); } catch {}
-      try { STATE.layers.markersLayer.clearLayers(); } catch {}
-
-      document.getElementById("btnFinish")?.classList.add("hidden");
-
-      persistAll();
-      renderArchive();
-      rebuildMarkersOverlays();
-      showSnackbar("Fahrt beendet & archiviert.");
-    }
-
-    function maybeAddTrackPoint(pt) {
-      if (!STATE.flight.active) return;
-
-      const last = STATE.gps.lastTrackPt;
-      const minDist = STATE.setup.trackMinDist;
-
-      if (!last) {
-        STATE.gps.lastTrackPt = { lat: pt.lat, lon: pt.lon, altM: pt.altM, ts: pt.ts };
-        STATE.flight.track.push({ lat: pt.lat, lon: pt.lon, altM: pt.altM ?? null, ts: pt.ts });
-        appendTrackToMap(pt.lat, pt.lon);
-        return;
-      }
-
-      const d = distMeters({ lat:last.lat, lon:last.lon }, { lat:pt.lat, lon:pt.lon });
-      if (d < minDist) return;
-
-      STATE.gps.lastTrackPt = { lat: pt.lat, lon: pt.lon, altM: pt.altM, ts: pt.ts };
-      STATE.flight.track.push({ lat: pt.lat, lon: pt.lon, altM: pt.altM ?? null, ts: pt.ts });
-
-      appendTrackToMap(pt.lat, pt.lon);
-      rebuildTrajectory();
-    }
-
-    function appendTrackToMap(lat, lon) {
-      if (!STATE.ui.trackVisible) return;
-      if (!STATE.layers.trackLine) return;
-      try {
-        const latlngs = STATE.layers.trackLine.getLatLngs();
-        latlngs.push([lat, lon]);
-        STATE.layers.trackLine.setLatLngs(latlngs);
-      } catch {}
-    }
-
-    function maybeAutoRecordWind({ altM, headingToDeg, speedKmh, ts }) {
-      if (!isFiniteNum(altM) || !isFiniteNum(headingToDeg) || !isFiniteNum(speedKmh)) return;
-      if (speedKmh < CONFIG.WIND_AUTO.MIN_GS_KMH) return;
-
-      const last = STATE.gps.lastWindAuto;
-      const dirFrom = normDeg(headingToDeg + 180);
-
-      if (!last) {
-        STATE.gps.lastWindAuto = { altM, headingToDeg, speedKmh, ts };
-        addWindEntry({ altM, dirFromDeg: dirFrom, speedKmh, source: "auto(gps)" });
-        return;
-      }
-
-      const altDelta = Math.abs(altM - last.altM);
-      const crsDelta = angDiffDeg(headingToDeg, last.headingToDeg);
-
-      if (altDelta >= CONFIG.WIND_AUTO.ALT_DELTA_M || crsDelta >= CONFIG.WIND_AUTO.CRS_DELTA_DEG) {
-        STATE.gps.lastWindAuto = { altM, headingToDeg, speedKmh, ts };
-        addWindEntry({ altM, dirFromDeg: dirFrom, speedKmh, source: "auto(gps)" });
-      }
-    }
-
-    function addWindEntry({ altM, dirFromDeg, speedKmh, source }) {
-      if (!isFiniteNum(altM) || !isFiniteNum(dirFromDeg) || !isFiniteNum(speedKmh)) return;
-      const e = {
-        altM: Math.round(altM),
-        dirFromDeg: normDeg(dirFromDeg),
-        speedKmh: Math.max(0, speedKmh),
-        ts: Date.now(),
-        source: source || "manuell"
-      };
-      const nearIdx = STATE.wind.entries.findIndex(x => Math.abs(x.altM - e.altM) <= 10 && x.source === e.source);
-      if (nearIdx >= 0) STATE.wind.entries.splice(nearIdx, 1, e);
-      else STATE.wind.entries.push(e);
-
-      persistAll();
-      renderWindList();
-      renderWindHud();
-      rebuildTrajectory();
-    }
-
-    function rebuildTrajectory() {
-      if (!STATE.map) return;
-
-      for (const l of STATE.layers.trajLines) { try { STATE.map.removeLayer(l); } catch {} }
-      STATE.layers.trajLines = [];
-      if (!STATE.ui.trajVisible) return;
-
-      const p = getCurrentPosition();
-      if (!p) return;
-
-      const wind = getWindAtAltitude(p.altM ?? 0);
-      if (!wind) return;
-
-      const mins = STATE.setup.trajMinutes;
-      const dirTo = windFromTo(wind.dirFromDeg);
-      const speedMps = wind.speedKmh / 3.6;
-
-      for (const m of mins) {
-        const dist = speedMps * (m * 60);
-        const q = movePoint({ lat:p.lat, lon:p.lon }, dirTo, dist);
-        const poly = L.polyline([[p.lat,p.lon],[q.lat,q.lon]], {
-          color: "#22c55e",
-          weight: 4,
-          opacity: 0.75,
-          dashArray: m === mins[0] ? null : (m === mins[1] ? "8 8" : "3 10")
-        }).addTo(STATE.map);
-        poly.bindTooltip(`Traj ${m} min · ${Math.round(dist)} m`, { opacity: 0.9 });
-        STATE.layers.trajLines.push(poly);
-      }
-    }
-
-    function getWindAtAltitude(altM) {
-      const entries = STATE.wind.entries.slice().sort((a,b)=>a.altM-b.altM);
-      if (!entries.length) return null;
-      let best = entries[0];
-      let bestD = Math.abs(entries[0].altM - altM);
-      for (const e of entries) {
-        const d = Math.abs(e.altM - altM);
-        if (d < bestD) { best = e; bestD = d; }
-      }
-      return best;
-    }
-
-    function getCurrentPosition() {
-      if (STATE.sim.enabled) return { lat: STATE.sim.state.lat, lon: STATE.sim.state.lon, altM: STATE.sim.state.altM, ts: STATE.sim.state.ts, provider: "Sim" };
-      const last = STATE.gps.lastTrackPt;
-      if (!last) return null;
-      return { lat: last.lat, lon: last.lon, altM: last.altM ?? null, ts: last.ts, provider: "Real" };
-    }
-
-    function centerMap() {
-      const p = getCurrentPosition();
-      if (!p || !STATE.map) return;
-      STATE.map.setView([p.lat, p.lon], Math.max(STATE.map.getZoom(), 14), { animate: true });
-    }
-
-    function setActiveTask(taskId) {
-      const t = STATE.tasks.list.find(x => x.id === taskId);
-      if (!t) return;
-      STATE.tasks.activeTaskId = taskId;
-      persistAll();
-      renderActiveTaskBox();
-      renderTaskList();
-      rebuildTaskOverlays();
-      updateMarkerButtonColor(t.markerColor || "fuchsia");
-      updateNavAndStrategy();
-      showSnackbar("Task aktiviert.");
-    }
-
-    function deactivateTask() {
-      STATE.tasks.activeTaskId = null;
-      persistAll();
-      renderActiveTaskBox();
-      renderTaskList();
-      rebuildTaskOverlays();
-      updateMarkerButtonColor("fuchsia");
-      updateNavAndStrategy();
-      showSnackbar("Task deaktiviert.");
-    }
-
-    function deleteTask(taskId) {
-      const t = STATE.tasks.list.find(x => x.id === taskId);
-      if (!t) return;
-      STATE.tasks.list = STATE.tasks.list.filter(x => x.id !== taskId);
-      if (STATE.tasks.activeTaskId === taskId) STATE.tasks.activeTaskId = null;
-      persistAll();
-      renderAll();
-      rebuildTaskOverlays();
-      updateNavAndStrategy();
-      showSnackbar("Task gelöscht.");
-    }
-
-    function zoomToTask(taskId) {
-      const t = STATE.tasks.list.find(x => x.id === taskId);
-      if (!t || !STATE.map || !t.points?.length) return;
-      const latlngs = t.points.map(p => L.latLng(p.lat, p.lon));
-      const bounds = L.latLngBounds(latlngs);
-      if (bounds.isValid()) STATE.map.fitBounds(bounds.pad(0.25));
-      showSnackbar("Zoom auf Task.");
-    }
-
-    function zoomToFlight(flightId) {
-      const f = STATE.archive.find(x => x.id === flightId);
-      if (!f || !STATE.map || !Array.isArray(f.track) || !f.track.length) return;
-      const latlngs = f.track.map(p => L.latLng(p.lat, p.lon));
-      const bounds = L.latLngBounds(latlngs);
-      if (bounds.isValid()) STATE.map.fitBounds(bounds.pad(0.2));
-      showSnackbar("Zoom auf Track.");
-    }
-
-    function rebuildTaskOverlays() {
-      if (!STATE.layers.tasksLayer) return;
-      try { STATE.layers.tasksLayer.clearLayers(); } catch {}
-      for (const t of STATE.tasks.list) drawTask(t, t.id === STATE.tasks.activeTaskId);
-    }
-
-    function drawTask(t, isActive) {
-      if (!STATE.layers.tasksLayer || !t?.points?.length) return;
-
-      const color = colorToTailwind(t.markerColor || "fuchsia").ring;
-      const weight = isActive ? 4 : 2;
-      const opacity = isActive ? 0.95 : 0.6;
-
-      const pts = t.points.map(p => ({ ...p }));
-      for (const p of pts) {
-        const m = L.circleMarker([p.lat, p.lon], {
-          radius: isActive ? 9 : 7,
-          color,
-          weight: isActive ? 3 : 2,
-          fillColor: color,
-          fillOpacity: 0.35
-        }).addTo(STATE.layers.tasksLayer);
-        m.bindTooltip(`${t.typeCode} ${p.label}`, { direction: "top", offset: [0,-8], opacity: 0.9 });
-      }
-
-      const center = pts[0];
-      if (isFiniteNum(t.r2M) && t.r2M > 0) {
-        L.circle([center.lat, center.lon], { radius: t.r2M, color, weight, opacity, fillOpacity: 0.06 }).addTo(STATE.layers.tasksLayer);
-      }
-      if (isFiniteNum(t.r1M) && t.r1M > 0) {
-        L.circle([center.lat, center.lon], { radius: t.r1M, color, weight, opacity: opacity*0.9, fillOpacity: 0.02, dashArray: "4 6" }).addTo(STATE.layers.tasksLayer);
-      }
-
-      if (pts.length >= 2) {
-        const line = L.polyline(pts.map(p => [p.lat, p.lon]), { color: "#60a5fa", weight: isActive ? 4 : 2, opacity: isActive ? 0.9 : 0.55 }).addTo(STATE.layers.tasksLayer);
-        line.bindTooltip(`${t.typeId} ${t.typeCode} Linie`, { opacity: 0.9 });
-      }
-
-      if (t.typeCode === "ANG" && isFiniteNum(t.angleDeg) && pts[0]) {
-        const lenM = 1200;
-        const toPt = movePoint({ lat: pts[0].lat, lon: pts[0].lon }, normDeg(t.angleDeg), lenM);
-        L.polyline([[pts[0].lat, pts[0].lon],[toPt.lat, toPt.lon]], { color: "#fbbf24", weight: 3, opacity: 0.85, dashArray: "6 6" })
-          .addTo(STATE.layers.tasksLayer)
-          .bindTooltip(`Vorgaberichtung ${Math.round(t.angleDeg)}°`, { opacity: 0.9 });
-      }
-    }
-
-    function rebuildMarkersOverlays() {
-      if (!STATE.layers.markersLayer) return;
-      try { STATE.layers.markersLayer.clearLayers(); } catch {}
-      const markers = STATE.flight.active ? STATE.flight.markers : [];
-      for (const m of markers) drawMarker(m);
-    }
-
-    function drawMarker(m) {
-      if (!STATE.layers.markersLayer) return;
-      const c = colorToTailwind(m.color || "fuchsia").ring;
-      const mk = L.circleMarker([m.lat, m.lon], {
-        radius: 8,
-        color: c,
-        weight: 3,
-        fillColor: c,
-        fillOpacity: 0.35
-      }).addTo(STATE.layers.markersLayer);
-      mk.bindTooltip(`Marker · ${fmtTs(m.ts)}`, { opacity: 0.95 });
-    }
-
-    function dropMarker() {
-      const pos = getCurrentPosition();
-      if (!pos) { showSnackbar("Keine Position verfügbar."); return; }
-      if (!STATE.flight.active) beginFlight("Live Flight");
-
-      const task = getActiveTask();
-      const color = task?.markerColor || "fuchsia";
-
-      const m = { lat: pos.lat, lon: pos.lon, altM: pos.altM ?? null, ts: Date.now(), color, label: "Marker" };
-      STATE.flight.markers.push(m);
-      drawMarker(m);
-      persistAll();
-      showSnackbar("Marker gesetzt.");
-    }
-
-    function updateNavAndStrategy() {
-      const pos = getCurrentPosition();
-      const task = getActiveTask();
-
-      if (!pos || !task) {
-        hideNavToast();
-        updateStrategyLine(STATE.wind.entries.length ? "Kein aktiver Task." : "Kein Windprofil. Lade Winddaten.");
-        return;
-      }
-
-      updateMarkerButtonColor(task.markerColor || "fuchsia");
-
-      const target = task.points?.[0];
-      if (!target) { hideNavToast(); updateStrategyLine("Task ohne Zielpunkt A."); return; }
-
-      const d = distMeters({ lat:pos.lat, lon:pos.lon }, { lat:target.lat, lon:target.lon });
-      const brg = bearingDeg({ lat:pos.lat, lon:pos.lon }, { lat:target.lat, lon:target.lon });
-
-      showNavToast(`${task.typeCode} · ${task.title || task.typeTitle}`, `Distanz: ${fmtDist(d)} · Bearing: ${Math.round(brg)}°`);
-
-      if (task.typeCode === "3DT" && isFiniteNum(task.r1M) && isFiniteNum(task.r2M) && task.r2M > 0) {
-        const inner = task.r1M || 0;
-        const outer = task.r2M;
-        let msg = "3DT: ";
-        if (d < inner) msg += "Ungültig (innerer Kreis). Raus in den Ring!";
-        else if (d <= outer) msg += "Im Ring: Distanz maximieren (Track).";
-        else msg += "Außerhalb: Ziel = Zentrum anfliegen.";
-        updateStrategyLine(msg);
-        return;
-      }
-
-      if (!STATE.wind.entries.length) { updateStrategyLine("Kein Windprofil. Lade Winddaten."); return; }
-
-      const best = chooseBestWindLayer({ pos, targetBearingDeg: brg });
-      if (!best) { updateStrategyLine("Kein passender Windlayer."); return; }
-
-      const altNow = pos.altM ?? null;
-      const altTarget = best.altM;
-
-      let rec = `Layer: ${Math.round(best.altM)}m · Wind ${Math.round(best.dirFromDeg)}°/${Math.round(best.speedKmh)} km/h`;
-      if (isFiniteNum(altNow)) {
-        const delta = altTarget - altNow;
-        if (Math.abs(delta) < 40) rec = `Halten auf ~${Math.round(altTarget)}m · ${rec}`;
-        else if (delta > 0) rec = `Steigen auf ${Math.round(altTarget)}m (+${Math.round(delta)}m) · ${rec}`;
-        else rec = `Sinken auf ${Math.round(altTarget)}m (${Math.round(delta)}m) · ${rec}`;
-      } else {
-        rec = `Empfehlung: ${Math.round(altTarget)}m · ${rec}`;
-      }
-
-      updateStrategyLine(rec);
-    }
-
-    function chooseBestWindLayer({ targetBearingDeg }) {
-      const entries = STATE.wind.entries.slice().sort((a,b)=>a.altM-b.altM);
-      if (!entries.length) return null;
-
-      let best = null;
-      let bestScore = Infinity;
-
-      for (const e of entries) {
-        const driftTo = windFromTo(e.dirFromDeg);
-        const diff = angDiffDeg(driftTo, targetBearingDeg);
-        const speedBonus = clamp(e.speedKmh, 0, 40) / 40;
-        const score = diff - speedBonus * 6;
-        if (score < bestScore) { bestScore = score; best = e; }
-      }
-      return best;
-    }
-
-    async function fetchWindFromOpenMeteo() {
-      const pos = getCurrentPosition();
-      if (!pos) { showSnackbar("Keine Position für Online-Wind."); return; }
-
-      const levels = CONFIG.OPEN_METEO.PRESSURE_LEVELS.map(x => x.hPa);
-      const hourlyVars = [];
-      for (const hPa of levels) {
-        hourlyVars.push(`wind_speed_${hPa}hPa`);
-        hourlyVars.push(`wind_direction_${hPa}hPa`);
-        hourlyVars.push(`geopotential_height_${hPa}hPa`);
-      }
-
-      const url = new URL(CONFIG.OPEN_METEO.BASE_URL);
-      url.searchParams.set("latitude", String(pos.lat));
-      url.searchParams.set("longitude", String(pos.lon));
-      url.searchParams.set("hourly", hourlyVars.join(","));
-      url.searchParams.set("wind_speed_unit", "kmh");
-      url.searchParams.set("timezone", "auto");
-      url.searchParams.set("forecast_hours", "6");
-      url.searchParams.set("past_hours", "0");
-
-      showSnackbar("Lade Open-Meteo Wind…", 1800);
-
-      try {
-        const res = await fetch(url.toString(), { method: "GET" });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        const hourly = data?.hourly;
-        if (!hourly || !Array.isArray(hourly.time)) throw new Error("Ungültige API-Antwort");
-
-        const now = Date.now();
-        let idx = 0, best = Infinity;
-        for (let i=0;i<hourly.time.length;i++) {
-          const t = Date.parse(hourly.time[i]);
-          if (!Number.isFinite(t)) continue;
-          const d = Math.abs(t - now);
-          if (d < best) { best = d; idx = i; }
-        }
-
-        let added = 0;
-        for (const meta of CONFIG.OPEN_METEO.PRESSURE_LEVELS) {
-          const hPa = meta.hPa;
-          const sp = hourly[`wind_speed_${hPa}hPa`];
-          const di = hourly[`wind_direction_${hPa}hPa`];
-          const gh = hourly[`geopotential_height_${hPa}hPa`];
-          const spv = Array.isArray(sp) ? sp[idx] : null;
-          const div = Array.isArray(di) ? di[idx] : null;
-          const ghv = Array.isArray(gh) ? gh[idx] : null;
-
-          if (Number.isFinite(spv) && Number.isFinite(div)) {
-            const alt = Number.isFinite(ghv) ? ghv : meta.approxM;
-            addWindEntry({ altM: alt, dirFromDeg: div, speedKmh: spv, source: "open-meteo" });
-            added++;
-          }
-        }
-
-        showSnackbar(added ? `Open-Meteo: ${added} Layer aktualisiert.` : "Open-Meteo: Keine Winddaten gefunden.");
-      } catch (e) {
-        console.warn("Open-Meteo failed", e);
-        showSnackbar(`Open-Meteo Fehler: ${e?.message || e}`);
-      }
-    }
-
-    function setBaseLayer(name) {
-      if (!STATE.map) return;
-      if (name === "OSM") {
-        try { STATE.map.removeLayer(STATE.layers.baseSAT); } catch {}
-        try { STATE.layers.baseOSM.addTo(STATE.map); } catch {}
-        STATE.layers.activeBase = "OSM";
-      } else {
-        try { STATE.map.removeLayer(STATE.layers.baseOSM); } catch {}
-        try { STATE.layers.baseSAT.addTo(STATE.map); } catch {}
-        STATE.layers.activeBase = "SAT";
-      }
-      showSnackbar(`Basemap: ${STATE.layers.activeBase}`);
-    }
-
-    function rebuildOverlays() {
-      rebuildTaskOverlays();
-      rebuildMarkersOverlays();
-      rebuildTrajectory();
-      showSnackbar("Overlays neu gezeichnet.");
-    }
-
-    async function toggleWakeLock() {
-      if (!STATE.wake.supported) { showSnackbar("Wake Lock nicht unterstützt."); return; }
-      try {
-        if (STATE.wake.lock) {
-          await STATE.wake.lock.release();
-          STATE.wake.lock = null;
-          updateWakeBadge();
-          document.getElementById("btnWakeLock").textContent = "Aktivieren";
-          showSnackbar("Wake Lock aus.");
-        } else {
-          STATE.wake.lock = await navigator.wakeLock.request("screen");
-          updateWakeBadge();
-          document.getElementById("btnWakeLock").textContent = "Deaktivieren";
-          showSnackbar("Wake Lock an.");
-          STATE.wake.lock.addEventListener("release", () => {
-            STATE.wake.lock = null;
-            updateWakeBadge();
-            const b = document.getElementById("btnWakeLock");
-            if (b) b.textContent = "Aktivieren";
-          });
-        }
-      } catch (e) {
-        console.warn("WakeLock failed", e);
-        showSnackbar("Wake Lock Fehler.");
-      }
-    }
-
-    async function importKmlFile(file) {
-      if (!file || !STATE.map) return;
-      try {
-        const text = await file.text();
-        const blob = new Blob([text], { type: "application/vnd.google-earth.kml+xml" });
-        const url = URL.createObjectURL(blob);
-
-        const layer = omnivore.kml(url);
-        const id = genId("kml");
-        const name = file.name || "KML";
-
-        layer.on("ready", () => {
-          try {
-            layer.addTo(STATE.map);
-            try { layer.setStyle && layer.setStyle({ color:"#60a5fa", weight:3, opacity:0.8 }); } catch {}
-            try {
-              const b = layer.getBounds?.();
-              if (b && b.isValid && b.isValid()) STATE.map.fitBounds(b.pad(0.15));
-            } catch {}
-          } finally { URL.revokeObjectURL(url); }
-        });
-
-        layer.on("error", (e) => {
-          console.warn("KML load error", e);
-          URL.revokeObjectURL(url);
-          showSnackbar("KML Import fehlgeschlagen.");
-        });
-
-        STATE.layers.kmlOverlays.push({ id, name, layer, visible: true });
-
-        persistAll();
-        renderKmlLayersList();
-        showSnackbar("KML geladen.");
-      } catch (e) {
-        console.warn("importKmlFile failed", e);
-        showSnackbar("KML Import fehlgeschlagen.");
-      }
-    }
-
-    function rebuildMarkersOverlaysForActive() {
-      rebuildMarkersOverlays();
-    }
-
-    function exportFlightKml(flightId) {
-      const f = STATE.archive.find(x => x.id === flightId);
-      if (!f) { showSnackbar("Fahrt nicht gefunden."); return; }
-      try {
-        const kml = buildKmlForFlight(f);
-        const blob = new Blob([kml], { type: "application/vnd.google-earth.kml+xml" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${sanitizeFilename(f.title || "flight")}_${new Date(f.finishedTs||Date.now()).toISOString().slice(0,19).replaceAll(":","-")}.kml`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-        showSnackbar("KML Export gestartet.");
-      } catch (e) {
-        console.warn("KML export failed", e);
-        showSnackbar("KML Export fehlgeschlagen.");
-      }
-    }
-
-    function sanitizeFilename(s) { return String(s).replace(/[^\w\-]+/g, "_").slice(0, 60); }
     function escapeXml(s) {
       return String(s)
         .replaceAll("&","&amp;")
@@ -1991,302 +596,1681 @@
         .replaceAll("'","&apos;");
     }
 
-    function buildKmlForFlight(f) {
-      const name = escapeXml(f.title || "Flight");
-      const track = Array.isArray(f.track) ? f.track : [];
-      const markers = Array.isArray(f.markers) ? f.markers : [];
+    /********************************************************************
+     * 4) UI-RENDER-FUNKTIONEN
+     ********************************************************************/
+    function updateGpsBadge() {
+      const dot = document.getElementById("gpsDot");
+      const txt = document.getElementById("gpsText");
+      const mode = document.getElementById("modeText");
+      if (!dot || !txt || !mode) return;
 
-      const coords = track.map(p => `${p.lon},${p.lat},${isFiniteNum(p.altM)?p.altM:0}`).join(" ");
+      if (STATE.sim.enabled) {
+        dot.className = "w-2 h-2 rounded-full bg-amber-300 inline-block";
+        txt.textContent = "SIM";
+        mode.textContent = "SIM";
+        return;
+      }
 
-      const markerPlacemarks = markers.map((m, idx) => {
-        const alt = isFiniteNum(m.altM) ? m.altM : 0;
-        const when = new Date(m.ts).toISOString();
+      if (STATE.gps.hasFix) {
+        dot.className = "w-2 h-2 rounded-full bg-emerald-400 inline-block";
+        const acc = STATE.gps.accuracyM != null ? `±${Math.round(STATE.gps.accuracyM)}m` : "";
+        txt.textContent = `GPS: OK ${acc}`.trim();
+        mode.textContent = "LIVE";
+      } else {
+        dot.className = "w-2 h-2 rounded-full bg-slate-500 inline-block";
+        txt.textContent = "GPS: –";
+        mode.textContent = "LIVE";
+      }
+    }
+
+    function updateButtons() {
+      const bStart = document.getElementById("btnStartFlight");
+      const bFin = document.getElementById("btnFinish");
+      if (bStart) bStart.classList.toggle("hidden", STATE.flight.active);
+      if (bFin) bFin.classList.toggle("hidden", !STATE.flight.active);
+
+      const navToast = document.getElementById("navToast");
+      if (navToast) navToast.classList.toggle("hidden", !isTaskActive());
+
+      const simControls = document.getElementById("simControls");
+      if (simControls) simControls.classList.toggle("hidden", !STATE.sim.enabled);
+
+      const aptBtn = document.getElementById("btnAPTStart");
+      const t = getActiveTask();
+      const isAPT = t && t.code === "APT";
+      if (aptBtn) aptBtn.classList.toggle("hidden", !(isAPT && STATE.flight.active));
+    }
+
+    function updateInstruments() {
+      const gsEl = document.getElementById("instGS");
+      const altEl = document.getElementById("instALT");
+      const varEl = document.getElementById("instVAR");
+
+      let gs = 0, alt = null, vario = null;
+      if (STATE.sim.enabled) {
+        gs = STATE.sim.speedKmh || 0;
+        alt = STATE.sim.altM;
+        vario = STATE.sim.vRateMps;
+      } else {
+        gs = STATE.gps.speedKmh || 0;
+        alt = STATE.gps.altM;
+        vario = calcVarioMps();
+      }
+
+      if (gsEl) gsEl.textContent = fmtNum(gs, 1);
+      if (altEl) altEl.textContent = alt == null ? "–" : String(Math.round(alt));
+      if (varEl) varEl.textContent = vario == null ? "–" : fmtNum(vario, 1);
+    }
+
+    function calcVarioMps() {
+      const alt = STATE.gps.altM;
+      const ts = now();
+      if (alt == null || !isFinite(alt)) return null;
+
+      if (STATE.gps.lastAltM == null) {
+        STATE.gps.lastAltM = alt;
+        STATE.gps.lastAltTs = ts;
+        return 0;
+      }
+      const dt = (ts - STATE.gps.lastAltTs) / 1000;
+      if (dt < 0.6) return null;
+
+      const da = alt - STATE.gps.lastAltM;
+      STATE.gps.lastAltM = alt;
+      STATE.gps.lastAltTs = ts;
+      return da / dt;
+    }
+
+    function updateWindHud() {
+      const box = document.getElementById("windHud");
+      const list = document.getElementById("windHudList");
+      if (!box || !list) return;
+
+      box.classList.toggle("hidden", !STATE.ui.windHudOpen);
+
+      const items = [...STATE.wind.layers].sort((a,b)=>a.altM-b.altM).slice(0, 10);
+      if (!items.length) {
+        list.innerHTML = `<div class="text-sm text-slate-400">Keine Winddaten.</div>`;
+        return;
+      }
+
+      list.innerHTML = items.map(w => {
+        const to = windToDegFrom(w.fromDeg);
         return `
-          <Placemark>
-            <name>${escapeXml(`Marker ${idx+1}`)}</name>
-            <TimeStamp><when>${escapeXml(when)}</when></TimeStamp>
-            <Point><coordinates>${m.lon},${m.lat},${alt}</coordinates></Point>
-          </Placemark>
-        `.trim();
-      }).join("\n");
+          <div class="flex items-center justify-between rounded-2xl bg-slate-900/60 border border-slate-800 px-3 py-2">
+            <div class="min-w-0">
+              <div class="font-extrabold mono">${Math.round(w.altM)} m</div>
+              <div class="text-xs text-slate-400 truncate">${w.source || "manual"} • ${new Date(w.ts).toLocaleTimeString()}</div>
+            </div>
+            <div class="text-right">
+              <div class="font-extrabold mono">${Math.round(w.fromDeg)}° <span class="text-xs text-slate-400">FROM</span></div>
+              <div class="text-xs text-slate-300 mono">${fmtNum(w.speedKmh,1)} km/h → ${Math.round(to)}°</div>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
 
-      return `<?xml version="1.0" encoding="UTF-8"?>
+    function updateWindPanel() {
+      const list = document.getElementById("windList");
+      if (!list) return;
+
+      const items = [...STATE.wind.layers].sort((a,b)=>a.altM-b.altM);
+      if (!items.length) {
+        list.innerHTML = `<div class="text-sm text-slate-400">Keine Schichten vorhanden.</div>`;
+        return;
+      }
+
+      list.innerHTML = items.map((w, idx) => {
+        return `
+          <div class="flex items-center gap-2 rounded-2xl bg-slate-950/60 border border-slate-800 px-3 py-2">
+            <div class="flex-1">
+              <div class="font-extrabold mono">${Math.round(w.altM)} m</div>
+              <div class="text-xs text-slate-400 mono">${Math.round(w.fromDeg)}° FROM • ${fmtNum(w.speedKmh,1)} km/h</div>
+            </div>
+            <button data-widx="${idx}" class="btn-touch btnDelWind h-9 w-9 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </div>
+        `;
+      }).join("");
+
+      list.querySelectorAll(".btnDelWind").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          const idx = parseInt(e.currentTarget.getAttribute("data-widx"), 10);
+          if (!Number.isFinite(idx)) return;
+          STATE.wind.layers.splice(idx, 1);
+          persistAll();
+          updateWindPanel();
+          updateWindHud();
+        });
+      });
+    }
+
+    function updateArchivePanel() {
+      const list = document.getElementById("archiveList");
+      if (!list) return;
+      const items = [...STATE.flight.archive].sort((a,b)=>b.startedTs-a.startedTs);
+
+      if (!items.length) {
+        list.innerHTML = `<div class="text-sm text-slate-400">Noch keine Fahrten im Archiv.</div>`;
+        return;
+      }
+
+      list.innerHTML = items.map((f) => {
+        const dt = new Date(f.startedTs);
+        const durMin = f.endedTs ? Math.round((f.endedTs - f.startedTs)/60000) : 0;
+        const mCount = (f.markers||[]).length;
+        const tCount = (f.track||[]).length;
+        return `
+          <div class="rounded-2xl bg-slate-950/60 border border-slate-800 p-3">
+            <div class="flex items-center gap-2">
+              <div class="flex-1 min-w-0">
+                <div class="font-extrabold truncate">${escapeXml(f.title || "Fahrt")}</div>
+                <div class="text-xs text-slate-400">${dt.toLocaleString()} • ${durMin} min • ${tCount} pts • ${mCount} marks</div>
+              </div>
+              <button data-fid="${f.id}" class="btn-touch btnExport h-10 px-3 rounded-xl bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 text-slate-950 font-extrabold text-sm">
+                <i class="fa-solid fa-file-arrow-down mr-2"></i>KML
+              </button>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      list.querySelectorAll(".btnExport").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          const fid = e.currentTarget.getAttribute("data-fid");
+          const f = STATE.flight.archive.find(x => x.id === fid);
+          if (!f) return;
+          exportFlightToKml(f);
+        });
+      });
+    }
+
+    function updateNavToast() {
+      const toast = document.getElementById("navToast");
+      const nameEl = document.getElementById("navTaskName");
+      const distEl = document.getElementById("navDist");
+      const recEl  = document.getElementById("navRec");
+      if (!toast || !nameEl || !distEl || !recEl) return;
+
+      const t = getActiveTask();
+      toast.classList.toggle("hidden", !t);
+
+      if (!t) return;
+
+      nameEl.textContent = `${t.code} — ${t.title || t.typeTitle}`;
+
+      const pos = getCurrentPos();
+      if (!pos) {
+        distEl.textContent = "–";
+        recEl.textContent = "Keine Position";
+        return;
+      }
+
+      const target = getPrimaryTarget(t);
+      if (!target) {
+        distEl.textContent = "–";
+        recEl.textContent = "Kein Ziel";
+        return;
+      }
+
+      const d = haversineM(pos, target);
+      distEl.textContent = fmtDist(d);
+
+      const rec = recommendLayerText(t, pos, target);
+      recEl.textContent = rec || "–";
+    }
+
+    function setMarkerButtonColor(taskCode) {
+      const btn = document.getElementById("btnMarker");
+      if (!btn) return;
+
+      // simple mapping: rotate color by task code
+      const idx = Math.abs(hashStr(taskCode || "x")) % MARKER_COLORS.length;
+      const c = MARKER_COLORS[idx];
+      btn.style.background = COLOR_HEX[c];
+      btn.style.color = "#0b1220";
+    }
+
+    function hashStr(s) {
+      let h = 0;
+      for (let i=0;i<s.length;i++) h = ((h<<5)-h) + s.charCodeAt(i) | 0;
+      return h;
+    }
+
+    function renderTaskTypeOptions() {
+      const sel = document.getElementById("taskType");
+      if (!sel) return;
+      sel.innerHTML = CIA_TASKS.map(t => `<option value="${t.code}">${t.num} ${t.code} — ${t.title}</option>`).join("");
+    }
+
+    function renderTaskFieldsForCode(code) {
+      const wrap = document.getElementById("taskFields");
+      if (!wrap) return;
+
+      const is3DT = code === "3DT";
+      const isANG = code === "ANG";
+      const isLRN = code === "LRN";
+      const isAPT = code === "APT";
+
+      const commonPoint = (label, idLat, idLon) => `
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <div class="text-xs text-slate-400 mb-1">${label} Lat</div>
+            <input id="${idLat}" type="number" step="0.000001" class="h-11 rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="49.123456" />
+          </div>
+          <div>
+            <div class="text-xs text-slate-400 mb-1">${label} Lon</div>
+            <input id="${idLon}" type="number" step="0.000001" class="h-11 rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="8.123456" />
+          </div>
+        </div>
+      `;
+
+      const radiusFields = `
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <div class="text-xs text-slate-400 mb-1">${is3DT ? "Innenradius (m)" : "Radius 1 (m)"}</div>
+            <input id="taskR1" type="number" class="h-11 rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="z.B. 50" />
+          </div>
+          <div>
+            <div class="text-xs text-slate-400 mb-1">${is3DT ? "Außenradius (m)" : "Radius 2 (m)"}</div>
+            <input id="taskR2" type="number" class="h-11 rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="z.B. 200" />
+          </div>
+        </div>
+      `;
+
+      const altFields = `
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <div class="text-xs text-slate-400 mb-1">Min Höhe (m)</div>
+            <input id="taskMinAlt" type="number" class="h-11 rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="optional" />
+          </div>
+          <div>
+            <div class="text-xs text-slate-400 mb-1">Max Höhe (m)</div>
+            <input id="taskMaxAlt" type="number" class="h-11 rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="optional" />
+          </div>
+        </div>
+      `;
+
+      const angFields = isANG ? `
+        <div>
+          <div class="text-xs text-slate-400 mb-1">Vorgegebene Richtung (°)</div>
+          <input id="taskSetDir" type="number" class="h-11 rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="0..359" />
+        </div>
+      ` : "";
+
+      const abcFields = (isANG || isLRN) ? `
+        <div class="grid grid-cols-1 gap-3">
+          ${commonPoint("Punkt A", "taskALat", "taskALon")}
+          ${commonPoint("Punkt B", "taskBLat", "taskBLon")}
+          ${isLRN ? commonPoint("Punkt C", "taskCLat", "taskCLon") : ""}
+        </div>
+      ` : commonPoint("Ziel", "taskALat", "taskALon");
+
+      const aptFields = isAPT ? `
+        <div class="rounded-2xl bg-slate-950/60 border border-slate-800 p-3">
+          <div class="font-bold mb-2"><i class="fa-solid fa-chart-line mr-2 text-amber-300"></i>APT Profil (Zeit → Zielhöhe)</div>
+          <div class="text-xs text-slate-400 mb-2">Interpretation: Profil nach Zeit seit „APT Start“. Inner Band zählt 2x, Outer Band 1x.</div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <div class="text-xs text-slate-400 mb-1">Inner Band ± (m)</div>
+              <input id="aptInner" type="number" class="h-11 rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="z.B. 25" />
+            </div>
+            <div>
+              <div class="text-xs text-slate-400 mb-1">Outer Band ± (m)</div>
+              <input id="aptOuter" type="number" class="h-11 rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="z.B. 60" />
+            </div>
+          </div>
+          <div class="mt-2 space-y-2" id="aptPoints"></div>
+          <button id="btnAddAptPoint" class="btn-touch mt-2 h-11 w-full rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-extrabold">
+            <i class="fa-solid fa-plus mr-2"></i>Profilpunkt hinzufügen
+          </button>
+        </div>
+      ` : "";
+
+      wrap.innerHTML = `
+        <div class="text-xs text-slate-400 mb-1">Koordinaten</div>
+        ${abcFields}
+        <div class="mt-3">${radiusFields}</div>
+        <div class="mt-3">${angFields}</div>
+        <div class="mt-3">${altFields}</div>
+        ${aptFields}
+      `;
+
+      if (isAPT) {
+        ensureAptUi();
+      }
+    }
+
+    function updateDrawerTabUi() {
+      document.querySelectorAll(".tabBtn").forEach(b => {
+        const tab = b.getAttribute("data-tab");
+        b.classList.toggle("bg-sky-400", tab === STATE.ui.drawerTab);
+        b.classList.toggle("text-slate-950", tab === STATE.ui.drawerTab);
+        b.classList.toggle("border-sky-300", tab === STATE.ui.drawerTab);
+      });
+      ["task","wind","setup","archive"].forEach(t => {
+        const el = document.getElementById(`tab_${t}`);
+        if (el) el.classList.toggle("hidden", t !== STATE.ui.drawerTab);
+      });
+    }
+
+    function openDrawer(open=true) {
+      STATE.ui.drawerOpen = open;
+      const wrap = document.getElementById("drawerWrap");
+      if (!wrap) return;
+      wrap.classList.toggle("hidden", !open);
+      if (open) updateDrawerTabUi();
+    }
+
+    function openMapModal(open=true) {
+      const modal = document.getElementById("mapModal");
+      if (!modal) return;
+      modal.classList.toggle("hidden", !open);
+      const tgl = document.getElementById("tglFollow");
+      const knob = document.getElementById("tglFollowKnob");
+      if (tgl && knob) setToggleUI(tgl, knob, STATE.ui.followGps);
+    }
+
+    /********************************************************************
+     * 5) KERN-LOGIK (GPS, Map, Simulation)
+     ********************************************************************/
+    function initManifestAndSW() {
+      // Inline manifest via data URL
+      try {
+        const manifest = {
+          name: "CompNavAir",
+          short_name: "CompNavAir",
+          start_url: ".",
+          display: "standalone",
+          background_color: "#020617",
+          theme_color: "#020617",
+          icons: []
+        };
+        const href = "data:application/manifest+json," + encodeURIComponent(JSON.stringify(manifest));
+        const link = document.createElement("link");
+        link.rel = "manifest";
+        link.href = href;
+        document.head.appendChild(link);
+      } catch {}
+
+      // Minimal SW via Blob (best effort)
+      try {
+        if (!("serviceWorker" in navigator)) return;
+        const swCode = `
+          self.addEventListener('install', (e)=>self.skipWaiting());
+          self.addEventListener('activate', (e)=>self.clients.claim());
+          self.addEventListener('fetch', (e)=>{ /* passthrough */ });
+        `;
+        const blob = new Blob([swCode], { type: "text/javascript" });
+        const url = URL.createObjectURL(blob);
+        navigator.serviceWorker.register(url).catch(()=>{});
+      } catch {}
+    }
+
+    function initMap() {
+      const map = L.map("map", {
+        zoomControl: true,
+        attributionControl: true,
+        zoomSnap: 0.25,
+        preferCanvas: true,
+      });
+      STATE.map = map;
+
+      STATE.layers.baseOSM = L.tileLayer(TILE.osm.url, { maxZoom: 19, attribution: TILE.osm.attr });
+      STATE.layers.baseSAT = L.tileLayer(TILE.esri.url, { maxZoom: 19, attribution: TILE.esri.attr });
+
+      STATE.layers.baseOSM.addTo(map);
+
+      STATE.layers.tasksLayer = L.layerGroup().addTo(map);
+      STATE.layers.trackLayer = L.layerGroup().addTo(map);
+      STATE.layers.markersLayer = L.layerGroup().addTo(map);
+
+      STATE.layers.trackLine = L.polyline([], { color: "#ef4444", weight: 4, opacity: 0.9, interactive: false }).addTo(STATE.layers.trackLayer);
+
+      map.setView([APP.defaultCenter.lat, APP.defaultCenter.lon], APP.defaultZoom);
+
+      map.on("dragstart", () => {
+        STATE.ui.mapUserInteracting = true;
+        STATE.ui.followGps = false;
+        updateFollowToggleUi();
+      });
+      map.on("dragend", () => {
+        setTimeout(()=>STATE.ui.mapUserInteracting = false, 150);
+      });
+
+      map.on("click", (e) => {
+        if (!STATE.ui.mapPickMode) return;
+        const lat = e.latlng.lat;
+        const lon = e.latlng.lng;
+
+        if (STATE.ui.mapPickWhich === "A") {
+          const la = document.getElementById("taskALat");
+          const lo = document.getElementById("taskALon");
+          if (la) la.value = lat.toFixed(6);
+          if (lo) lo.value = lon.toFixed(6);
+          showSnackbar("Punkt A gesetzt.");
+        }
+        STATE.ui.mapPickMode = false;
+        const hint = document.getElementById("mapPickHint");
+        if (hint) hint.classList.add("hidden");
+      });
+
+      ensureBalloonMarker();
+    }
+
+    function ensureBalloonMarker() {
+      if (!STATE.map) return;
+
+      const icon = L.divIcon({
+        className: "",
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
+        html: `
+          <div class="balloon-icon">
+            <div id="balloonRot" class="balloon-rot">
+              <i class="fa-solid fa-location-arrow text-sky-300 drop-shadow"></i>
+            </div>
+          </div>
+        `
+      });
+
+      const p = getCurrentPos() || APP.defaultCenter;
+      STATE.balloon.marker = L.marker([p.lat, p.lon], { icon, interactive: false }).addTo(STATE.map);
+    }
+
+    function setBalloonPose(lat, lon, headingDegVal) {
+      if (!STATE.balloon.marker) return;
+      STATE.balloon.marker.setLatLng([lat, lon]);
+      const rot = document.getElementById("balloonRot");
+      if (rot) rot.style.transform = `rotate(${headingDegVal || 0}deg)`;
+    }
+
+    function setBaseLayer(which) {
+      if (!STATE.map) return;
+      STATE.ui.base = which;
+      try {
+        if (which === "sat") {
+          STATE.map.removeLayer(STATE.layers.baseOSM);
+          STATE.layers.baseSAT.addTo(STATE.map);
+        } else {
+          STATE.map.removeLayer(STATE.layers.baseSAT);
+          STATE.layers.baseOSM.addTo(STATE.map);
+        }
+      } catch {}
+    }
+
+    function updateFollowToggleUi() {
+      const tgl = document.getElementById("tglFollow");
+      const knob = document.getElementById("tglFollowKnob");
+      if (tgl && knob) setToggleUI(tgl, knob, STATE.ui.followGps);
+    }
+
+    function initGPS() {
+      if (!("geolocation" in navigator)) {
+        showSnackbar("Geolocation nicht verfügbar.");
+        return;
+      }
+
+      stopGPS();
+      const opts = { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 };
+
+      STATE.gps.watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          try { onGpsPosition(pos); } catch (e) { console.error(e); }
+        },
+        (err) => {
+          console.warn(err);
+          STATE.gps.hasFix = false;
+          updateGpsBadge();
+        },
+        opts
+      );
+    }
+
+    function stopGPS() {
+      try {
+        if (STATE.gps.watchId != null) navigator.geolocation.clearWatch(STATE.gps.watchId);
+      } catch {}
+      STATE.gps.watchId = null;
+    }
+
+    function onGpsPosition(pos) {
+      if (STATE.sim.enabled) return;
+
+      const c = pos.coords;
+      const lat = c.latitude;
+      const lon = c.longitude;
+      const alt = Number.isFinite(c.altitude) ? c.altitude : null;
+      const spdKmh = Number.isFinite(c.speed) ? (c.speed * 3.6) : 0;
+      const head = Number.isFinite(c.heading) ? c.heading : (STATE.gps.headingDeg || 0);
+      const acc = Number.isFinite(c.accuracy) ? c.accuracy : null;
+
+      // Jump guard: reject absurd jumps
+      if (STATE.gps.smoothLat != null && STATE.gps.smoothLon != null) {
+        const d = haversineM({ lat: STATE.gps.smoothLat, lon: STATE.gps.smoothLon }, { lat, lon });
+        const dyn = clamp((spdKmh/3.6) * 3 + 60, 80, 220); // 3s window + margin
+        if (d > Math.max(APP.maxGpsJumpM, dyn)) {
+          // ignore this fix
+          return;
+        }
+      }
+
+      // smoothing
+      STATE.gps.smoothLat = smooth(STATE.gps.smoothLat, lat, APP.gpsSmoothingAlpha);
+      STATE.gps.smoothLon = smooth(STATE.gps.smoothLon, lon, APP.gpsSmoothingAlpha);
+
+      STATE.gps.lat = STATE.gps.smoothLat;
+      STATE.gps.lon = STATE.gps.smoothLon;
+      STATE.gps.altM = alt;
+      STATE.gps.speedKmh = spdKmh;
+      STATE.gps.headingDeg = head;
+      STATE.gps.accuracyM = acc;
+
+      STATE.gps.hasFix = true;
+      STATE.gps.fixTs = now();
+
+      // Update marker & optional follow
+      setBalloonPose(STATE.gps.lat, STATE.gps.lon, head);
+
+      if (STATE.ui.followGps && !STATE.ui.mapUserInteracting) {
+        const ts = now();
+        if (ts - STATE.gps.lastPanTs > APP.followPanMinMs) {
+          STATE.gps.lastPanTs = ts;
+          STATE.map?.panTo([STATE.gps.lat, STATE.gps.lon], { animate: true, duration: 0.35 });
+        }
+      }
+
+      // Only log track/wind if flight is active (NO AUTO START!)
+      if (STATE.flight.active) {
+        maybeAddTrackPoint({ lat: STATE.gps.lat, lon: STATE.gps.lon, altM: alt, ts: now() });
+        maybeAutoRecordWind({ altM: alt, courseDeg: head, speedKmh: spdKmh, ts: now() });
+      }
+
+      updateGpsBadge();
+      updateInstruments();
+      updateNavToast();
+      updateWindHud();
+      persistAllThrottled();
+    }
+
+    function getCurrentPos() {
+      if (STATE.sim.enabled && STATE.sim.lat != null && STATE.sim.lon != null) {
+        return { lat: STATE.sim.lat, lon: STATE.sim.lon };
+      }
+      if (!STATE.gps.hasFix || STATE.gps.lat == null || STATE.gps.lon == null) return null;
+      return { lat: STATE.gps.lat, lon: STATE.gps.lon };
+    }
+
+    function getCurrentAltM() {
+      if (STATE.sim.enabled) return STATE.sim.altM;
+      return STATE.gps.altM;
+    }
+
+    function beginFlight(title) {
+      if (STATE.flight.active) return;
+
+      STATE.flight.active = true;
+      STATE.flight.title = title || (getActiveTask() ? `${getActiveTask().code} — ${getActiveTask().title||getActiveTask().typeTitle}` : "Fahrt");
+      STATE.flight.startedTs = now();
+      STATE.flight.track = [];
+      STATE.flight.markers = [];
+
+      // Clear map layers for current flight
+      try { STATE.layers.trackLine?.setLatLngs([]); } catch {}
+      try { STATE.layers.markersLayer?.clearLayers(); } catch {}
+
+      // Reset helpers
+      STATE.gps.lastAltM = null;
+      STATE.gps.lastAltTs = null;
+      STATE.wind.lastAuto = { altM: null, courseDeg: null, ts: 0 };
+
+      // Reset APT timer start (must be started explicitly)
+      STATE.task.apt.startTs = null;
+
+      updateButtons();
+      showSnackbar("Fahrt gestartet.");
+      persistAll();
+    }
+
+    function finishFlight() {
+      if (!STATE.flight.active) return;
+
+      const endedTs = now();
+      const flight = {
+        id: uid(),
+        title: STATE.flight.title || "Fahrt",
+        startedTs: STATE.flight.startedTs,
+        endedTs,
+        track: STATE.flight.track.slice(0),
+        markers: STATE.flight.markers.slice(0),
+      };
+
+      STATE.flight.archive.push(flight);
+      STATE.flight.active = false;
+      STATE.flight.title = "";
+      STATE.flight.startedTs = 0;
+      STATE.task.apt.startTs = null;
+
+      updateButtons();
+      updateArchivePanel();
+      showSnackbar("Fahrt beendet & archiviert.");
+      persistAll();
+    }
+
+    function maybeAddTrackPoint(p) {
+      if (!STATE.flight.active) return;
+      if (!p || p.lat == null || p.lon == null) return;
+
+      const track = STATE.flight.track;
+      if (track.length) {
+        const last = track[track.length-1];
+        const d = haversineM({ lat:last.lat, lon:last.lon }, { lat:p.lat, lon:p.lon });
+        if (d < APP.trackMinDistM) return;
+      }
+
+      track.push({ lat:p.lat, lon:p.lon, altM:p.altM, ts:p.ts });
+      if (track.length > APP.maxTrackPoints) track.shift();
+
+      try {
+        const latlngs = track.map(x => [x.lat, x.lon]);
+        STATE.layers.trackLine?.setLatLngs(latlngs);
+      } catch {}
+    }
+
+    function maybeAutoRecordWind({ altM, courseDeg, speedKmh, ts }) {
+      if (!STATE.flight.active) return;
+      if (speedKmh == null || speedKmh < 10) return;
+      if (altM == null || !isFinite(altM)) return;
+
+      const last = STATE.wind.lastAuto;
+      const dAlt = last.altM == null ? 9999 : Math.abs(altM - last.altM);
+      const dCrs = last.courseDeg == null ? 9999 : angDiffDeg(courseDeg, last.courseDeg);
+
+      if (dAlt > 50 || dCrs > 5) {
+        const fromDeg = (courseDeg + 180) % 360;
+        addWindLayer({ altM, fromDeg, speedKmh, ts, source: "auto" });
+        STATE.wind.lastAuto = { altM, courseDeg, ts };
+      }
+    }
+
+    function addWindLayer(w) {
+      const alt = Math.round(w.altM);
+      const from = ((Math.round(w.fromDeg)%360)+360)%360;
+      const spd = Math.max(0, safeFloat(w.speedKmh, 0));
+      const ts = w.ts || now();
+
+      // replace if same altitude bucket
+      const idx = STATE.wind.layers.findIndex(x => Math.abs(x.altM - alt) <= 15);
+      const item = { altM: alt, fromDeg: from, speedKmh: spd, ts, source: w.source || "manual" };
+      if (idx >= 0) STATE.wind.layers[idx] = item;
+      else STATE.wind.layers.push(item);
+
+      // keep sorted-ish
+      STATE.wind.layers.sort((a,b)=>a.altM-b.altM);
+      persistAll();
+      updateWindPanel();
+      updateWindHud();
+      updateNavToast();
+    }
+
+    function windAtAltitude(altM) {
+      if (!STATE.wind.layers.length || altM == null) return null;
+      let best = null, bestD = Infinity;
+      for (const w of STATE.wind.layers) {
+        const d = Math.abs(w.altM - altM);
+        if (d < bestD) { bestD = d; best = w; }
+      }
+      return best;
+    }
+
+    function recommendLayerText(task, pos, target) {
+      // Special 3DT donut strategy if R1/R2 present
+      if (task && task.code === "3DT" && task.center && task.r1M && task.r2M) {
+        const dC = haversineM(pos, task.center);
+        if (dC < task.r1M) return "Ungültig (im inneren Kreis)";
+        if (dC <= task.r2M) return "Im Ring: Distanz maximieren";
+        return "Außerhalb: Ziel = Zentrum";
+      }
+
+      // APT scoring indicator (time in bands)
+      if (task && task.code === "APT") {
+        const scoreTxt = aptScoreText();
+        if (scoreTxt) return scoreTxt;
+      }
+
+      // Default: best wind layer = drift direction closest to bearing-to-target
+      if (!STATE.wind.layers.length) return "Kein Windprofil";
+      const brg = bearingDeg(pos, target);
+
+      let best = null;
+      let bestScore = Infinity;
+      for (const w of STATE.wind.layers) {
+        const driftTo = windToDegFrom(w.fromDeg);
+        const score = angDiffDeg(driftTo, brg);
+        if (score < bestScore) { bestScore = score; best = w; }
+      }
+      if (!best) return "Kein Layer";
+
+      const curAlt = getCurrentAltM();
+      const need = Math.round(best.altM);
+      if (curAlt == null) return `Layer: ${need}m`;
+      const dAlt = need - curAlt;
+      if (Math.abs(dAlt) < 25) return `Halten ~${need}m`;
+      return dAlt > 0 ? `Steigen auf ${need}m` : `Sinken auf ${need}m`;
+    }
+
+    function clearTaskOverlays() {
+      try { STATE.layers.tasksLayer?.clearLayers(); } catch {}
+    }
+
+    function drawTaskOnMap(task) {
+      clearTaskOverlays();
+      if (!task || !STATE.map) return;
+
+      // Non-interactive overlays are CRITICAL (fix for 3DT covering the map)
+      const NI = { interactive: false };
+
+      // Primary points
+      if (task.points && task.points.length) {
+        task.points.forEach((p, idx) => {
+          const color = idx === 0 ? "#60a5fa" : "#93c5fd";
+          L.circleMarker([p.lat, p.lon], {
+            radius: 9,
+            color,
+            weight: 3,
+            fillColor: color,
+            fillOpacity: 0.25,
+            ...NI
+          }).addTo(STATE.layers.tasksLayer);
+
+          // tiny label via separate non-interactive marker
+          L.marker([p.lat, p.lon], {
+            icon: L.divIcon({
+              className: "",
+              iconSize: [1,1],
+              html: `<div class="mono text-xs font-extrabold text-sky-200 drop-shadow">${escapeXml(p.name||String.fromCharCode(65+idx))}</div>`
+            }),
+            interactive: false
+          }).addTo(STATE.layers.tasksLayer);
+        });
+      }
+
+      // Donut / radius circles for 3DT or generic
+      const center = task.center || (task.points && task.points[0] ? { lat: task.points[0].lat, lon: task.points[0].lon } : null);
+      if (center && (task.r2M || task.r1M)) {
+        if (task.r2M) {
+          L.circle([center.lat, center.lon], {
+            radius: task.r2M,
+            color: "#60a5fa",
+            weight: 3,
+            opacity: 0.9,
+            fillOpacity: 0.05,
+            ...NI
+          }).addTo(STATE.layers.tasksLayer);
+        }
+        if (task.r1M) {
+          L.circle([center.lat, center.lon], {
+            radius: task.r1M,
+            color: "#93c5fd",
+            weight: 2,
+            opacity: 0.8,
+            dashArray: "6 8",
+            fillOpacity: 0.01,
+            ...NI
+          }).addTo(STATE.layers.tasksLayer);
+        }
+      }
+
+      // Lines for ANG / LRN
+      if (task.code === "ANG" && task.points && task.points.length >= 2) {
+        L.polyline(task.points.slice(0,2).map(p => [p.lat,p.lon]), { color:"#38bdf8", weight:3, opacity:0.9, dashArray:"8 8", ...NI }).addTo(STATE.layers.tasksLayer);
+      }
+      if (task.code === "LRN" && task.points && task.points.length >= 3) {
+        L.polyline(task.points.slice(0,3).map(p => [p.lat,p.lon]).concat([[task.points[0].lat, task.points[0].lon]]), { color:"#38bdf8", weight:3, opacity:0.9, ...NI }).addTo(STATE.layers.tasksLayer);
+      }
+    }
+
+    function getPrimaryTarget(task) {
+      if (!task) return null;
+      if (task.code === "3DT" && task.center) return task.center;
+      if (task.points && task.points.length) return { lat: task.points[0].lat, lon: task.points[0].lon };
+      return null;
+    }
+
+    function dropMarker() {
+      if (!STATE.flight.active) {
+        showSnackbar("Bitte zuerst die Fahrt starten.");
+        return;
+      }
+      const pos = getCurrentPos();
+      if (!pos) { showSnackbar("Keine Position."); return; }
+
+      const alt = getCurrentAltM();
+      const t = getActiveTask();
+      const colorKey = t ? MARKER_COLORS[Math.abs(hashStr(t.code)) % MARKER_COLORS.length] : "pink";
+      const color = COLOR_HEX[colorKey];
+
+      const m = {
+        lat: pos.lat,
+        lon: pos.lon,
+        altM: alt,
+        ts: now(),
+        color: colorKey,
+        label: t ? t.code : "MARK",
+      };
+      STATE.flight.markers.push(m);
+
+      // Draw
+      L.circleMarker([m.lat, m.lon], {
+        radius: 8,
+        color,
+        weight: 3,
+        fillColor: color,
+        fillOpacity: 0.25,
+        interactive: false
+      }).addTo(STATE.layers.markersLayer);
+
+      showSnackbar("Marker gesetzt.");
+      persistAll();
+    }
+
+    function exportFlightToKml(f) {
+      try {
+        const name = escapeXml(f.title || APP.kmlName);
+        const trackCoords = (f.track || []).map(p => `${p.lon},${p.lat},${p.altM||0}`).join(" ");
+        const markerPlacemarks = (f.markers || []).map(m => {
+          const when = new Date(m.ts).toISOString();
+          return `
+            <Placemark>
+              <name>${escapeXml(m.label || "MARK")}</name>
+              <TimeStamp><when>${when}</when></TimeStamp>
+              <Point><coordinates>${m.lon},${m.lat},${m.altM||0}</coordinates></Point>
+            </Placemark>
+          `;
+        }).join("\n");
+
+        const kml = `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
     <name>${name}</name>
-    <Folder>
+    <Style id="trackStyle"><LineStyle><color>ff4f46e5</color><width>4</width></LineStyle></Style>
+    <Placemark>
       <name>Track</name>
-      <Placemark>
-        <name>Flight Track</name>
-        <Style>
-          <LineStyle><color>ff4444ef</color><width>4</width></LineStyle>
-        </Style>
-        <LineString>
-          <tessellate>1</tessellate>
-          <altitudeMode>absolute</altitudeMode>
-          <coordinates>${coords}</coordinates>
-        </LineString>
-      </Placemark>
-    </Folder>
-    <Folder>
-      <name>Markers</name>
-      ${markerPlacemarks}
-    </Folder>
+      <styleUrl>#trackStyle</styleUrl>
+      <LineString>
+        <tessellate>1</tessellate>
+        <altitudeMode>absolute</altitudeMode>
+        <coordinates>${trackCoords}</coordinates>
+      </LineString>
+    </Placemark>
+    ${markerPlacemarks}
   </Document>
 </kml>`;
+
+        const blob = new Blob([kml], { type: "application/vnd.google-earth.kml+xml" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        const ts = new Date(f.startedTs).toISOString().slice(0,19).replaceAll(":","-");
+        a.download = `CompNavAir_${ts}.kml`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(()=>URL.revokeObjectURL(a.href), 1500);
+      } catch (e) {
+        console.error(e);
+        showSnackbar("KML Export fehlgeschlagen.");
+      }
     }
 
-    /*********************************************************************
-     * 6) Event-Listener & Initialisierung (window.onload am Ende)
-     *********************************************************************/
-    window.onload = () => {
-      restoreAll();
-      renderTaskTypeDropdown();
+    async function fetchWindFromOpenMeteo() {
+      const pos = getCurrentPos();
+      if (!pos) { showSnackbar("Keine Position für Online-Wind."); return; }
 
-      // Standalone hint
-      const isStandalone = window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone === true;
-      const hint = document.getElementById("standaloneHint");
-      if (hint && isStandalone) hint.textContent = "Du nutzt bereits den App-Modus (standalone).";
+      const lat = pos.lat.toFixed(4);
+      const lon = pos.lon.toFixed(4);
 
-      // setup UI defaults
-      const unitSpeed = document.getElementById("unitSpeed");
-      const trajMinutes = document.getElementById("trajMinutes");
-      const gpsMinInterval = document.getElementById("gpsMinInterval");
-      const trackMinDist = document.getElementById("trackMinDist");
-      if (unitSpeed) unitSpeed.value = STATE.setup.unitSpeed;
-      if (gpsMinInterval) gpsMinInterval.value = String(STATE.setup.gpsMinInterval);
-      if (trackMinDist) trackMinDist.value = String(STATE.setup.trackMinDist);
-      if (trajMinutes) trajMinutes.value = STATE.setup.trajMinutes.join(",");
+      // Use multiple "standard" heights where available
+      const hourly = [
+        "windspeed_10m","winddirection_10m",
+        "windspeed_80m","winddirection_80m",
+        "windspeed_120m","winddirection_120m",
+        "windspeed_180m","winddirection_180m"
+      ].join(",");
 
-      const toggleTrack = document.getElementById("toggleTrack");
-      const toggleTraj = document.getElementById("toggleTraj");
-      if (toggleTrack) toggleTrack.checked = STATE.ui.trackVisible;
-      if (toggleTraj) toggleTraj.checked = STATE.ui.trajVisible;
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=${hourly}&forecast_days=1&timezone=auto`;
 
-      initMap();
+      try {
+        showSnackbar("Lade Wind…", 1200);
+        const r = await fetch(url, { cache: "no-store" });
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        const j = await r.json();
 
-      // Task form defaults based on task type
-      const tSel = document.getElementById("taskType");
-      const ptsCnt = document.getElementById("taskPointsCount");
-      if (tSel && ptsCnt) {
-        const applyDefaults = () => {
-          const typeId = tSel.value;
-          const meta = CIA_TASKS.find(x => x.id === typeId);
-          if (meta) {
-            ptsCnt.value = String(meta.defaultPoints || 1);
-            renderTaskPointsVisibility();
+        const h = j.hourly;
+        if (!h || !h.time || !h.time.length) throw new Error("no hourly data");
+
+        // Pick closest hour to now
+        const tNow = now();
+        let bestI = 0, bestD = Infinity;
+        for (let i=0;i<h.time.length;i++) {
+          const t = Date.parse(h.time[i]);
+          const d = Math.abs(t - tNow);
+          if (d < bestD) { bestD = d; bestI = i; }
+        }
+
+        const mapping = [
+          { altM: 10,  spd: h.windspeed_10m?.[bestI],  dir: h.winddirection_10m?.[bestI] },
+          { altM: 80,  spd: h.windspeed_80m?.[bestI],  dir: h.winddirection_80m?.[bestI] },
+          { altM: 120, spd: h.windspeed_120m?.[bestI], dir: h.winddirection_120m?.[bestI] },
+          { altM: 180, spd: h.windspeed_180m?.[bestI], dir: h.winddirection_180m?.[bestI] },
+        ];
+
+        let added = 0;
+        for (const m of mapping) {
+          if (m.spd == null || m.dir == null) continue;
+          addWindLayer({ altM: m.altM, fromDeg: m.dir, speedKmh: m.spd, ts: now(), source: "open-meteo" });
+          added++;
+        }
+        showSnackbar(added ? `Wind geladen (${added} Schichten).` : "Keine Windschichten gefunden.");
+      } catch (e) {
+        console.error(e);
+        showSnackbar("Online-Wind fehlgeschlagen.");
+      }
+    }
+
+    function initSimulationToggle(enabled) {
+      STATE.sim.enabled = !!enabled;
+      updateButtons();
+      updateGpsBadge();
+
+      if (STATE.sim.enabled) {
+        // Pause GPS and set sim start at current gps or default
+        stopGPS();
+        const p = getCurrentPos() || APP.defaultCenter;
+        STATE.sim.lat = p.lat;
+        STATE.sim.lon = p.lon;
+        STATE.sim.altM = getCurrentAltM() || 180;
+        STATE.sim.vRateMps = 0;
+        STATE.sim.speedKmh = 0;
+        STATE.sim.headingDeg = 0;
+
+        setBalloonPose(STATE.sim.lat, STATE.sim.lon, STATE.sim.headingDeg);
+        STATE.map?.panTo([STATE.sim.lat, STATE.sim.lon], { animate:true, duration:0.35 });
+
+        startSimLoop();
+        showSnackbar("Simulation an.");
+      } else {
+        stopSimLoop();
+        initGPS();
+        showSnackbar("Simulation aus.");
+      }
+      persistAll();
+    }
+
+    function startSimLoop() {
+      if (STATE.sim.timer) return;
+      STATE.sim.running = true;
+      STATE.sim.lastTickTs = now();
+      STATE.sim.timer = setInterval(() => {
+        try { simTick(); } catch (e) { console.error(e); }
+      }, 1000);
+    }
+
+    function stopSimLoop() {
+      STATE.sim.running = false;
+      try { clearInterval(STATE.sim.timer); } catch {}
+      STATE.sim.timer = null;
+      STATE.sim.vRateMps = 0;
+    }
+
+    function simTick() {
+      if (!STATE.sim.enabled) return;
+      const t = now();
+      const dt = Math.min(2.5, Math.max(0.4, (t - STATE.sim.lastTickTs)/1000));
+      STATE.sim.lastTickTs = t;
+
+      // Vertical
+      STATE.sim.altM = Math.max(0, (STATE.sim.altM || 0) + (STATE.sim.vRateMps || 0) * dt);
+
+      // Horizontal drift from wind at altitude
+      const w = windAtAltitude(STATE.sim.altM);
+      let driftTo = 0, spd = 0;
+      if (w) {
+        driftTo = windToDegFrom(w.fromDeg);
+        spd = Math.max(0, w.speedKmh || 0);
+      }
+      const distM = (spd/3.6) * dt;
+      const p = destPoint({ lat: STATE.sim.lat, lon: STATE.sim.lon }, driftTo, distM);
+      STATE.sim.lat = p.lat;
+      STATE.sim.lon = p.lon;
+      STATE.sim.headingDeg = driftTo;
+      STATE.sim.speedKmh = spd;
+
+      setBalloonPose(STATE.sim.lat, STATE.sim.lon, STATE.sim.headingDeg);
+
+      if (STATE.ui.followGps && !STATE.ui.mapUserInteracting) {
+        const ts = now();
+        if (ts - STATE.gps.lastPanTs > APP.followPanMinMs) {
+          STATE.gps.lastPanTs = ts;
+          STATE.map?.panTo([STATE.sim.lat, STATE.sim.lon], { animate:true, duration:0.35 });
+        }
+      }
+
+      // Track log if flight active
+      if (STATE.flight.active) {
+        maybeAddTrackPoint({ lat: STATE.sim.lat, lon: STATE.sim.lon, altM: STATE.sim.altM, ts: now() });
+      }
+
+      updateInstruments();
+      updateNavToast();
+      updateWindHud();
+      persistAllThrottled();
+    }
+
+    function handleBurner(pressed) {
+      if (!STATE.sim.enabled) return;
+      STATE.sim.vRateMps = pressed ? 2.5 : 0;
+    }
+    function handleVent(pressed) {
+      if (!STATE.sim.enabled) return;
+      STATE.sim.vRateMps = pressed ? -2.0 : 0;
+    }
+
+    function centerOnPos() {
+      const p = getCurrentPos();
+      if (!p || !STATE.map) return;
+      STATE.ui.followGps = true;
+      updateFollowToggleUi();
+      STATE.map.panTo([p.lat, p.lon], { animate:true, duration:0.35 });
+      showSnackbar("Zentriert.");
+    }
+
+    function buildTaskFromForm() {
+      const code = document.getElementById("taskType")?.value;
+      const meta = CIA_TASKS.find(x => x.code === code);
+      if (!code || !meta) return null;
+
+      const title = document.getElementById("taskTitle")?.value?.trim() || "";
+      const r1 = safeFloat(document.getElementById("taskR1")?.value, null);
+      const r2 = safeFloat(document.getElementById("taskR2")?.value, null);
+      const minAlt = safeFloat(document.getElementById("taskMinAlt")?.value, null);
+      const maxAlt = safeFloat(document.getElementById("taskMaxAlt")?.value, null);
+
+      const points = [];
+      const aLat = safeFloat(document.getElementById("taskALat")?.value, null);
+      const aLon = safeFloat(document.getElementById("taskALon")?.value, null);
+      if (aLat != null && aLon != null) points.push({ name:"A", lat:aLat, lon:aLon });
+
+      const bLat = safeFloat(document.getElementById("taskBLat")?.value, null);
+      const bLon = safeFloat(document.getElementById("taskBLon")?.value, null);
+      if (bLat != null && bLon != null) points.push({ name:"B", lat:bLat, lon:bLon });
+
+      const cLat = safeFloat(document.getElementById("taskCLat")?.value, null);
+      const cLon = safeFloat(document.getElementById("taskCLon")?.value, null);
+      if (cLat != null && cLon != null) points.push({ name:"C", lat:cLat, lon:cLon });
+
+      const setDir = safeFloat(document.getElementById("taskSetDir")?.value, null);
+
+      const task = {
+        id: uid(),
+        code,
+        typeTitle: meta.title,
+        title,
+        points,
+        r1M: r1 != null ? Math.max(0, r1) : null,
+        r2M: r2 != null ? Math.max(0, r2) : null,
+        minAltM: minAlt,
+        maxAltM: maxAlt,
+        setDirDeg: setDir != null ? ((setDir%360)+360)%360 : null,
+        center: null,
+        apt: null,
+      };
+
+      // Center definition
+      if (task.code === "3DT") {
+        // For donut: use A as center (if exists)
+        if (points[0]) task.center = { lat: points[0].lat, lon: points[0].lon };
+      }
+
+      if (task.code === "APT") {
+        task.apt = readAptFromUi();
+      }
+
+      return task;
+    }
+
+    function applyTask() {
+      const task = buildTaskFromForm();
+      if (!task) { showSnackbar("Task unvollständig."); return; }
+
+      // Basic validation: need at least A for most tasks
+      if (task.code !== "APT" && (!task.points || !task.points.length)) {
+        showSnackbar("Bitte Koordinaten (mind. Punkt A) eingeben.");
+        return;
+      }
+
+      STATE.task.active = task;
+      drawTaskOnMap(task);
+      updateButtons();
+      updateNavToast();
+      setMarkerButtonColor(task.code);
+
+      // Zoom to task
+      try {
+        const latlngs = [];
+        if (task.points) task.points.forEach(p => latlngs.push([p.lat,p.lon]));
+        if (task.center) latlngs.push([task.center.lat, task.center.lon]);
+        if (latlngs.length) {
+          const b = L.latLngBounds(latlngs);
+          STATE.map.fitBounds(b.pad(0.35), { animate:true, duration:0.4 });
+        }
+      } catch {}
+
+      showSnackbar("Task aktiv.");
+      persistAll();
+    }
+
+    function clearTask() {
+      STATE.task.active = null;
+      clearTaskOverlays();
+      updateButtons();
+      updateNavToast();
+      setMarkerButtonColor("x");
+      showSnackbar("Task gelöscht.");
+      persistAll();
+    }
+
+    function enableMapPick() {
+      STATE.ui.mapPickMode = true;
+      STATE.ui.mapPickWhich = "A";
+      const hint = document.getElementById("mapPickHint");
+      if (hint) hint.classList.remove("hidden");
+      showSnackbar("Tippe auf die Karte, um Punkt A zu setzen.");
+    }
+
+    function setHelperPoint(which) {
+      if (!STATE.flight.active) { showSnackbar("Nur während aktiver Fahrt."); return; }
+      const pos = getCurrentPos();
+      if (!pos) { showSnackbar("Keine Position."); return; }
+      STATE.task.pointsABC[which] = { ...pos };
+      showSnackbar(`Punkt ${which} gesetzt.`);
+      updateElbowResult();
+    }
+
+    function updateElbowResult() {
+      const out = document.getElementById("elbowResult");
+      if (!out) return;
+      const A = STATE.task.pointsABC.A;
+      const B = STATE.task.pointsABC.B;
+      const C = STATE.task.pointsABC.C;
+      if (!A || !B || !C) { out.textContent = "–"; return; }
+
+      // Angle ABC
+      const brgBA = bearingDeg(B, A);
+      const brgBC = bearingDeg(B, C);
+      let ang = angDiffDeg(brgBA, brgBC); // 0..180
+      // ELB result = 180 - angle ABC
+      const res = 180 - ang;
+      out.textContent = fmtNum(res, 1);
+    }
+
+    function ensureAptUi() {
+      const wrap = document.getElementById("aptPoints");
+      const btn = document.getElementById("btnAddAptPoint");
+      if (!wrap || !btn) return;
+
+      // If no points, add default 0 min / 200m
+      if (!wrap.childElementCount) {
+        addAptRow(0, 200);
+        addAptRow(10, 250);
+      }
+
+      btn.onclick = () => addAptRow(0, 200);
+    }
+
+    function addAptRow(min, alt) {
+      const wrap = document.getElementById("aptPoints");
+      if (!wrap) return;
+      const rowId = uid();
+      const el = document.createElement("div");
+      el.className = "flex items-center gap-2";
+      el.innerHTML = `
+        <input data-apt="min" type="number" class="h-11 w-24 rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="min" value="${min ?? ""}">
+        <div class="text-slate-400 text-sm">→</div>
+        <input data-apt="alt" type="number" class="h-11 flex-1 rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="Zielhöhe m" value="${alt ?? ""}">
+        <button data-apt="del" class="btn-touch h-11 w-11 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800">
+          <i class="fa-solid fa-trash"></i>
+        </button>
+      `;
+      el.querySelector('[data-apt="del"]').addEventListener("click", () => el.remove());
+      wrap.appendChild(el);
+    }
+
+    function readAptFromUi() {
+      const inner = safeFloat(document.getElementById("aptInner")?.value, 25);
+      const outer = safeFloat(document.getElementById("aptOuter")?.value, 60);
+      const wrap = document.getElementById("aptPoints");
+      const pts = [];
+      if (wrap) {
+        wrap.querySelectorAll(":scope > div").forEach(row => {
+          const m = safeFloat(row.querySelector('[data-apt="min"]')?.value, null);
+          const a = safeFloat(row.querySelector('[data-apt="alt"]')?.value, null);
+          if (m != null && a != null) pts.push({ min: m, altM: a });
+        });
+      }
+      pts.sort((x,y)=>x.min-y.min);
+      return { innerBandM: Math.max(0, inner), outerBandM: Math.max(0, outer), profile: pts };
+    }
+
+    function startAPT() {
+      if (!STATE.flight.active) { showSnackbar("APT Start nur während Fahrt."); return; }
+      STATE.task.apt.startTs = now();
+      showSnackbar("APT Start gesetzt.");
+      persistAll();
+      updateNavToast();
+    }
+
+    function aptTargetAltAt(elapsedMin, task) {
+      const apt = task?.apt;
+      if (!apt || !apt.profile || apt.profile.length === 0) return null;
+      const p = apt.profile;
+
+      if (elapsedMin <= p[0].min) return p[0].altM;
+      if (elapsedMin >= p[p.length-1].min) return p[p.length-1].altM;
+
+      for (let i=0;i<p.length-1;i++) {
+        const a = p[i], b = p[i+1];
+        if (elapsedMin >= a.min && elapsedMin <= b.min) {
+          const t = (elapsedMin - a.min) / (b.min - a.min);
+          return a.altM + t * (b.altM - a.altM);
+        }
+      }
+      return null;
+    }
+
+    function aptScoreText() {
+      const task = getActiveTask();
+      if (!task || task.code !== "APT") return null;
+      if (!STATE.task.apt.startTs) return "APT: Start fehlt";
+
+      const alt = getCurrentAltM();
+      if (alt == null) return "APT: ALT fehlt";
+
+      const elapsedMin = (now() - STATE.task.apt.startTs) / 60000;
+      const target = aptTargetAltAt(elapsedMin, task);
+      if (target == null) return "APT: Profil fehlt";
+
+      const inner = task.apt?.innerBandM ?? 25;
+      const outer = task.apt?.outerBandM ?? 60;
+      const d = Math.abs(alt - target);
+
+      if (d <= inner) return `APT: 2x (Δ${Math.round(d)}m)`;
+      if (d <= outer) return `APT: 1x (Δ${Math.round(d)}m)`;
+      return `APT: 0x (Δ${Math.round(d)}m)`;
+    }
+
+    function importKmlFile(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const txt = String(reader.result || "");
+          if (STATE.layers.kmlLayer) {
+            try { STATE.map.removeLayer(STATE.layers.kmlLayer); } catch {}
+            STATE.layers.kmlLayer = null;
+          }
+          const layer = omnivore.kml.parse(txt);
+          layer.eachLayer(l => {
+            // Make overlays non-interactive to avoid blocking
+            if (l && typeof l.options === "object") l.options.interactive = false;
+          });
+          layer.addTo(STATE.map);
+          STATE.layers.kmlLayer = layer;
+          showSnackbar("KML importiert.");
+        } catch (e) {
+          console.error(e);
+          showSnackbar("KML Import fehlgeschlagen.");
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    async function requestWakeLock() {
+      try {
+        if (!("wakeLock" in navigator)) { showSnackbar("Wake Lock nicht unterstützt."); return; }
+        STATE.ui.wakeLock = await navigator.wakeLock.request("screen");
+        showSnackbar("Wake Lock aktiv.");
+        STATE.ui.wakeLock.addEventListener("release", () => {});
+      } catch (e) {
+        console.warn(e);
+        showSnackbar("Wake Lock fehlgeschlagen.");
+      }
+    }
+
+    function releaseWakeLock() {
+      try { STATE.ui.wakeLock?.release(); } catch {}
+      STATE.ui.wakeLock = null;
+    }
+
+    /********************************************************************
+     * Persistenz
+     ********************************************************************/
+    let _persistT = 0;
+    function persistAllThrottled() {
+      const t = now();
+      if (t - _persistT < 1500) return;
+      _persistT = t;
+      persistAll();
+    }
+
+    function persistAll() {
+      try {
+        const payload = {
+          version: APP.version,
+          ui: {
+            followGps: STATE.ui.followGps,
+            base: STATE.ui.base,
+          },
+          wind: {
+            layers: STATE.wind.layers,
+          },
+          task: {
+            active: STATE.task.active,
+            aptStartTs: STATE.task.apt.startTs,
+          },
+          flight: {
+            active: STATE.flight.active,
+            title: STATE.flight.title,
+            startedTs: STATE.flight.startedTs,
+            track: STATE.flight.track,
+            markers: STATE.flight.markers,
+            archive: STATE.flight.archive,
+          },
+          sim: {
+            enabled: STATE.sim.enabled,
           }
         };
-        tSel.addEventListener("change", applyDefaults);
-        applyDefaults();
-      }
-      ptsCnt?.addEventListener("change", renderTaskPointsVisibility);
+        localStorage.setItem(APP.storageKey, JSON.stringify(payload));
+      } catch {}
+    }
 
-      renderAll();
-      updateWakeBadge();
+    function restoreAll() {
+      try {
+        const raw = localStorage.getItem(APP.storageKey);
+        if (!raw) return;
+        const j = JSON.parse(raw);
 
-      // start GPS
-      startGps();
-
-      // Header buttons
-      document.getElementById("btnCenter")?.addEventListener("click", centerMap);
-      document.getElementById("btnWindHud")?.addEventListener("click", () => {
-        STATE.ui.windHudOpen = !STATE.ui.windHudOpen;
-        document.getElementById("windHud")?.classList.toggle("hidden", !STATE.ui.windHudOpen);
-        renderWindHud();
-      });
-      document.getElementById("btnWindHudClose")?.addEventListener("click", () => {
-        STATE.ui.windHudOpen = false;
-        document.getElementById("windHud")?.classList.add("hidden");
-      });
-      document.getElementById("btnWindLoadOnline")?.addEventListener("click", fetchWindFromOpenMeteo);
-
-      document.getElementById("btnMapSettings")?.addEventListener("click", () => {
-        STATE.ui.mapSettingsOpen = true;
-        document.getElementById("mapSettings")?.classList.remove("hidden");
-      });
-      document.getElementById("btnMapSettingsClose")?.addEventListener("click", () => {
-        STATE.ui.mapSettingsOpen = false;
-        document.getElementById("mapSettings")?.classList.add("hidden");
-      });
-      document.getElementById("mapSettingsBackdrop")?.addEventListener("click", () => {
-        STATE.ui.mapSettingsOpen = false;
-        document.getElementById("mapSettings")?.classList.add("hidden");
-      });
-
-      document.getElementById("btnBaseOSM")?.addEventListener("click", () => setBaseLayer("OSM"));
-      document.getElementById("btnBaseSAT")?.addEventListener("click", () => setBaseLayer("SAT"));
-
-      document.getElementById("toggleTrack")?.addEventListener("change", (e) => {
-        STATE.ui.trackVisible = !!e.target.checked;
-        if (!STATE.ui.trackVisible) {
-          try { STATE.layers.trackLine.setLatLngs([]); } catch {}
-        } else {
-          try { STATE.layers.trackLine.setLatLngs(STATE.flight.track.map(p => [p.lat, p.lon])); } catch {}
+        if (j.ui) {
+          STATE.ui.followGps = !!j.ui.followGps;
+          STATE.ui.base = j.ui.base === "sat" ? "sat" : "osm";
         }
-        persistAll();
-      });
 
-      document.getElementById("toggleTraj")?.addEventListener("change", (e) => {
-        STATE.ui.trajVisible = !!e.target.checked;
-        rebuildTrajectory();
-        persistAll();
-      });
+        if (j.wind && Array.isArray(j.wind.layers)) {
+          STATE.wind.layers = j.wind.layers.filter(x => x && isFinite(x.altM));
+        }
 
-      document.getElementById("btnRebuildOverlays")?.addEventListener("click", rebuildOverlays);
+        if (j.task) {
+          STATE.task.active = j.task.active || null;
+          STATE.task.apt.startTs = j.task.aptStartTs || null;
+        }
 
-      // Menu open/close
-      const openMenu = () => { STATE.ui.menuOpen = true; document.getElementById("menuOverlay")?.classList.remove("hidden"); };
-      const closeMenu = () => { STATE.ui.menuOpen = false; document.getElementById("menuOverlay")?.classList.add("hidden"); };
-      document.getElementById("btnMenu")?.addEventListener("click", openMenu);
-      document.getElementById("btnMenuClose")?.addEventListener("click", closeMenu);
-      document.getElementById("menuBackdrop")?.addEventListener("click", closeMenu);
+        if (j.flight) {
+          STATE.flight.active = !!j.flight.active;
+          STATE.flight.title = j.flight.title || "";
+          STATE.flight.startedTs = j.flight.startedTs || 0;
+          STATE.flight.track = Array.isArray(j.flight.track) ? j.flight.track : [];
+          STATE.flight.markers = Array.isArray(j.flight.markers) ? j.flight.markers : [];
+          STATE.flight.archive = Array.isArray(j.flight.archive) ? j.flight.archive : [];
+        }
 
-      // Tabs
-      document.querySelectorAll(".tabBtn").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const tab = btn.getAttribute("data-tab");
-          if (!tab) return;
-          STATE.ui.activeTab = tab;
-          document.querySelectorAll(".tabPanel").forEach(p => p.classList.add("hidden"));
-          document.getElementById(`tab-${tab}`)?.classList.remove("hidden");
-          if (tab === "wind") renderWindList();
-          if (tab === "task") renderTaskList();
-          if (tab === "archive") renderArchive();
-          if (tab === "setup") renderKmlLayersList();
+        if (j.sim) {
+          STATE.sim.enabled = !!j.sim.enabled;
+        }
+      } catch {}
+    }
+
+    function restoreFormFromTask(task) {
+      if (!task) return;
+      const typeSel = document.getElementById("taskType");
+      const titleIn = document.getElementById("taskTitle");
+      if (typeSel) typeSel.value = task.code;
+      if (titleIn) titleIn.value = task.title || "";
+
+      renderTaskFieldsForCode(task.code);
+
+      const setVal = (id, val) => { const el = document.getElementById(id); if (el && val != null) el.value = val; };
+
+      if (task.points && task.points[0]) { setVal("taskALat", task.points[0].lat); setVal("taskALon", task.points[0].lon); }
+      if (task.points && task.points[1]) { setVal("taskBLat", task.points[1].lat); setVal("taskBLon", task.points[1].lon); }
+      if (task.points && task.points[2]) { setVal("taskCLat", task.points[2].lat); setVal("taskCLon", task.points[2].lon); }
+
+      setVal("taskR1", task.r1M);
+      setVal("taskR2", task.r2M);
+      setVal("taskMinAlt", task.minAltM);
+      setVal("taskMaxAlt", task.maxAltM);
+      setVal("taskSetDir", task.setDirDeg);
+
+      if (task.code === "APT" && task.apt) {
+        const inner = document.getElementById("aptInner");
+        const outer = document.getElementById("aptOuter");
+        if (inner) inner.value = task.apt.innerBandM ?? "";
+        if (outer) outer.value = task.apt.outerBandM ?? "";
+        const wrap = document.getElementById("aptPoints");
+        if (wrap) wrap.innerHTML = "";
+        if (task.apt.profile && task.apt.profile.length) {
+          task.apt.profile.forEach(p => addAptRow(p.min, p.altM));
+        } else {
+          ensureAptUi();
+        }
+      }
+    }
+
+    /********************************************************************
+     * 6) EVENT-LISTENER & INITIALISIERUNG (window.onload am Ende)
+     ********************************************************************/
+    window.onload = () => {
+      initManifestAndSW();
+
+      restoreAll();
+
+      initMap();
+      setBaseLayer(STATE.ui.base);
+
+      // UI init
+      renderTaskTypeOptions();
+      renderTaskFieldsForCode(document.getElementById("taskType")?.value || "JDG");
+
+      // restore task into form and map
+      if (STATE.task.active) {
+        restoreFormFromTask(STATE.task.active);
+        drawTaskOnMap(STATE.task.active);
+        setMarkerButtonColor(STATE.task.active.code);
+      } else {
+        setMarkerButtonColor("x");
+      }
+
+      // restore flight visuals if flight active
+      if (STATE.flight.active) {
+        try {
+          const latlngs = (STATE.flight.track||[]).map(p => [p.lat,p.lon]);
+          STATE.layers.trackLine?.setLatLngs(latlngs);
+        } catch {}
+        try {
+          (STATE.flight.markers||[]).forEach(m => {
+            const color = COLOR_HEX[m.color] || COLOR_HEX.pink;
+            L.circleMarker([m.lat,m.lon], { radius:8, color, weight:3, fillColor:color, fillOpacity:0.25, interactive:false })
+              .addTo(STATE.layers.markersLayer);
+          });
+        } catch {}
+      }
+
+      updateGpsBadge();
+      updateButtons();
+      updateInstruments();
+      updateNavToast();
+      updateWindHud();
+      updateWindPanel();
+      updateArchivePanel();
+      updateElbowResult();
+      updateFollowToggleUi();
+
+      // Drawer tab buttons
+      document.querySelectorAll(".tabBtn").forEach(b => {
+        b.addEventListener("click", () => {
+          STATE.ui.drawerTab = b.getAttribute("data-tab");
+          updateDrawerTabUi();
         });
       });
 
-      // Task controls
-      document.getElementById("btnTaskDeactivate")?.addEventListener("click", deactivateTask);
-      document.getElementById("btnUseCurrentPos")?.addEventListener("click", () => {
-        const pos = getCurrentPosition();
-        if (!pos) { showSnackbar("Keine aktuelle Position."); return; }
-        document.getElementById("taskLatA").value = pos.lat.toFixed(6);
-        document.getElementById("taskLonA").value = pos.lon.toFixed(6);
-        showSnackbar("Aktuelle Position übernommen.");
+      // Drawer open/close
+      document.getElementById("btnMenu")?.addEventListener("click", () => openDrawer(true));
+      document.getElementById("btnDrawerClose")?.addEventListener("click", () => openDrawer(false));
+      document.getElementById("drawerBg")?.addEventListener("click", () => openDrawer(false));
+
+      // Header buttons
+      document.getElementById("btnWindHud")?.addEventListener("click", () => {
+        STATE.ui.windHudOpen = !STATE.ui.windHudOpen;
+        updateWindHud();
       });
+      document.getElementById("btnWindClose")?.addEventListener("click", () => {
+        STATE.ui.windHudOpen = false;
+        updateWindHud();
+      });
+      document.getElementById("btnWindFetch")?.addEventListener("click", fetchWindFromOpenMeteo);
 
-      document.getElementById("btnCreateTask")?.addEventListener("click", () => {
-        const typeId = document.getElementById("taskType")?.value || "15.2";
-        const meta = CIA_TASKS.find(x => x.id === typeId) || CIA_TASKS[0];
+      document.getElementById("btnMapSettings")?.addEventListener("click", () => openMapModal(true));
+      document.getElementById("btnMapModalClose")?.addEventListener("click", () => openMapModal(false));
+      document.getElementById("mapModalBg")?.addEventListener("click", () => openMapModal(false));
 
-        const title = (document.getElementById("taskTitle")?.value || "").trim();
-        const markerColor = document.getElementById("taskMarkerColor")?.value || "fuchsia";
-        const pointsCount = Number(document.getElementById("taskPointsCount")?.value || meta.defaultPoints || 1);
+      document.getElementById("btnBaseOSM")?.addEventListener("click", () => { setBaseLayer("osm"); persistAll(); });
+      document.getElementById("btnBaseSAT")?.addEventListener("click", () => { setBaseLayer("sat"); persistAll(); });
 
-        const latA = toNumOrNull(document.getElementById("taskLatA")?.value);
-        const lonA = toNumOrNull(document.getElementById("taskLonA")?.value);
-        const latB = toNumOrNull(document.getElementById("taskLatB")?.value);
-        const lonB = toNumOrNull(document.getElementById("taskLonB")?.value);
-        const latC = toNumOrNull(document.getElementById("taskLatC")?.value);
-        const lonC = toNumOrNull(document.getElementById("taskLonC")?.value);
+      document.getElementById("btnCenter")?.addEventListener("click", centerOnPos);
 
-        if (!isFiniteNum(latA) || !isFiniteNum(lonA)) { showSnackbar("Bitte Lat/Lon (A) setzen."); return; }
-
-        const points = [{ label:"A", lat: latA, lon: lonA }];
-        if (pointsCount >= 2) { if (!isFiniteNum(latB) || !isFiniteNum(lonB)) { showSnackbar("Bitte Lat/Lon (B) setzen."); return; } points.push({ label:"B", lat: latB, lon: lonB }); }
-        if (pointsCount >= 3) { if (!isFiniteNum(latC) || !isFiniteNum(lonC)) { showSnackbar("Bitte Lat/Lon (C) setzen."); return; } points.push({ label:"C", lat: latC, lon: lonC }); }
-
-        const r1 = toNumOrNull(document.getElementById("taskR1")?.value) || 0;
-        const r2 = toNumOrNull(document.getElementById("taskR2")?.value) || 0;
-        const ang = toNumOrNull(document.getElementById("taskAngle")?.value) || 0;
-        const altMin = toNumOrNull(document.getElementById("taskAltMin")?.value) || 0;
-        const altMax = toNumOrNull(document.getElementById("taskAltMax")?.value);
-        const altMaxSafe = isFiniteNum(altMax) ? altMax : 9999;
-
-        const t = {
-          id: genId("task"),
-          typeId: meta.id,
-          typeCode: meta.code,
-          typeTitle: meta.title,
-          kind: meta.kind,
-          title: title || `${meta.code}`,
-          points,
-          r1M: Math.max(0, r1),
-          r2M: Math.max(0, r2),
-          angleDeg: normDeg(ang),
-          altMinM: Math.max(0, altMin),
-          altMaxM: Math.max(0, altMaxSafe),
-          markerColor,
-          createdTs: Date.now()
-        };
-
-        STATE.tasks.list.push(t);
+      // Follow toggle
+      document.getElementById("tglFollow")?.addEventListener("change", (e) => {
+        STATE.ui.followGps = !!e.target.checked;
+        updateFollowToggleUi();
         persistAll();
-        renderTaskList();
-        rebuildTaskOverlays();
-        zoomToTask(t.id);
-        showSnackbar("Task angelegt.");
-        setActiveTask(t.id);
       });
 
-      // Wind controls
-      document.getElementById("btnWindAdd")?.addEventListener("click", () => {
-        const alt = toNumOrNull(document.getElementById("windAlt")?.value);
-        const dir = toNumOrNull(document.getElementById("windDirFrom")?.value);
-        const spd = toNumOrNull(document.getElementById("windSpd")?.value);
-        if (!isFiniteNum(alt) || !isFiniteNum(dir) || !isFiniteNum(spd)) { showSnackbar("Wind: Bitte Höhe/Richtung/Speed eingeben."); return; }
-        addWindEntry({ altM: alt, dirFromDeg: dir, speedKmh: spd, source: "manuell" });
-        showSnackbar("Wind-Eintrag hinzugefügt.");
+      // Flight controls
+      document.getElementById("btnStartFlight")?.addEventListener("click", () => {
+        const t = getActiveTask();
+        const title = t ? `${t.code} — ${t.title || t.typeTitle}` : "Fahrt";
+        beginFlight(title);
       });
-      document.getElementById("btnWindFetchOnline2")?.addEventListener("click", fetchWindFromOpenMeteo);
-      document.getElementById("btnWindShowHud")?.addEventListener("click", () => { STATE.ui.windHudOpen = true; document.getElementById("windHud")?.classList.remove("hidden"); renderWindHud(); });
-      document.getElementById("btnWindClear")?.addEventListener("click", () => {
-        STATE.wind.entries = [];
-        persistAll();
-        renderWindList();
-        renderWindHud();
-        rebuildTrajectory();
-        showSnackbar("Windprofil geleert.");
-      });
-
-      // Setup controls
-      document.getElementById("btnWakeLock")?.addEventListener("click", toggleWakeLock);
-      document.getElementById("btnSetupSave")?.addEventListener("click", () => {
-        const u = document.getElementById("unitSpeed")?.value || "kmh";
-        const traj = document.getElementById("trajMinutes")?.value || "5,10,15";
-        const gpsI = toNumOrNull(document.getElementById("gpsMinInterval")?.value);
-        const minD = toNumOrNull(document.getElementById("trackMinDist")?.value);
-
-        STATE.setup.unitSpeed = u;
-        STATE.setup.trajMinutes = traj.split(",").map(x => Number(x)).filter(Number.isFinite);
-        STATE.setup.gpsMinInterval = isFiniteNum(gpsI) ? clamp(gpsI, 200, 5000) : STATE.setup.gpsMinInterval;
-        STATE.setup.trackMinDist = isFiniteNum(minD) ? clamp(minD, 1, 100) : STATE.setup.trackMinDist;
-
-        persistAll();
-        rebuildTrajectory();
-        showSnackbar("Setup gespeichert.");
-      });
-
-      // KML import
-      document.getElementById("kmlFile")?.addEventListener("change", (e) => {
-        const file = e.target.files?.[0];
-        if (file) importKmlFile(file);
-        e.target.value = "";
-      });
-
-      // Archive controls
-      document.getElementById("btnArchiveClear")?.addEventListener("click", () => {
-        STATE.archive = [];
-        persistAll();
-        renderArchive();
-        showSnackbar("Archiv geleert.");
-      });
-
-      // Finish flight & marker
       document.getElementById("btnFinish")?.addEventListener("click", finishFlight);
+
+      // Marker
       document.getElementById("btnMarker")?.addEventListener("click", dropMarker);
 
-      // Visibility change: re-sync wake lock badge
-      document.addEventListener("visibilitychange", async () => {
-        if (document.visibilityState === "visible") updateWakeBadge();
+      // Task form
+      document.getElementById("taskType")?.addEventListener("change", (e) => {
+        const code = e.target.value;
+        renderTaskFieldsForCode(code);
+        setMarkerButtonColor(code);
+        persistAll();
       });
 
-      updateNavAndStrategy();
-      rebuildTrajectory();
+      document.getElementById("btnApplyTask")?.addEventListener("click", applyTask);
+      document.getElementById("btnClearTask")?.addEventListener("click", clearTask);
+
+      document.getElementById("btnSetTargetFromMap")?.addEventListener("click", enableMapPick);
+
+      document.getElementById("btnAPTStart")?.addEventListener("click", startAPT);
+
+      // ELB helper buttons
+      document.getElementById("btnSetA")?.addEventListener("click", () => setHelperPoint("A"));
+      document.getElementById("btnSetB")?.addEventListener("click", () => setHelperPoint("B"));
+      document.getElementById("btnSetC")?.addEventListener("click", () => setHelperPoint("C"));
+
+      // Wind panel
+      document.getElementById("btnAddWind")?.addEventListener("click", () => {
+        const alt = safeFloat(document.getElementById("windAlt")?.value, null);
+        const dir = safeFloat(document.getElementById("windDirFrom")?.value, null);
+        const spd = safeFloat(document.getElementById("windSpd")?.value, null);
+        if (alt == null || dir == null || spd == null) { showSnackbar("Wind: Werte fehlen."); return; }
+        addWindLayer({ altM: alt, fromDeg: dir, speedKmh: spd, ts: now(), source: "manual" });
+      });
+      document.getElementById("btnClearWind")?.addEventListener("click", () => {
+        STATE.wind.layers = [];
+        persistAll();
+        updateWindPanel();
+        updateWindHud();
+        updateNavToast();
+        showSnackbar("Wind gelöscht.");
+      });
+
+      // Setup
+      const tglSim = document.getElementById("tglSim");
+      const knobSim = document.getElementById("tglSimKnob");
+      if (tglSim && knobSim) setToggleUI(tglSim, knobSim, STATE.sim.enabled);
+      tglSim?.addEventListener("change", (e) => {
+        if (tglSim && knobSim) setToggleUI(tglSim, knobSim, e.target.checked);
+        initSimulationToggle(e.target.checked);
+      });
+
+      document.getElementById("btnWakeLock")?.addEventListener("click", requestWakeLock);
+      document.getElementById("btnReset")?.addEventListener("click", () => {
+        STATE.ui.followGps = true;
+        STATE.ui.windHudOpen = false;
+        updateFollowToggleUi();
+        updateWindHud();
+        showSnackbar("UI zurückgesetzt.");
+        persistAll();
+      });
+
+      document.getElementById("kmlFile")?.addEventListener("change", (e) => {
+        const f = e.target.files?.[0];
+        importKmlFile(f);
+      });
+
+      // Archive
+      document.getElementById("btnClearArchive")?.addEventListener("click", () => {
+        STATE.flight.archive = [];
+        persistAll();
+        updateArchivePanel();
+        showSnackbar("Archiv gelöscht.");
+      });
+
+      // Sim controls (press & hold)
+      const burner = document.getElementById("btnBurner");
+      const vent = document.getElementById("btnVent");
+
+      const press = (el, onDown, onUp) => {
+        if (!el) return;
+        el.addEventListener("pointerdown", (e)=>{ e.preventDefault(); onDown(true); });
+        el.addEventListener("pointerup",   (e)=>{ e.preventDefault(); onUp(false); });
+        el.addEventListener("pointercancel",(e)=>{ e.preventDefault(); onUp(false); });
+        el.addEventListener("pointerleave",(e)=>{ onUp(false); });
+      };
+      press(burner, handleBurner, handleBurner);
+      press(vent, handleVent, handleVent);
+
+      // WakeLock reacquire
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible" && STATE.ui.wakeLock) {
+          requestWakeLock();
+        }
+      });
+
+      // Start GPS unless simulation
+      if (STATE.sim.enabled) {
+        initSimulationToggle(true);
+      } else {
+        initGPS();
+      }
+
+      // Final UI pass
+      updateButtons();
+      updateGpsBadge();
+      updateNavToast();
+      updateWindPanel();
+      updateArchivePanel();
     };
   </script>
 </body>
 </html>
-```0
