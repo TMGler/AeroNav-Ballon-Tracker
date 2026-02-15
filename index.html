@@ -20,7 +20,7 @@
   <!-- Leaflet Omnivore (KML import) -->
   <script src="https://unpkg.com/leaflet-omnivore@0.3.4/leaflet-omnivore.min.js"></script>
 
-  <!-- FontAwesome -->
+  <!-- FontAwesome (UI Icons only) -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 
   <style>
@@ -35,9 +35,26 @@
     .shadow-soft { box-shadow: 0 12px 30px rgba(0,0,0,.35); }
     .panel-scroll { max-height: calc(100vh - 7.5rem); overflow: auto; -webkit-overflow-scrolling: touch; }
     .mono { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
-    .balloon-icon { width: 28px; height: 28px; display: grid; place-items: center; }
-    .balloon-rot { width: 28px; height: 28px; display: grid; place-items: center; transform-origin: 50% 50%; }
     .leaflet-control-container { z-index: 10; }
+
+    .wp-x {
+      width: 22px; height: 22px;
+      display: grid; place-items: center;
+      border-radius: 9999px;
+      background: rgba(2,6,23,.75);
+      border: 2px solid rgba(251,191,36,.95);
+      color: rgba(251,191,36,.95);
+      font-weight: 900;
+      font-size: 14px;
+      line-height: 1;
+      box-shadow: 0 8px 18px rgba(0,0,0,.35);
+      pointer-events: none;
+    }
+
+    /* footer marker strip */
+    .marker-strip { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .marker-strip::-webkit-scrollbar { height: 6px; }
+    .marker-strip::-webkit-scrollbar-thumb { background: rgba(148,163,184,.35); border-radius: 9999px; }
   </style>
 </head>
 
@@ -59,6 +76,8 @@
               </span>
               <span class="mx-2 text-slate-600">•</span>
               <span id="modeText">LIVE</span>
+              <span class="mx-2 text-slate-600">•</span>
+              <span id="briefingHeaderBadge" class="hidden text-amber-300 font-bold truncate">Briefing: –</span>
             </div>
           </div>
         </div>
@@ -71,14 +90,8 @@
             <i class="fa-solid fa-flag-checkered mr-2"></i>Fertig
           </button>
 
-          <!-- Wind dock toggle -->
-          <button id="btnWindHud" class="btn-touch h-10 w-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800" title="Windpanel ein/ausklappen">
+          <button id="btnWindHud" class="btn-touch h-10 w-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800">
             <i class="fa-solid fa-wind text-slate-200"></i>
-          </button>
-
-          <!-- Point edit dock toggle -->
-          <button id="btnPointDock" class="btn-touch h-10 w-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800" title="Punkt ändern (ohne Menü)">
-            <i class="fa-solid fa-crosshairs text-slate-200"></i>
           </button>
 
           <button id="btnMapSettings" class="btn-touch h-10 w-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800">
@@ -100,131 +113,40 @@
     <main class="relative flex-1 min-h-0">
       <div id="map" class="absolute inset-0 z-0"></div>
 
-      <!-- Wind Dock (LEFT, collapsible) -->
-      <div class="absolute left-0 top-3 z-50">
-        <!-- Collapsed -->
-        <div id="windDockCollapsed" class="hidden rounded-r-2xl bg-slate-950/80 backdrop-blur border border-slate-800 shadow-soft px-2 py-2 flex flex-col items-center gap-2">
-          <button id="btnWindDockExpand" class="btn-touch h-10 w-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800" title="Windpanel öffnen">
-            <i class="fa-solid fa-chevron-right"></i>
-          </button>
-          <button id="btnWindDockFetchMini" class="btn-touch h-10 w-10 rounded-xl bg-sky-400 hover:bg-sky-300 active:bg-sky-500 text-slate-950 font-extrabold" title="Online-Wind">
-            <i class="fa-solid fa-cloud-arrow-down"></i>
-          </button>
-          <div class="w-10 h-px bg-slate-800 my-1"></div>
-          <div class="text-[10px] text-slate-400 text-center leading-3">
-            <div class="font-bold text-slate-200">NAV</div>
-            <div id="windDockMiniDist" class="mono text-slate-200">–</div>
-          </div>
-        </div>
-
-        <!-- Expanded -->
-        <div id="windDockExpanded" class="rounded-r-2xl bg-slate-950/80 backdrop-blur border border-slate-800 shadow-soft w-[72vw] max-w-[320px]">
-          <div class="px-2 py-2 flex items-center gap-2 border-b border-slate-800">
-            <button id="btnWindDockCollapse" class="btn-touch h-10 w-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800" title="Einklappen">
-              <i class="fa-solid fa-chevron-left"></i>
+      <!-- Wind HUD -->
+      <div id="windHud" class="hidden absolute left-3 top-3 z-50 w-[86vw] max-w-[360px] rounded-2xl bg-slate-950/80 backdrop-blur border border-slate-800 shadow-soft">
+        <div class="px-3 py-2 flex items-center gap-2 border-b border-slate-800">
+          <div class="font-bold"><i class="fa-solid fa-wind mr-2 text-sky-300"></i>Wind HUD</div>
+          <div class="ml-auto flex items-center gap-2">
+            <button id="btnWindFetch" class="btn-touch px-3 h-9 rounded-xl bg-sky-400 text-slate-950 font-extrabold text-sm hover:bg-sky-300 active:bg-sky-500">
+              <i class="fa-solid fa-cloud-arrow-down mr-2"></i>Online
             </button>
-            <div class="font-extrabold text-sm flex items-center gap-2">
-              <i class="fa-solid fa-wind text-sky-300"></i>
-              <span>Wind</span>
-            </div>
-            <div class="ml-auto flex items-center gap-2">
-              <button id="btnWindFetch" class="btn-touch px-3 h-10 rounded-xl bg-sky-400 text-slate-950 font-extrabold text-sm hover:bg-sky-300 active:bg-sky-500" title="Online von Open-Meteo">
-                <i class="fa-solid fa-cloud-arrow-down mr-2"></i>Online
-              </button>
-            </div>
-          </div>
-
-          <div class="px-2 py-2">
-            <div class="text-[11px] text-slate-400 mb-2">
-              Pfeil zeigt <span class="text-slate-200 font-bold">DRIFT (to)</span>, darunter <span class="text-slate-200 font-bold">FROM</span>.
-            </div>
-
-            <div id="windDockLayers" class="space-y-1"></div>
-
-            <div class="mt-2 border-t border-slate-800 pt-2">
-              <div class="flex items-center gap-2 mb-1">
-                <i class="fa-solid fa-route text-emerald-300"></i>
-                <div class="font-extrabold text-sm truncate" id="windDockNavName">Kein Task aktiv</div>
-              </div>
-              <div class="grid grid-cols-2 gap-2">
-                <div class="rounded-2xl bg-slate-900/60 border border-slate-800 px-3 py-2">
-                  <div class="text-[11px] text-slate-400">Distanz</div>
-                  <div class="font-extrabold mono text-base" id="windDockNavDist">–</div>
-                </div>
-                <div class="rounded-2xl bg-slate-900/60 border border-slate-800 px-3 py-2">
-                  <div class="text-[11px] text-slate-400">Bearing</div>
-                  <div class="font-extrabold mono text-base" id="windDockNavBrg">–</div>
-                </div>
-              </div>
-              <div class="mt-2 rounded-2xl bg-slate-900/60 border border-slate-800 px-3 py-2">
-                <div class="text-[11px] text-slate-400">Empfehlung</div>
-                <div class="font-extrabold text-sm" id="windDockNavRec">–</div>
-              </div>
-              <div class="mt-2 text-xs text-slate-400">
-                Task kommt aus dem <span class="text-slate-200 font-bold">Briefing</span> (Menü → Task).
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Point Dock (RIGHT, keep map active) -->
-      <div class="absolute right-3 top-28 z-50">
-        <div id="pointDockCollapsed" class="rounded-2xl bg-slate-950/80 backdrop-blur border border-slate-800 shadow-soft px-2 py-2">
-          <button id="btnPointDockExpand" class="btn-touch h-10 w-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800" title="Punkt ändern">
-            <i class="fa-solid fa-crosshairs"></i>
-          </button>
-        </div>
-
-        <div id="pointDockExpanded" class="hidden w-[72vw] max-w-[330px] rounded-2xl bg-slate-950/85 backdrop-blur border border-slate-800 shadow-soft">
-          <div class="px-3 py-2 flex items-center gap-2 border-b border-slate-800">
-            <div class="font-extrabold text-sm flex items-center gap-2">
-              <i class="fa-solid fa-crosshairs text-amber-300"></i>
-              <span>Punkt ändern</span>
-            </div>
-            <button id="btnPointDockCollapse" class="ml-auto btn-touch h-9 w-9 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800">
+            <button id="btnWindClose" class="btn-touch h-9 w-9 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800">
               <i class="fa-solid fa-xmark"></i>
             </button>
           </div>
+        </div>
+        <div class="px-3 py-2">
+          <div class="text-xs text-slate-400 mb-2">Schichten (Höhe / Richtung / Speed)</div>
+          <div id="windHudList" class="space-y-2"></div>
+        </div>
+      </div>
 
-          <div class="px-3 py-2">
-            <div class="text-xs text-slate-400 mb-2">
-              Tipp: Du kannst jeden Punkt jederzeit neu setzen — ohne Menü.
-            </div>
-
-            <div class="rounded-2xl bg-slate-900/50 border border-slate-800 px-3 py-2 mb-2">
-              <div class="text-[11px] text-slate-400">Aktuell</div>
-              <div class="font-extrabold text-sm truncate" id="pointDockTaskName">Kein Task</div>
-            </div>
-
-            <div class="flex items-center gap-2">
-              <div class="text-xs text-slate-400 shrink-0">Punkt</div>
-              <div id="pointDockPoints" class="flex-1 flex gap-1 overflow-x-auto"></div>
-            </div>
-
-            <div class="mt-2 grid grid-cols-2 gap-2">
-              <button id="btnPointPick" class="btn-touch h-10 rounded-xl bg-sky-400 hover:bg-sky-300 active:bg-sky-500 text-slate-950 font-extrabold">
-                <i class="fa-solid fa-hand-pointer mr-2"></i>Auf Karte setzen
-              </button>
-              <button id="btnPointCancelPick" class="btn-touch h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-extrabold">
-                <i class="fa-solid fa-ban mr-2"></i>Abbrechen
-              </button>
-            </div>
-
-            <div id="pointPickHint" class="hidden mt-2 rounded-2xl bg-amber-400/10 border border-amber-400/30 px-3 py-2 text-xs text-amber-200">
-              Jetzt auf die Karte tippen, um den ausgewählten Punkt neu zu setzen.
-            </div>
-
-            <div class="mt-2 rounded-2xl bg-slate-900/50 border border-slate-800 px-3 py-2">
-              <div class="text-[11px] text-slate-400">Koordinaten</div>
-              <div class="mono font-extrabold text-sm" id="pointDockCoords">–</div>
-            </div>
-          </div>
+      <!-- Nav Toast -->
+      <div id="navToast" class="hidden absolute left-1/2 top-3 -translate-x-1/2 z-50 rounded-2xl bg-slate-950/80 backdrop-blur border border-slate-800 shadow-soft px-4 py-2 max-w-[92vw]">
+        <div class="text-sm font-bold truncate">
+          <i id="navIcon" class="fa-solid fa-route mr-2 text-emerald-300"></i>
+          <span id="navTitle">–</span>
+        </div>
+        <div class="text-xs text-slate-300 mt-0.5">
+          <span class="mono" id="navLine1">–</span>
+          <span class="mx-2 text-slate-600">•</span>
+          <span id="navLine2">–</span>
         </div>
       </div>
 
       <!-- Simulation Controls -->
-      <div id="simControls" class="hidden absolute left-3 top-28 z-50 flex flex-col gap-2">
+      <div id="simControls" class="hidden absolute left-3 top-24 z-50 flex flex-col gap-2">
         <button id="btnBurner" class="btn-touch select-none no-select w-28 h-16 rounded-2xl bg-orange-400 text-slate-950 font-extrabold shadow-soft active:scale-[0.99]">
           <i class="fa-solid fa-fire-flame-curved mr-2"></i>AUF
         </button>
@@ -290,17 +212,18 @@
           </div>
         </div>
 
-        <button id="btnMarker" class="btn-touch w-20 h-16 rounded-2xl bg-pink-400 hover:bg-pink-300 active:bg-pink-500 text-slate-950 font-extrabold shadow-soft">
-          <i class="fa-solid fa-location-dot mr-2"></i>MARK
-        </button>
+        <!-- Marker strip (dynamic) -->
+        <div class="marker-strip flex items-center gap-2 w-[44vw] max-w-[520px]">
+          <div id="markerStrip" class="flex items-center gap-2"></div>
+        </div>
       </div>
     </footer>
   </div>
 
   <!-- Side Drawer -->
-  <div id="drawerWrap" class="hidden fixed inset-0 z-[60]">
+  <div id="drawerWrap" class="hidden fixed inset-0 z-[70]">
     <div id="drawerBg" class="absolute inset-0 bg-black/60"></div>
-    <aside id="drawer" class="absolute right-0 top-0 h-full w-[90vw] max-w-[380px] bg-slate-950 border-l border-slate-800 shadow-soft flex flex-col">
+    <aside id="drawer" class="absolute right-0 top-0 h-full w-[92vw] max-w-[420px] bg-slate-950 border-l border-slate-800 shadow-soft flex flex-col">
       <div class="safe-top px-4 py-3 flex items-center border-b border-slate-800">
         <div class="font-extrabold"><i class="fa-solid fa-compass mr-2 text-sky-300"></i>Menü</div>
         <button id="btnDrawerClose" class="ml-auto h-9 w-9 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 btn-touch">
@@ -320,126 +243,170 @@
       <div class="px-4 py-3 panel-scroll">
         <!-- TASK -->
         <section id="tab_task" class="space-y-4">
-          <!-- sub tabs -->
-          <div class="grid grid-cols-2 gap-2">
-            <button id="btnTaskSubBriefing" class="btn-touch h-10 rounded-xl bg-sky-400 text-slate-950 font-extrabold border border-sky-300">
-              <i class="fa-solid fa-clipboard-list mr-2"></i>Briefing
-            </button>
-            <button id="btnTaskSubLive" class="btn-touch h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-extrabold">
-              <i class="fa-solid fa-tower-broadcast mr-2"></i>Live
-            </button>
-          </div>
 
-          <!-- BRIEFING CONTAINER -->
-          <div id="taskSub_briefing" class="space-y-3">
-            <div class="rounded-2xl bg-slate-900/45 border border-slate-800 p-3">
-              <div class="font-extrabold mb-2"><i class="fa-solid fa-tag mr-2 text-amber-300"></i>Briefing Titel</div>
-              <input id="briefingTitle" type="text" class="h-10 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 font-bold"
-                     placeholder="z.B. Morgenfahrt" />
-              <div class="mt-2 text-xs text-slate-400">
-                Wird für Start/Archiv verwendet (Fahrt startet <span class="text-slate-200 font-bold">nicht automatisch</span>).
-              </div>
+          <!-- Briefing Builder -->
+          <div class="rounded-2xl bg-slate-900/50 border border-slate-800 p-3">
+            <div class="font-extrabold mb-2"><i class="fa-solid fa-clipboard-list mr-2 text-amber-300"></i>Briefing (Planung)</div>
+
+            <div class="grid grid-cols-1 gap-2">
+              <label class="text-xs text-slate-400">Briefing auswählen</label>
+              <select id="briefingSelect" class="h-11 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 font-bold"></select>
             </div>
 
-            <div class="rounded-2xl bg-slate-900/45 border border-slate-800 p-3">
-              <div class="flex items-center gap-2 mb-2">
-                <div class="font-extrabold"><i class="fa-solid fa-clipboard-list mr-2 text-emerald-300"></i>Briefing Aufgaben</div>
-                <button id="btnBriefingNew" class="ml-auto btn-touch h-9 px-3 rounded-xl bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 text-slate-950 font-extrabold text-sm">
-                  <i class="fa-solid fa-plus mr-2"></i>Neu
-                </button>
-              </div>
-              <div class="text-xs text-slate-400 mb-2">
-                Mehrere Aufgaben anlegen, dann eine als aktiv wählen. Punkte kannst du später auch über das <span class="text-slate-200 font-bold">Fadenkreuz</span> (oben) ändern.
-              </div>
-              <div id="briefingList" class="space-y-2"></div>
+            <div class="mt-2 grid grid-cols-2 gap-2">
+              <button id="btnBriefNew" class="btn-touch h-11 rounded-xl bg-amber-300 hover:bg-amber-200 active:bg-amber-400 text-slate-950 font-extrabold">
+                <i class="fa-solid fa-plus mr-2"></i>Neu
+              </button>
+              <button id="btnBriefDup" class="btn-touch h-11 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-extrabold">
+                <i class="fa-solid fa-clone mr-2"></i>Dupl.
+              </button>
             </div>
 
-            <!-- Smaller editor -->
-            <div class="rounded-2xl bg-slate-900/45 border border-slate-800 p-3">
-              <div class="flex items-center gap-2 mb-2">
-                <div class="font-extrabold"><i class="fa-solid fa-pen-to-square mr-2 text-sky-300"></i>Editor</div>
-                <div class="ml-auto flex items-center gap-2">
-                  <div class="text-[10px] px-2 py-0.5 rounded-full bg-slate-950/60 border border-slate-800 mono" id="editorModeBadge">Neu</div>
-                  <div class="text-[10px] px-2 py-0.5 rounded-full bg-slate-950/60 border border-slate-800 mono" id="editorMarkerBadge">Marker: –</div>
+            <div class="mt-2 grid grid-cols-2 gap-2">
+              <button id="btnBriefSave" class="btn-touch h-11 rounded-xl bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 text-slate-950 font-extrabold">
+                <i class="fa-solid fa-floppy-disk mr-2"></i>Speichern
+              </button>
+              <button id="btnBriefDelete" class="btn-touch h-11 rounded-xl bg-rose-500 hover:bg-rose-400 active:bg-rose-600 text-slate-950 font-extrabold">
+                <i class="fa-solid fa-trash mr-2"></i>Löschen
+              </button>
+            </div>
+
+            <div class="mt-3 rounded-2xl bg-slate-950/60 border border-slate-800 p-3 space-y-2">
+              <div>
+                <div class="text-xs text-slate-400 mb-1">Titel</div>
+                <input id="briefTitle" type="text" class="h-11 w-full rounded-xl bg-slate-950 border border-slate-700 px-3" placeholder="z.B. German Cup Abendfahrt" />
+              </div>
+
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <div class="text-xs text-slate-400 mb-1">Startperiode von</div>
+                  <input id="briefStartFrom" type="time" class="h-11 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 mono" />
+                </div>
+                <div>
+                  <div class="text-xs text-slate-400 mb-1">Startperiode bis</div>
+                  <input id="briefStartTo" type="time" class="h-11 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 mono" />
                 </div>
               </div>
 
-              <div class="grid grid-cols-1 gap-2">
-                <label class="text-[11px] text-slate-400">Task-Typ</label>
-                <select id="taskType" class="h-10 rounded-xl bg-slate-950 border border-slate-700 px-3 font-extrabold text-sm"></select>
-
-                <label class="text-[11px] text-slate-400 mt-1">Task-Name (optional)</label>
-                <input id="taskTitle" type="text" placeholder="z.B. JDG Ziel 1" class="h-10 rounded-xl bg-slate-950 border border-slate-700 px-3 text-sm" />
+              <div>
+                <div class="text-xs text-slate-400 mb-1">Wertungsende</div>
+                <input id="briefScoringEnd" type="time" class="h-11 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 mono" />
               </div>
 
-              <div id="taskFields" class="mt-3 space-y-3"></div>
-
-              <div class="mt-3 grid grid-cols-3 gap-2">
-                <button id="btnSaveBriefing" class="btn-touch h-10 rounded-xl bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 text-slate-950 font-extrabold text-sm">
-                  <i class="fa-solid fa-floppy-disk mr-2"></i>Save
-                </button>
-                <button id="btnPreviewTask" class="btn-touch h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-extrabold text-sm">
-                  <i class="fa-solid fa-map-location-dot mr-2"></i>Vorschau
-                </button>
-                <button id="btnSetActiveFromEditor" class="btn-touch h-10 rounded-xl bg-sky-400 hover:bg-sky-300 active:bg-sky-500 text-slate-950 font-extrabold text-sm">
-                  <i class="fa-solid fa-bullseye mr-2"></i>Aktiv
-                </button>
+              <div class="flex items-center justify-between rounded-2xl bg-slate-950/60 border border-slate-800 px-3 py-2">
+                <div>
+                  <div class="font-bold">Task-Reihenfolge</div>
+                  <div class="text-xs text-slate-400">Fix (nacheinander) oder frei wählbar.</div>
+                </div>
+                <select id="briefOrderMode" class="h-10 rounded-xl bg-slate-950 border border-slate-700 px-3 font-bold text-sm">
+                  <option value="fixed">Fix</option>
+                  <option value="free">Frei</option>
+                </select>
               </div>
 
               <div class="mt-2 grid grid-cols-2 gap-2">
-                <button id="btnClearEditor" class="btn-touch h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-extrabold text-sm">
-                  <i class="fa-solid fa-eraser mr-2"></i>Leeren
+                <button id="btnBriefActivate" class="btn-touch h-11 rounded-xl bg-sky-400 hover:bg-sky-300 active:bg-sky-500 text-slate-950 font-extrabold">
+                  <i class="fa-solid fa-bolt mr-2"></i>Aktivieren
                 </button>
-                <button id="btnShowActiveOnMap" class="btn-touch h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-extrabold text-sm">
-                  <i class="fa-solid fa-bullseye mr-2"></i>Aktiv zeigen
+                <button id="btnBriefDeactivate" class="btn-touch h-11 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-extrabold">
+                  <i class="fa-solid fa-circle-xmark mr-2"></i>Deaktiv.
                 </button>
               </div>
 
-              <div class="mt-3 text-xs text-slate-400">
-                Punkte ändern ohne Menü: oben <span class="text-slate-200 font-bold">Fadenkreuz</span> → Punkt wählen → „Auf Karte setzen“.
+              <div class="text-xs text-slate-400 mt-2">
+                Aktiviertes Briefing steuert die Task-Abarbeitung in der Fahrt. Marker-Buttons unten werden daraus generiert.
               </div>
             </div>
           </div>
 
-          <!-- LIVE CONTAINER -->
-          <div id="taskSub_live" class="hidden space-y-4">
-            <div class="rounded-2xl bg-slate-900/50 border border-slate-800 p-3">
-              <div class="font-extrabold mb-2"><i class="fa-solid fa-bullseye mr-2 text-emerald-300"></i>Aktiver Task</div>
-              <div class="rounded-2xl bg-slate-950/60 border border-slate-800 p-3">
-                <div class="font-extrabold truncate" id="activeTaskTitle">Kein Task aktiv</div>
-                <div class="text-xs text-slate-400 mt-1" id="activeTaskHint">Wähle im Briefing eine Aufgabe und setze sie „Aktiv“.</div>
+          <!-- Task Editor (single task form) -->
+          <div class="rounded-2xl bg-slate-900/50 border border-slate-800 p-3">
+            <div class="font-extrabold mb-2"><i class="fa-solid fa-flag mr-2 text-emerald-300"></i>Task Editor (für Briefing)</div>
+
+            <label class="text-xs text-slate-400">Task-Typ</label>
+            <select id="taskType" class="h-11 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 font-bold"></select>
+
+            <label class="text-xs text-slate-400 mt-3 block">Task-Titel (optional)</label>
+            <input id="taskTitle" type="text" placeholder="z.B. JDG Zielkreuz Dorf" class="h-11 w-full rounded-xl bg-slate-950 border border-slate-700 px-3" />
+
+            <div class="mt-3 rounded-2xl bg-slate-950/60 border border-slate-800 p-3">
+              <div class="flex items-center justify-between">
+                <div>
+                  <div class="font-bold">Marker-Anzahl</div>
+                  <div class="text-xs text-slate-400">Wird aus Task abgeleitet, kann aber angepasst werden.</div>
+                </div>
+                <input id="taskMarkerCount" type="number" min="0" max="6" class="h-10 w-20 rounded-xl bg-slate-950 border border-slate-700 px-3 mono font-extrabold text-center" value="1" />
               </div>
-              <div class="mt-2 grid grid-cols-2 gap-2">
-                <button id="btnClearActive" class="btn-touch h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-extrabold text-sm">
-                  <i class="fa-solid fa-trash mr-2"></i>Aktiv löschen
-                </button>
-                <button id="btnCycleTask" class="btn-touch h-10 rounded-xl bg-sky-400 hover:bg-sky-300 active:bg-sky-500 text-slate-950 font-extrabold text-sm">
-                  <i class="fa-solid fa-forward-step mr-2"></i>Nächste
-                </button>
-              </div>
-              <div class="mt-2 text-xs text-slate-400">
-                Navigation links im <span class="text-slate-200 font-bold">Windpanel</span>. Punkte neu setzen: Fadenkreuz (oben).
+
+              <div class="mt-3">
+                <div class="text-xs text-slate-400 mb-2">Marker-Farben (frei wählbar)</div>
+                <div id="taskMarkerColors" class="grid grid-cols-3 gap-2"></div>
               </div>
             </div>
 
-            <div class="rounded-2xl bg-slate-900/50 border border-slate-800 p-3">
-              <div class="font-extrabold mb-2"><i class="fa-solid fa-diagram-project mr-2 text-sky-300"></i>ELB Helper (optional)</div>
-              <div class="text-xs text-slate-400 mb-3">Nur sinnvoll während aktiver Fahrt (Trackpunkte setzen).</div>
-              <div class="grid grid-cols-3 gap-2">
-                <button id="btnSetA" class="btn-touch h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-bold text-sm">Set A</button>
-                <button id="btnSetB" class="btn-touch h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-bold text-sm">Set B</button>
-                <button id="btnSetC" class="btn-touch h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-bold text-sm">Set C</button>
-              </div>
-              <div class="mt-3 text-sm">
-                <div class="text-xs text-slate-400">ELB Ergebnis (°):</div>
-                <div class="font-extrabold mono text-lg" id="elbowResult">–</div>
-              </div>
+            <div id="taskFields" class="mt-3 space-y-3"></div>
+
+            <div class="mt-3 grid grid-cols-2 gap-2">
+              <button id="btnAddTaskToBrief" class="btn-touch h-11 rounded-xl bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 text-slate-950 font-extrabold">
+                <i class="fa-solid fa-plus mr-2"></i>In Briefing
+              </button>
+              <button id="btnClearTaskForm" class="btn-touch h-11 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-extrabold">
+                <i class="fa-solid fa-eraser mr-2"></i>Reset
+              </button>
             </div>
 
-            <div class="rounded-2xl bg-slate-900/50 border border-slate-800 p-3">
-              <div class="font-extrabold mb-2"><i class="fa-solid fa-list-check mr-2 text-amber-300"></i>Briefing-Liste</div>
-              <div class="text-xs text-slate-400 mb-2">Schnell wechseln (ohne Fahrt-Neustart).</div>
-              <div id="briefingQuickList" class="space-y-2"></div>
+            <div class="mt-3 rounded-2xl bg-slate-950/60 border border-slate-800 p-3">
+              <div class="font-bold text-sm mb-1"><i class="fa-solid fa-hand-pointer mr-2 text-sky-300"></i>Karte tippen</div>
+              <div id="mapPickHint" class="hidden text-xs text-amber-300">
+                Tippe auf die Karte, um Punkt A zu setzen (Briefing).
+              </div>
+              <div class="text-xs text-slate-400 mt-2">
+                Tipp: <span class="font-bold">Langer Klick</span> auf die Karte erstellt einen <span class="font-bold">freien Waypoint</span> (ohne Task).
+              </div>
+            </div>
+          </div>
+
+          <!-- Briefing Task List -->
+          <div class="rounded-2xl bg-slate-900/50 border border-slate-800 p-3">
+            <div class="flex items-center gap-2">
+              <div class="font-extrabold"><i class="fa-solid fa-list-check mr-2 text-sky-300"></i>Tasks im Briefing</div>
+              <div class="ml-auto text-xs text-slate-400" id="briefTaskCount">0</div>
+            </div>
+
+            <div id="briefTasksList" class="mt-3 space-y-2"></div>
+
+            <div class="mt-3 grid grid-cols-2 gap-2">
+              <button id="btnUseSelectedTask" class="btn-touch h-11 rounded-xl bg-sky-400 hover:bg-sky-300 active:bg-sky-500 text-slate-950 font-extrabold">
+                <i class="fa-solid fa-location-dot mr-2"></i>Task aktiv
+              </button>
+              <button id="btnClearActiveTask" class="btn-touch h-11 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-extrabold">
+                <i class="fa-solid fa-ban mr-2"></i>Kein Task
+              </button>
+            </div>
+
+            <div class="mt-3 rounded-2xl bg-slate-950/60 border border-slate-800 p-3">
+              <div class="font-bold text-sm mb-1"><i class="fa-solid fa-route mr-2 text-emerald-300"></i>Abarbeitung</div>
+              <div class="text-xs text-slate-400">
+                Modus „Fix“: nur „Nächster Task“ erlaubt. Modus „Frei“: jeden Task anwählbar.
+              </div>
+              <button id="btnNextTask" class="btn-touch mt-2 w-full h-11 rounded-xl bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 text-slate-950 font-extrabold">
+                <i class="fa-solid fa-forward-step mr-2"></i>Nächster Task
+              </button>
+            </div>
+          </div>
+
+          <!-- Waypoint helper -->
+          <div class="rounded-2xl bg-slate-900/50 border border-slate-800 p-3">
+            <div class="font-extrabold mb-2"><i class="fa-solid fa-diagram-project mr-2 text-sky-300"></i>ELB Helper</div>
+            <div class="text-xs text-slate-400 mb-3">Nur während aktiver Fahrt.</div>
+            <div class="grid grid-cols-3 gap-2">
+              <button id="btnSetA" class="btn-touch h-11 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-bold text-sm">Set A</button>
+              <button id="btnSetB" class="btn-touch h-11 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-bold text-sm">Set B</button>
+              <button id="btnSetC" class="btn-touch h-11 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-bold text-sm">Set C</button>
+            </div>
+            <div class="mt-3 text-sm">
+              <div class="text-xs text-slate-400">ELB Ergebnis (°):</div>
+              <div class="font-extrabold mono text-lg" id="elbowResult">–</div>
             </div>
           </div>
         </section>
@@ -448,18 +415,18 @@
         <section id="tab_wind" class="hidden space-y-4">
           <div class="rounded-2xl bg-slate-900/50 border border-slate-800 p-3">
             <div class="font-extrabold mb-2"><i class="fa-solid fa-wind mr-2 text-sky-300"></i>Windprofil</div>
-            <div class="text-xs text-slate-400 mb-3">Auto-Record: wenn GS &gt; 10 km/h und ΔH&gt;50 m oder ΔKurs&gt;5° (nur während Fahrt).</div>
+            <div class="text-xs text-slate-400 mb-3">Auto-Record nur während Fahrt.</div>
 
             <div class="grid grid-cols-3 gap-2">
-              <input id="windAlt" type="number" placeholder="Höhe m" class="h-10 rounded-xl bg-slate-950 border border-slate-700 px-3 text-sm mono" />
-              <input id="windDirFrom" type="number" placeholder="FROM °" class="h-10 rounded-xl bg-slate-950 border border-slate-700 px-3 text-sm mono" />
-              <input id="windSpd" type="number" placeholder="km/h" class="h-10 rounded-xl bg-slate-950 border border-slate-700 px-3 text-sm mono" />
+              <input id="windAlt" type="number" placeholder="Höhe m" class="h-11 rounded-xl bg-slate-950 border border-slate-700 px-3" />
+              <input id="windDirFrom" type="number" placeholder="Richtung FROM °" class="h-11 rounded-xl bg-slate-950 border border-slate-700 px-3" />
+              <input id="windSpd" type="number" placeholder="Speed km/h" class="h-11 rounded-xl bg-slate-950 border border-slate-700 px-3" />
             </div>
             <div class="mt-2 grid grid-cols-2 gap-2">
-              <button id="btnAddWind" class="btn-touch h-10 rounded-xl bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 text-slate-950 font-extrabold text-sm">
+              <button id="btnAddWind" class="btn-touch h-11 rounded-xl bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 text-slate-950 font-extrabold">
                 <i class="fa-solid fa-plus mr-2"></i>Hinzufügen
               </button>
-              <button id="btnClearWind" class="btn-touch h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-extrabold text-sm">
+              <button id="btnClearWind" class="btn-touch h-11 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-extrabold">
                 <i class="fa-solid fa-trash mr-2"></i>Alle löschen
               </button>
             </div>
@@ -487,11 +454,17 @@
             </div>
 
             <div class="mt-3 grid grid-cols-2 gap-2">
-              <button id="btnWakeLock" class="btn-touch h-10 rounded-xl bg-sky-400 hover:bg-sky-300 active:bg-sky-500 text-slate-950 font-extrabold text-sm">
+              <button id="btnWakeLock" class="btn-touch h-11 rounded-xl bg-sky-400 hover:bg-sky-300 active:bg-sky-500 text-slate-950 font-extrabold">
                 <i class="fa-solid fa-mobile-screen mr-2"></i>WakeLock
               </button>
-              <button id="btnReset" class="btn-touch h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-extrabold text-sm">
+              <button id="btnResetUi" class="btn-touch h-11 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-extrabold">
                 <i class="fa-solid fa-rotate mr-2"></i>Reset UI
+              </button>
+            </div>
+
+            <div class="mt-3 grid grid-cols-1 gap-2">
+              <button id="btnClearWaypoint" class="btn-touch h-11 w-full rounded-xl bg-amber-300 hover:bg-amber-200 active:bg-amber-400 text-slate-950 font-extrabold">
+                <i class="fa-solid fa-xmark mr-2"></i>Waypoint löschen
               </button>
             </div>
 
@@ -516,7 +489,7 @@
             <div class="font-extrabold mb-2"><i class="fa-solid fa-box-archive mr-2 text-sky-300"></i>Archiv</div>
             <div class="text-xs text-slate-400 mb-3">Beendete Fahrten + KML Export (Track + Marker).</div>
             <div id="archiveList" class="space-y-2"></div>
-            <button id="btnClearArchive" class="btn-touch mt-3 w-full h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-extrabold text-sm">
+            <button id="btnClearArchive" class="btn-touch mt-3 w-full h-11 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-extrabold">
               <i class="fa-solid fa-trash mr-2"></i>Archiv löschen
             </button>
           </div>
@@ -531,16 +504,18 @@
      ********************************************************************/
     const APP = {
       name: "CompNavAir",
-      version: "1.2.0",
-      defaultCenter: { lat: 49.317, lon: 8.448 }, // Speyer/EDRY Nähe
+      version: "1.3.0-briefing",
+      defaultCenter: { lat: 49.317, lon: 8.448 },
       defaultZoom: 13,
-      storageKey: "compnavair_v1_2",
+      storageKey: "compnavair_v1_3",
       maxTrackPoints: 20000,
       trackMinDistM: 8,
       maxGpsJumpM: 160,
       gpsSmoothingAlpha: 0.25,
       followPanMinMs: 800,
-      kmlName: "CompNavAir_Export",
+      longPressMs: 650,
+      longPressMovePx: 10,
+      maxMarkerButtons: 6, // UI cap
     };
 
     const TILE = {
@@ -569,45 +544,41 @@
       { num: "15.18", code: "XDD", title: "MAXIMUM DISTANCE ZWEI MARKER" },
       { num: "15.19", code: "ANG", title: "WINKEL" },
       { num: "15.20", code: "3DT", title: "3D-AUFGABE" },
-      { num: "15.21", code: "APT", title: "HÖHENPROFIL-AUFGABE" } // optional
+      { num: "15.21", code: "APT", title: "HÖHENPROFIL-AUFGABE" },
     ];
 
-    // Schema: was muss wirklich angezeigt werden?
-    const TASK_SCHEMA = {
-      PDG: { points: "A",   minPoints: 1, markers: 1, radii: false, setDir: false, apt: false },
-      JDG: { points: "A",   minPoints: 1, markers: 1, radii: false, setDir: false, apt: false },
-      FIN: { points: "A",   minPoints: 1, markers: 1, radii: false, setDir: false, apt: false },
-      FON: { points: "A",   minPoints: 1, markers: 1, radii: false, setDir: false, apt: false },
-      HNH: { points: "A",   minPoints: 1, markers: 1, radii: false, setDir: false, apt: false },
-      WSD: { points: "A",   minPoints: 1, markers: 1, radii: false, setDir: false, apt: false },
-      GBM: { points: "A",   minPoints: 1, markers: 1, radii: false, setDir: false, apt: false },
-      CRT: { points: "A",   minPoints: 1, markers: 1, radii: false, setDir: false, apt: false },
-      MDT: { points: "A",   minPoints: 1, markers: 1, radii: false, setDir: false, apt: false },
-      SFL: { points: "A",   minPoints: 1, markers: 1, radii: false, setDir: false, apt: false },
-      XDT: { points: "A",   minPoints: 1, markers: 1, radii: false, setDir: false, apt: false },
-      XDI: { points: "A",   minPoints: 1, markers: 1, radii: false, setDir: false, apt: false },
-      RTA: { points: "A",   minPoints: 1, markers: 0, radii: false, setDir: false, apt: false }, // vereinfachte Eingabe
-      ELB: { points: "ABC", minPoints: 0, markers: 0, radii: false, setDir: false, apt: false }, // eher Trackpunkte
-      LRN: { points: "ABC", minPoints: 3, markers: 0, radii: false, setDir: false, apt: false },
-      ANG: { points: "AB",  minPoints: 2, markers: 0, radii: false, setDir: true,  apt: false },
-      HWZ: { points: "MULTI", minPoints: 2, markers: 1, radii: false, setDir: false, apt: false },
-      MDD: { points: "AB",  minPoints: 2, markers: 2, radii: false, setDir: false, apt: false },
-      XDD: { points: "AB",  minPoints: 2, markers: 2, radii: false, setDir: false, apt: false },
-      "3DT":{ points: "A",  minPoints: 1, markers: 0, radii: true,  setDir: false, apt: false },
-      APT: { points: "NONE",minPoints: 0, markers: 0, radii: false, setDir: false, apt: true }
+    // Default Marker Count by task nature (can be overridden per task)
+    // 0 = track-only / no marker, 1 = single, 2 = two markers
+    const TASK_DEFAULTS = {
+      PDG: { markerCount: 1 },
+      JDG: { markerCount: 1 },
+      HWZ: { markerCount: 1 },
+      FIN: { markerCount: 1 },
+      FON: { markerCount: 1 },
+      HNH: { markerCount: 1 },
+      WSD: { markerCount: 1 },
+      GBM: { markerCount: 1 },
+      CRT: { markerCount: 1 },
+      RTA: { markerCount: 0 }, // often trackpoint possible
+      ELB: { markerCount: 0 },
+      LRN: { markerCount: 0 },
+      MDT: { markerCount: 1 },
+      SFL: { markerCount: 1 },
+      MDD: { markerCount: 2 },
+      XDT: { markerCount: 1 },
+      XDI: { markerCount: 1 },
+      XDD: { markerCount: 2 },
+      ANG: { markerCount: 0 },
+      "3DT": { markerCount: 0 },
+      APT: { markerCount: 0 },
     };
 
-    const MARKER_COLORS = ["pink","amber","emerald","sky","violet","rose","lime","orange"];
     const COLOR_HEX = {
-      pink:   "#fb7185",
-      amber:  "#fbbf24",
-      emerald:"#34d399",
-      sky:    "#38bdf8",
-      violet: "#a78bfa",
-      rose:   "#f43f5e",
-      lime:   "#a3e635",
-      orange: "#fb923c",
+      pink:"#fb7185", amber:"#fbbf24", emerald:"#34d399", sky:"#38bdf8",
+      violet:"#a78bfa", rose:"#f43f5e", lime:"#a3e635", orange:"#fb923c",
+      slate:"#94a3b8"
     };
+    const DEFAULT_MARKER_COLOR_SET = ["#fb7185","#fbbf24","#34d399","#38bdf8","#a78bfa","#f43f5e"];
 
     /********************************************************************
      * 2) GLOBALE VARIABLEN (STATE)
@@ -620,26 +591,39 @@
         tasksLayer: null,
         trackLayer: null,
         markersLayer: null,
+        pickLayer: null,
+        waypointLayer: null,
+        trajectoryLayer: null,
         kmlLayer: null,
         trackLine: null,
       },
       ui: {
         drawerOpen: false,
         drawerTab: "task",
-        taskSubTab: "briefing",
         followGps: true,
         base: "osm",
+        windHudOpen: false,
+
         mapPickMode: false,
-        mapPickIndex: 0,
-        mapPickLabel: "A",
+        mapPickWhich: "A",
+        pickMarkers: { A:null, B:null, C:null },
+
         snackbarTimer: null,
         wakeLock: null,
         mapUserInteracting: false,
-        windDockCollapsed: false,
-        pointDockCollapsed: true,
-        mapShownTaskId: null,
-        pointSelectedIndex: 0,
-        showAdvanced: false,
+
+        longPress: {
+          active: false,
+          timer: null,
+          pointerId: null,
+          startX: 0,
+          startY: 0,
+          startLatLng: null,
+        },
+
+        // briefing UI state
+        selectedBriefingId: null,
+        selectedBriefTaskId: null,
       },
       gps: {
         watchId: null,
@@ -649,13 +633,14 @@
         lon: null,
         altM: null,
         speedKmh: 0,
-        headingDeg: 0,
+        headingDeg: null,
         accuracyM: null,
         smoothLat: null,
         smoothLon: null,
         lastAltM: null,
         lastAltTs: null,
         lastPanTs: 0,
+        lastCourseDeg: null,
       },
       sim: {
         enabled: false,
@@ -676,22 +661,32 @@
         track: [],
         markers: [],
         archive: [],
+
+        // briefing-run runtime:
+        briefingRun: null, // { briefingId, taskStates: [{taskId, usedMarkers:boolean[], startedTs, finishedTs}], activeTaskId }
       },
       wind: {
         layers: [],
         lastAuto: { altM: null, courseDeg: null, ts: 0 },
       },
       task: {
-        active: null,
+        active: null, // active task overlay / navigation target (from briefing or standalone)
         pointsABC: { A:null, B:null, C:null },
         apt: { startTs: null },
       },
-      briefing: {
-        title: "",
-        tasks: [],
-        editorTaskId: null
+      waypoint: {
+        active: null,
       },
-      balloon: { marker: null }
+      balloon: {
+        marker: null,
+        el: null,
+      },
+
+      // Briefings storage
+      briefings: {
+        list: [],             // array of briefing objects
+        activeId: null,       // briefing currently activated for flight usage
+      },
     };
 
     /********************************************************************
@@ -701,7 +696,6 @@
     function now() { return Date.now(); }
     function toRad(deg) { return deg * Math.PI / 180; }
     function toDeg(rad) { return rad * 180 / Math.PI; }
-    function uid() { return Math.random().toString(36).slice(2, 10); }
 
     function haversineM(a, b) {
       const R = 6371000;
@@ -709,15 +703,14 @@
       const dLat = toRad(b.lat - a.lat);
       const dLon = toRad(b.lon - a.lon);
       const s = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
-      const c = 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1-s));
-      return R * c;
+      return 2 * R * Math.atan2(Math.sqrt(s), Math.sqrt(1-s));
     }
 
     function bearingDeg(a, b) {
-      const lat1 = toRad(a.lat), lat2 = toRad(b.lat);
+      const lat1 = toRad(a.lat), lat2 = toRad(a.lat + (b.lat-a.lat));
       const dLon = toRad(b.lon - a.lon);
-      const y = Math.sin(dLon) * Math.cos(lat2);
-      const x = Math.cos(lat1)*Math.sin(lat2) - Math.sin(lat1)*Math.cos(lat2)*Math.cos(dLon);
+      const y = Math.sin(dLon) * Math.cos(toRad(b.lat));
+      const x = Math.cos(toRad(a.lat))*Math.sin(toRad(b.lat)) - Math.sin(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.cos(dLon);
       return (toDeg(Math.atan2(y, x)) + 360) % 360;
     }
 
@@ -741,9 +734,21 @@
       if (m < 1000) return `${Math.round(m)} m`;
       return `${(m/1000).toFixed(2)} km`;
     }
+
     function fmtNum(n, digits=0) {
       if (n == null || !isFinite(n)) return "–";
       return n.toFixed(digits);
+    }
+
+    function fmtTime(sec) {
+      if (sec == null || !isFinite(sec) || sec < 0) return "–";
+      const s = Math.round(sec);
+      const m = Math.floor(s / 60);
+      const r = s % 60;
+      if (m < 60) return `${String(m).padStart(2,"0")}:${String(r).padStart(2,"0")}`;
+      const h = Math.floor(m / 60);
+      const mm = m % 60;
+      return `${h}:${String(mm).padStart(2,"0")}:${String(r).padStart(2,"0")}`;
     }
 
     function safeFloat(v, fallback=null) {
@@ -756,22 +761,7 @@
       return prev + alpha * (next - prev);
     }
 
-    function windToDegFrom(fromDeg) { return (fromDeg + 180) % 360; }
-
-    function schemaFor(code) { return TASK_SCHEMA[code] || { points:"A", minPoints:1, markers:1, radii:false, setDir:false, apt:false }; }
-
-    function pointLabelsForTask(code, existingPointsCount=0) {
-      const s = schemaFor(code);
-      if (s.points === "ABC") return ["A","B","C"];
-      if (s.points === "AB") return ["A","B"];
-      if (s.points === "A") return ["A"];
-      if (s.points === "NONE") return [];
-      if (s.points === "MULTI") {
-        const n = Math.max(s.minPoints || 2, existingPointsCount || 0, 2);
-        return Array.from({length:n}, (_,i)=>`T${i+1}`);
-      }
-      return ["A"];
-    }
+    function uid() { return Math.random().toString(36).slice(2, 10); }
 
     function escapeXml(s) {
       return String(s)
@@ -780,12 +770,6 @@
         .replaceAll(">","&gt;")
         .replaceAll('"',"&quot;")
         .replaceAll("'","&apos;");
-    }
-
-    function hashStr(s) {
-      let h = 0;
-      for (let i=0;i<s.length;i++) h = ((h<<5)-h) + s.charCodeAt(i) | 0;
-      return h;
     }
 
     function showSnackbar(msg, ms=2200) {
@@ -803,20 +787,68 @@
       knobEl.style.background = on ? "#34d399" : "#e2e8f0";
     }
 
-    function deepClone(obj) {
-      try { return JSON.parse(JSON.stringify(obj)); } catch { return obj; }
+    function getCurrentPos() {
+      if (STATE.sim.enabled && STATE.sim.lat != null && STATE.sim.lon != null) return { lat: STATE.sim.lat, lon: STATE.sim.lon };
+      if (!STATE.gps.hasFix || STATE.gps.lat == null || STATE.gps.lon == null) return null;
+      return { lat: STATE.gps.lat, lon: STATE.gps.lon };
     }
 
-    function getActiveTask() { return STATE.task.active; }
-
-    function setEditorBadge(text) {
-      const el = document.getElementById("editorModeBadge");
-      if (el) el.textContent = text;
+    function getCurrentAltM() {
+      if (STATE.sim.enabled) return STATE.sim.altM;
+      return STATE.gps.altM;
     }
-    function setEditorMarkerBadge(code) {
-      const s = schemaFor(code);
-      const el = document.getElementById("editorMarkerBadge");
-      if (el) el.textContent = `Marker: ${s.markers ?? "–"}`;
+
+    function getGroundSpeedMps() {
+      const kmh = STATE.sim.enabled ? (STATE.sim.speedKmh || 0) : (STATE.gps.speedKmh || 0);
+      return Math.max(0, kmh) / 3.6;
+    }
+
+    function getCourseDeg() {
+      if (STATE.sim.enabled) return (STATE.sim.headingDeg ?? 0);
+      const h = STATE.gps.headingDeg;
+      const gs = STATE.gps.speedKmh || 0;
+      if (h != null && isFinite(h) && gs >= 3) return ((h % 360) + 360) % 360;
+      if (STATE.gps.lastCourseDeg != null) return STATE.gps.lastCourseDeg;
+      return 0;
+    }
+
+    function hashStr(s) {
+      let h = 0;
+      for (let i=0;i<s.length;i++) h = ((h<<5)-h) + s.charCodeAt(i) | 0;
+      return h;
+    }
+
+    function windToDegFrom(fromDeg) { return (fromDeg + 180) % 360; }
+
+    function defaultMarkerCountForTask(code) {
+      return TASK_DEFAULTS[code]?.markerCount ?? 1;
+    }
+
+    function defaultMarkerColors(count) {
+      const arr = [];
+      for (let i=0;i<count;i++) arr.push(DEFAULT_MARKER_COLOR_SET[i % DEFAULT_MARKER_COLOR_SET.length]);
+      return arr;
+    }
+
+    function ensureMarkerColorsArray(task, count) {
+      const out = Array.isArray(task.markerColors) ? task.markerColors.slice(0) : [];
+      while (out.length < count) out.push(DEFAULT_MARKER_COLOR_SET[out.length % DEFAULT_MARKER_COLOR_SET.length]);
+      return out.slice(0, count);
+    }
+
+    function getActiveBriefing() {
+      if (!STATE.briefings.activeId) return null;
+      return STATE.briefings.list.find(b => b.id === STATE.briefings.activeId) || null;
+    }
+
+    function getSelectedBriefing() {
+      if (!STATE.ui.selectedBriefingId) return null;
+      return STATE.briefings.list.find(b => b.id === STATE.ui.selectedBriefingId) || null;
+    }
+
+    function getBriefTask(briefing, taskId) {
+      if (!briefing || !taskId) return null;
+      return (briefing.tasks || []).find(t => t.id === taskId) || null;
     }
 
     /********************************************************************
@@ -834,6 +866,7 @@
         mode.textContent = "SIM";
         return;
       }
+
       if (STATE.gps.hasFix) {
         dot.className = "w-2 h-2 rounded-full bg-emerald-400 inline-block";
         const acc = STATE.gps.accuracyM != null ? `±${Math.round(STATE.gps.accuracyM)}m` : "";
@@ -844,6 +877,49 @@
         txt.textContent = "GPS: –";
         mode.textContent = "LIVE";
       }
+    }
+
+    function updateBriefingHeaderBadge() {
+      const el = document.getElementById("briefingHeaderBadge");
+      if (!el) return;
+      const b = getActiveBriefing();
+      if (!b) { el.classList.add("hidden"); el.textContent = "Briefing: –"; return; }
+      el.classList.remove("hidden");
+      el.textContent = `Briefing: ${b.title || "–"}`;
+    }
+
+    function updateButtons() {
+      document.getElementById("btnStartFlight")?.classList.toggle("hidden", STATE.flight.active);
+      document.getElementById("btnFinish")?.classList.toggle("hidden", !STATE.flight.active);
+      document.getElementById("simControls")?.classList.toggle("hidden", !STATE.sim.enabled);
+
+      const showNav = !!STATE.task.active || !!STATE.waypoint?.active;
+      document.getElementById("navToast")?.classList.toggle("hidden", !showNav);
+
+      updateBriefingHeaderBadge();
+      renderMarkerStrip();
+    }
+
+    function updateInstruments() {
+      const gsEl = document.getElementById("instGS");
+      const altEl = document.getElementById("instALT");
+      const varEl = document.getElementById("instVAR");
+
+      let gs = 0, alt = null, vario = null;
+
+      if (STATE.sim.enabled) {
+        gs = STATE.sim.speedKmh || 0;
+        alt = STATE.sim.altM;
+        vario = STATE.sim.vRateMps;
+      } else {
+        gs = STATE.gps.speedKmh || 0;
+        alt = STATE.gps.altM;
+        vario = calcVarioMps();
+      }
+
+      if (gsEl) gsEl.textContent = fmtNum(gs, 1);
+      if (altEl) altEl.textContent = alt == null ? "–" : String(Math.round(alt));
+      if (varEl) varEl.textContent = vario == null ? "–" : fmtNum(vario, 1);
     }
 
     function calcVarioMps() {
@@ -865,79 +941,327 @@
       return da / dt;
     }
 
-    function updateInstruments() {
-      const gsEl = document.getElementById("instGS");
-      const altEl = document.getElementById("instALT");
-      const varEl = document.getElementById("instVAR");
+    function updateWindHud() {
+      const box = document.getElementById("windHud");
+      const list = document.getElementById("windHudList");
+      if (!box || !list) return;
 
-      let gs = 0, alt = null, vario = null;
-      if (STATE.sim.enabled) {
-        gs = STATE.sim.speedKmh || 0;
-        alt = STATE.sim.altM;
-        vario = STATE.sim.vRateMps;
-      } else {
-        gs = STATE.gps.speedKmh || 0;
-        alt = STATE.gps.altM;
-        vario = calcVarioMps();
+      box.classList.toggle("hidden", !STATE.ui.windHudOpen);
+
+      const items = [...STATE.wind.layers].sort((a,b)=>a.altM-b.altM).slice(0, 10);
+      if (!items.length) {
+        list.innerHTML = `<div class="text-sm text-slate-400">Keine Winddaten.</div>`;
+        return;
       }
 
-      if (gsEl) gsEl.textContent = fmtNum(gs, 1);
-      if (altEl) altEl.textContent = alt == null ? "–" : String(Math.round(alt));
-      if (varEl) varEl.textContent = vario == null ? "–" : fmtNum(vario, 1);
+      list.innerHTML = items.map(w => {
+        const to = windToDegFrom(w.fromDeg);
+        return `
+          <div class="flex items-center justify-between rounded-2xl bg-slate-900/60 border border-slate-800 px-3 py-2">
+            <div class="min-w-0">
+              <div class="font-extrabold mono">${Math.round(w.altM)} m</div>
+              <div class="text-xs text-slate-400 truncate">${escapeXml(w.source || "manual")} • ${new Date(w.ts).toLocaleTimeString()}</div>
+            </div>
+            <div class="text-right">
+              <div class="font-extrabold mono">${Math.round(w.fromDeg)}° <span class="text-xs text-slate-400">FROM</span></div>
+              <div class="text-xs text-slate-300 mono">${fmtNum(w.speedKmh,1)} km/h → ${Math.round(to)}°</div>
+            </div>
+          </div>
+        `;
+      }).join("");
     }
 
-    function setMarkerButtonColor(taskCode) {
-      const btn = document.getElementById("btnMarker");
-      if (!btn) return;
-      const idx = Math.abs(hashStr(taskCode || "x")) % MARKER_COLORS.length;
-      const c = MARKER_COLORS[idx];
-      btn.style.background = COLOR_HEX[c];
-      btn.style.color = "#0b1220";
+    function updateNavToast() {
+      const icon  = document.getElementById("navIcon");
+      const title = document.getElementById("navTitle");
+      const l1    = document.getElementById("navLine1");
+      const l2    = document.getElementById("navLine2");
+      if (!icon || !title || !l1 || !l2) return;
+
+      const pos = getCurrentPos();
+      const gsMps = getGroundSpeedMps();
+
+      // Prefer task
+      if (STATE.task.active) {
+        icon.className = "fa-solid fa-route mr-2 text-emerald-300";
+        const t = STATE.task.active;
+
+        const run = STATE.flight.briefingRun;
+        const b = getActiveBriefing();
+        const activeLabel = (run && b) ? ` • ${getTaskProgressLabel(b, run, t.id)}` : "";
+
+        title.textContent = `${t.code} — ${t.title || t.typeTitle}${activeLabel}`;
+
+        const target = getPrimaryTarget(t);
+        if (!pos || !target) {
+          l1.textContent = "–";
+          l2.textContent = !pos ? "Keine Position" : "Kein Ziel";
+          return;
+        }
+
+        const d = haversineM(pos, target);
+        l1.textContent = `Dist: ${fmtDist(d)}`;
+
+        const rec = recommendLayerText(t, pos, target);
+        l2.textContent = rec || "–";
+        return;
+      }
+
+      // Waypoint
+      if (STATE.waypoint?.active) {
+        icon.className = "fa-solid fa-location-crosshairs mr-2 text-amber-300";
+        title.textContent = "Waypoint";
+
+        if (!pos) {
+          l1.textContent = "–";
+          l2.textContent = "Keine Position";
+          return;
+        }
+
+        const wp = { lat: STATE.waypoint.active.lat, lon: STATE.waypoint.active.lon };
+        const d = haversineM(pos, wp);
+        const brg = bearingDeg(pos, wp);
+        const ete = (gsMps > 0.6) ? (d / gsMps) : null;
+
+        l1.textContent = `Dist: ${fmtDist(d)} • Brg: ${Math.round(brg)}°`;
+        l2.textContent = `ETE: ${fmtTime(ete)}`;
+        return;
+      }
+
+      document.getElementById("navToast")?.classList.add("hidden");
     }
 
-    function updateButtons() {
-      const bStart = document.getElementById("btnStartFlight");
-      const bFin = document.getElementById("btnFinish");
-      if (bStart) bStart.classList.toggle("hidden", STATE.flight.active);
-      if (bFin) bFin.classList.toggle("hidden", !STATE.flight.active);
-
-      const simControls = document.getElementById("simControls");
-      if (simControls) simControls.classList.toggle("hidden", !STATE.sim.enabled);
-
-      updateWindDockVisibility();
-      updatePointDockVisibility();
-      updateActiveTaskCard();
-      updatePointDock();
-    }
-
-    function renderTaskTypeOptions() {
-      const sel = document.getElementById("taskType");
+    function renderBriefingSelect() {
+      const sel = document.getElementById("briefingSelect");
       if (!sel) return;
-      sel.innerHTML = CIA_TASKS.map(t => `<option value="${t.code}">${t.num} ${t.code} — ${t.title}</option>`).join("");
+
+      const list = STATE.briefings.list.slice(0);
+      if (!list.length) {
+        sel.innerHTML = `<option value="">(kein Briefing)</option>`;
+        STATE.ui.selectedBriefingId = null;
+        renderBriefingForm();
+        renderBriefTasksList();
+        return;
+      }
+
+      sel.innerHTML = list.map(b => `<option value="${b.id}">${escapeXml(b.title || "Briefing")} (${(b.tasks||[]).length} Tasks)</option>`).join("");
+      if (!STATE.ui.selectedBriefingId || !list.some(b => b.id === STATE.ui.selectedBriefingId)) {
+        STATE.ui.selectedBriefingId = list[0].id;
+      }
+      sel.value = STATE.ui.selectedBriefingId;
+
+      renderBriefingForm();
+      renderBriefTasksList();
     }
 
-    function taskSummary(t) {
-      if (!t) return "–";
-      const s = schemaFor(t.code);
-      const m = `M${s.markers ?? 0}`;
-      const pts = (t.points || []).filter(p=>p && isFinite(p.lat) && isFinite(p.lon));
-      const p0 = pts[0] ? `${pts[0].name||"A"} ${pts[0].lat.toFixed(4)},${pts[0].lon.toFixed(4)}` : "ohne Koords";
-      const rr = (t.code === "3DT" && (t.r1M || t.r2M)) ? `r ${t.r1M||0}/${t.r2M||0}m` : "";
-      return [m, p0, rr].filter(Boolean).join(" • ");
+    function renderBriefingForm() {
+      const b = getSelectedBriefing();
+      const title = document.getElementById("briefTitle");
+      const sf = document.getElementById("briefStartFrom");
+      const st = document.getElementById("briefStartTo");
+      const se = document.getElementById("briefScoringEnd");
+      const om = document.getElementById("briefOrderMode");
+
+      if (!title || !sf || !st || !se || !om) return;
+
+      title.value = b?.title || "";
+      sf.value = b?.startFrom || "";
+      st.value = b?.startTo || "";
+      se.value = b?.scoringEnd || "";
+      om.value = b?.orderMode || "fixed";
     }
 
-    function updateDrawerTabUi() {
-      document.querySelectorAll(".tabBtn").forEach(b => {
-        const tab = b.getAttribute("data-tab");
-        b.classList.toggle("bg-sky-400", tab === STATE.ui.drawerTab);
-        b.classList.toggle("text-slate-950", tab === STATE.ui.drawerTab);
-        b.classList.toggle("border-sky-300", tab === STATE.ui.drawerTab);
+    function renderBriefTasksList() {
+      const wrap = document.getElementById("briefTasksList");
+      const cnt = document.getElementById("briefTaskCount");
+      if (!wrap || !cnt) return;
+
+      const b = getSelectedBriefing();
+      const tasks = (b?.tasks || []);
+      cnt.textContent = `${tasks.length}`;
+
+      if (!b) {
+        wrap.innerHTML = `<div class="text-sm text-slate-400">Lege zuerst ein Briefing an.</div>`;
+        return;
+      }
+      if (!tasks.length) {
+        wrap.innerHTML = `<div class="text-sm text-slate-400">Keine Tasks. Füge oben im Editor welche hinzu.</div>`;
+        return;
+      }
+
+      const mode = b.orderMode || "fixed";
+      const run = STATE.flight.briefingRun;
+      const activeId = run?.activeTaskId || null;
+
+      wrap.innerHTML = tasks.map((t, idx) => {
+        const selected = STATE.ui.selectedBriefTaskId === t.id;
+        const isActive = activeId === t.id;
+        const mc = Math.min(APP.maxMarkerButtons, Math.max(0, t.markerCount ?? 0));
+        const colorDots = (t.markerColors||[]).slice(0, mc).map(c => `<span class="inline-block w-3 h-3 rounded-full" style="background:${c}"></span>`).join("");
+
+        const progress = (run && run.taskStates) ? getTaskProgressLabel(b, run, t.id) : "";
+
+        return `
+          <div class="rounded-2xl border ${selected ? "border-sky-400" : "border-slate-800"} bg-slate-950/60 p-3">
+            <div class="flex items-center gap-2">
+              <button data-sel="${t.id}" class="btn-touch flex-1 text-left">
+                <div class="font-extrabold truncate">
+                  ${idx+1}. ${escapeXml(t.code)} — ${escapeXml(t.title || t.typeTitle)}
+                  ${progress ? `<span class="ml-2 text-xs text-amber-300 font-bold">${escapeXml(progress)}</span>` : ""}
+                </div>
+                <div class="text-xs text-slate-400 mt-0.5 truncate">
+                  Marker: ${mc} <span class="mx-2 text-slate-600">•</span> ${colorDots || `<span class="text-slate-500">–</span>`}
+                </div>
+              </button>
+
+              <div class="flex items-center gap-1">
+                <button data-up="${t.id}" class="btn-touch h-9 w-9 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800" title="hoch">
+                  <i class="fa-solid fa-arrow-up"></i>
+                </button>
+                <button data-down="${t.id}" class="btn-touch h-9 w-9 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800" title="runter">
+                  <i class="fa-solid fa-arrow-down"></i>
+                </button>
+                <button data-del="${t.id}" class="btn-touch h-9 w-9 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800" title="löschen">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="mt-2 grid grid-cols-2 gap-2">
+              <button data-activate="${t.id}" class="btn-touch h-10 rounded-xl ${isActive ? "bg-emerald-400 text-slate-950" : "bg-slate-900 border border-slate-800 hover:bg-slate-800"} font-extrabold text-sm">
+                <i class="fa-solid fa-bullseye mr-2"></i>${isActive ? "Aktiv" : "Aktivieren"}
+              </button>
+              <button data-finish="${t.id}" class="btn-touch h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-extrabold text-sm">
+                <i class="fa-solid fa-check mr-2"></i>Done
+              </button>
+            </div>
+
+            ${mode === "fixed" ? `<div class="text-[11px] text-slate-500 mt-2">Fix-Modus: Aktivierung folgt normalerweise der Reihenfolge.</div>` : ""}
+          </div>
+        `;
+      }).join("");
+
+      // wire
+      wrap.querySelectorAll("[data-sel]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          STATE.ui.selectedBriefTaskId = btn.getAttribute("data-sel");
+          renderBriefTasksList();
+        });
       });
-      ["task","wind","setup","archive"].forEach(t => {
-        const el = document.getElementById(`tab_${t}`);
-        if (el) el.classList.toggle("hidden", t !== STATE.ui.drawerTab);
+
+      wrap.querySelectorAll("[data-del]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const id = btn.getAttribute("data-del");
+          deleteTaskFromBriefing(id);
+        });
       });
-      updateTaskSubTabUi();
+
+      wrap.querySelectorAll("[data-up]").forEach(btn => {
+        btn.addEventListener("click", () => moveTaskInBriefing(btn.getAttribute("data-up"), -1));
+      });
+      wrap.querySelectorAll("[data-down]").forEach(btn => {
+        btn.addEventListener("click", () => moveTaskInBriefing(btn.getAttribute("data-down"), +1));
+      });
+
+      wrap.querySelectorAll("[data-activate]").forEach(btn => {
+        btn.addEventListener("click", () => activateBriefingTask(btn.getAttribute("data-activate"), true));
+      });
+
+      wrap.querySelectorAll("[data-finish]").forEach(btn => {
+        btn.addEventListener("click", () => markTaskDone(btn.getAttribute("data-finish")));
+      });
+    }
+
+    function renderMarkerColorPickers(count, colors) {
+      const wrap = document.getElementById("taskMarkerColors");
+      if (!wrap) return;
+      const c = Math.max(0, Math.min(APP.maxMarkerButtons, count));
+      const arr = (colors && colors.length) ? colors.slice(0) : defaultMarkerColors(c);
+
+      wrap.innerHTML = Array.from({length:c}).map((_, i) => `
+        <div class="rounded-2xl bg-slate-950/70 border border-slate-800 p-2 flex items-center gap-2">
+          <div class="text-xs font-extrabold text-slate-300">#${i+1}</div>
+          <input data-mc="${i}" type="color" value="${arr[i] || DEFAULT_MARKER_COLOR_SET[i % DEFAULT_MARKER_COLOR_SET.length]}" class="h-10 w-full rounded-xl bg-slate-950 border border-slate-700 px-1" />
+        </div>
+      `).join("");
+    }
+
+    function renderMarkerStrip() {
+      const wrap = document.getElementById("markerStrip");
+      if (!wrap) return;
+
+      // Determine markers from: active briefing+active task if flight active, else from currently active task (preview), else none.
+      const run = STATE.flight.briefingRun;
+      let task = null;
+      let used = null;
+
+      if (STATE.flight.active && run && run.activeTaskId) {
+        const b = getActiveBriefing();
+        const bt = getBriefTask(b, run.activeTaskId);
+        if (bt) {
+          task = bt;
+          const st = run.taskStates?.find(s => s.taskId === bt.id);
+          used = st?.usedMarkers || null;
+        }
+      } else if (STATE.task.active && STATE.task.active.markerCount != null) {
+        // preview for briefing task activation
+        task = STATE.task.active;
+      }
+
+      if (!task) {
+        wrap.innerHTML = `
+          <button id="btnMarkerFallback" class="btn-touch w-20 h-16 rounded-2xl bg-slate-700/60 border border-slate-800 text-slate-200 font-extrabold shadow-soft opacity-80">
+            <i class="fa-solid fa-location-dot mr-2"></i>MARK
+          </button>
+        `;
+        document.getElementById("btnMarkerFallback")?.addEventListener("click", () => showSnackbar("Kein Task aktiv (Briefing) – wähle einen Task oder setze Waypoint."));
+        return;
+      }
+
+      const mc = Math.max(0, Math.min(APP.maxMarkerButtons, task.markerCount ?? 0));
+      const colors = ensureMarkerColorsArray(task, mc);
+
+      if (mc === 0) {
+        wrap.innerHTML = `
+          <div class="h-16 px-3 rounded-2xl bg-slate-900/60 border border-slate-800 flex items-center text-xs text-slate-400">
+            <i class="fa-solid fa-ban mr-2"></i>Keine Marker für diesen Task
+          </div>
+        `;
+        return;
+      }
+
+      wrap.innerHTML = colors.map((c, i) => {
+        const isUsed = used ? !!used[i] : false;
+        const label = isUsed ? "USED" : `M${i+1}`;
+        const icon = isUsed ? "fa-check" : "fa-location-dot";
+        return `
+          <button data-mbtn="${i}" class="btn-touch w-20 h-16 rounded-2xl font-extrabold shadow-soft ${isUsed ? "opacity-40" : ""}"
+                  style="background:${c};color:#0b1220;border:1px solid rgba(2,6,23,.35)">
+            <i class="fa-solid ${icon} mr-2"></i>${label}
+          </button>
+        `;
+      }).join("");
+
+      wrap.querySelectorAll("[data-mbtn]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const idx = parseInt(btn.getAttribute("data-mbtn"), 10);
+          if (!Number.isFinite(idx)) return;
+          dropMarkerFromBriefingTask(idx);
+        });
+      });
+    }
+
+    function updateFollowToggleUi() {
+      const tgl = document.getElementById("tglFollow");
+      const knob = document.getElementById("tglFollowKnob");
+      if (tgl && knob) setToggleUI(tgl, knob, STATE.ui.followGps);
+    }
+
+    function setMapPickHint(which, on) {
+      const hint = document.getElementById("mapPickHint");
+      if (!hint) return;
+      hint.textContent = `Tippe auf die Karte, um Punkt ${which} zu setzen (Briefing).`;
+      hint.classList.toggle("hidden", !on);
     }
 
     function openDrawer(open=true) {
@@ -945,108 +1269,32 @@
       const wrap = document.getElementById("drawerWrap");
       if (!wrap) return;
       wrap.classList.toggle("hidden", !open);
-      if (open) {
-        updateDrawerTabUi();
-        renderBriefingList();
-        renderBriefingQuickList();
-      }
+      if (open) updateDrawerTabUi();
+    }
+
+    function updateDrawerTabUi() {
+      document.querySelectorAll(".tabBtn").forEach(b => {
+        const tab = b.getAttribute("data-tab");
+        const on = tab === STATE.ui.drawerTab;
+        b.classList.toggle("bg-sky-400", on);
+        b.classList.toggle("text-slate-950", on);
+        b.classList.toggle("border-sky-300", on);
+      });
+      ["task","wind","setup","archive"].forEach(t => {
+        const el = document.getElementById(`tab_${t}`);
+        if (el) el.classList.toggle("hidden", t !== STATE.ui.drawerTab);
+      });
     }
 
     function openMapModal(open=true) {
       const modal = document.getElementById("mapModal");
       if (!modal) return;
       modal.classList.toggle("hidden", !open);
-      const tgl = document.getElementById("tglFollow");
-      const knob = document.getElementById("tglFollowKnob");
-      if (tgl && knob) setToggleUI(tgl, knob, STATE.ui.followGps);
-    }
-
-    function updateWindDockVisibility() {
-      const collapsed = document.getElementById("windDockCollapsed");
-      const expanded = document.getElementById("windDockExpanded");
-      if (!collapsed || !expanded) return;
-      collapsed.classList.toggle("hidden", !STATE.ui.windDockCollapsed);
-      expanded.classList.toggle("hidden", STATE.ui.windDockCollapsed);
-    }
-
-    function toggleWindDock() {
-      STATE.ui.windDockCollapsed = !STATE.ui.windDockCollapsed;
-      updateWindDockVisibility();
-      persistAll();
-    }
-
-    function updatePointDockVisibility() {
-      const c = document.getElementById("pointDockCollapsed");
-      const e = document.getElementById("pointDockExpanded");
-      if (!c || !e) return;
-      c.classList.toggle("hidden", !STATE.ui.pointDockCollapsed);
-      e.classList.toggle("hidden", STATE.ui.pointDockCollapsed);
-    }
-
-    function togglePointDock(forceOpen=null) {
-      if (forceOpen === true) STATE.ui.pointDockCollapsed = false;
-      else if (forceOpen === false) STATE.ui.pointDockCollapsed = true;
-      else STATE.ui.pointDockCollapsed = !STATE.ui.pointDockCollapsed;
-
-      // beim Öffnen: wenn kein Punkt gewählt, auf 0
-      if (!STATE.ui.pointDockCollapsed) STATE.ui.pointSelectedIndex = 0;
-
-      updatePointDockVisibility();
-      updatePointDock();
-      persistAll();
-    }
-
-    function setTaskSubTab(tab) {
-      STATE.ui.taskSubTab = tab;
-      updateTaskSubTabUi();
-    }
-
-    function updateTaskSubTabUi() {
-      const bB = document.getElementById("btnTaskSubBriefing");
-      const bL = document.getElementById("btnTaskSubLive");
-      const sB = document.getElementById("taskSub_briefing");
-      const sL = document.getElementById("taskSub_live");
-      if (!bB || !bL || !sB || !sL) return;
-
-      const isBriefing = STATE.ui.taskSubTab === "briefing";
-      sB.classList.toggle("hidden", !isBriefing);
-      sL.classList.toggle("hidden", isBriefing);
-
-      bB.classList.toggle("bg-sky-400", isBriefing);
-      bB.classList.toggle("text-slate-950", isBriefing);
-      bB.classList.toggle("border-sky-300", isBriefing);
-      bB.classList.toggle("bg-slate-900", !isBriefing);
-      bB.classList.toggle("border-slate-800", !isBriefing);
-
-      bL.classList.toggle("bg-sky-400", !isBriefing);
-      bL.classList.toggle("text-slate-950", !isBriefing);
-      bL.classList.toggle("border-sky-300", !isBriefing);
-      bL.classList.toggle("bg-slate-900", isBriefing);
-      bL.classList.toggle("border-slate-800", isBriefing);
-
-      if (STATE.ui.drawerOpen && STATE.ui.drawerTab === "task") {
-        renderBriefingList();
-        renderBriefingQuickList();
-      }
-    }
-
-    function updateActiveTaskCard() {
-      const title = document.getElementById("activeTaskTitle");
-      const hint = document.getElementById("activeTaskHint");
-      if (!title || !hint) return;
-
-      const t = getActiveTask();
-      if (!t) {
-        title.textContent = "Kein Task aktiv";
-        hint.textContent = "Wähle im Briefing eine Aufgabe und setze sie „Aktiv“.";
-      } else {
-        title.textContent = `${t.code} — ${t.title || t.typeTitle}`;
-        hint.textContent = STATE.flight.active ? "Fahrt läuft — Task-Wechsel ist erlaubt." : "Vor der Fahrt: Task passt. Du kannst jetzt starten.";
-      }
+      updateFollowToggleUi();
     }
 
     /********************************************************************
-     * 5) KERN-LOGIK (GPS, Map, Simulation, Briefing)
+     * 5) KERN-LOGIK (GPS, Map, Simulation, Tasks, Briefings)
      ********************************************************************/
     function initManifestAndSW() {
       try {
@@ -1090,70 +1338,61 @@
 
       STATE.layers.baseOSM = L.tileLayer(TILE.osm.url, { maxZoom: 19, attribution: TILE.osm.attr });
       STATE.layers.baseSAT = L.tileLayer(TILE.esri.url, { maxZoom: 19, attribution: TILE.esri.attr });
-
       STATE.layers.baseOSM.addTo(map);
 
       STATE.layers.tasksLayer = L.layerGroup().addTo(map);
       STATE.layers.trackLayer = L.layerGroup().addTo(map);
       STATE.layers.markersLayer = L.layerGroup().addTo(map);
+      STATE.layers.pickLayer = L.layerGroup().addTo(map);
+      STATE.layers.waypointLayer = L.layerGroup().addTo(map);
+      STATE.layers.trajectoryLayer = L.layerGroup().addTo(map);
 
-      STATE.layers.trackLine = L.polyline([], { color: "#ef4444", weight: 4, opacity: 0.9, interactive: false }).addTo(STATE.layers.trackLayer);
+      STATE.layers.trackLine = L.polyline([], {
+        color: "#ef4444",
+        weight: 4,
+        opacity: 0.9,
+        interactive: false
+      }).addTo(STATE.layers.trackLayer);
+
       map.setView([APP.defaultCenter.lat, APP.defaultCenter.lon], APP.defaultZoom);
 
       map.on("dragstart", () => {
         STATE.ui.mapUserInteracting = true;
         STATE.ui.followGps = false;
         updateFollowToggleUi();
+        cancelLongPress();
       });
-      map.on("dragend", () => setTimeout(()=>STATE.ui.mapUserInteracting = false, 150));
+      map.on("dragend", () => setTimeout(()=>STATE.ui.mapUserInteracting = false, 120));
+      map.on("zoomstart", cancelLongPress);
 
-      // Map click: point-pick without menu
       map.on("click", (e) => {
         if (!STATE.ui.mapPickMode) return;
         const lat = e.latlng.lat;
         const lon = e.latlng.lng;
-        setDisplayedTaskPoint(STATE.ui.mapPickIndex, lat, lon);
-        STATE.ui.mapPickMode = false;
-        const hint = document.getElementById("pointPickHint");
-        if (hint) hint.classList.add("hidden");
-        showSnackbar(`Punkt ${STATE.ui.mapPickLabel} gesetzt.`);
+        const which = STATE.ui.mapPickWhich || "A";
+
+        setPointFromMap(which, lat, lon);
+
+        const next = pickNextPoint(which);
+        if (next) {
+          STATE.ui.mapPickWhich = next;
+          setMapPickHint(next, true);
+          showSnackbar(`Punkt ${which} gesetzt. Jetzt Punkt ${next}.`, 1800);
+        } else {
+          stopMapPick();
+          showSnackbar(`Punkt ${which} gesetzt.`, 1600);
+        }
       });
 
+      installLongPress(map);
       ensureBalloonMarker();
-    }
-
-    function ensureBalloonMarker() {
-      if (!STATE.map) return;
-
-      const icon = L.divIcon({
-        className: "",
-        iconSize: [28, 28],
-        iconAnchor: [14, 14],
-        html: `
-          <div class="balloon-icon">
-            <div id="balloonRot" class="balloon-rot">
-              <i class="fa-solid fa-location-arrow text-sky-300 drop-shadow"></i>
-            </div>
-          </div>
-        `
-      });
-
-      const p = getCurrentPos() || APP.defaultCenter;
-      STATE.balloon.marker = L.marker([p.lat, p.lon], { icon, interactive: false }).addTo(STATE.map);
-    }
-
-    function setBalloonPose(lat, lon, headingDegVal) {
-      if (!STATE.balloon.marker) return;
-      STATE.balloon.marker.setLatLng([lat, lon]);
-      const rot = document.getElementById("balloonRot");
-      if (rot) rot.style.transform = `rotate(${headingDegVal || 0}deg)`;
     }
 
     function setBaseLayer(which) {
       if (!STATE.map) return;
-      STATE.ui.base = which;
+      STATE.ui.base = which === "sat" ? "sat" : "osm";
       try {
-        if (which === "sat") {
+        if (STATE.ui.base === "sat") {
           STATE.map.removeLayer(STATE.layers.baseOSM);
           STATE.layers.baseSAT.addTo(STATE.map);
         } else {
@@ -1163,31 +1402,340 @@
       } catch {}
     }
 
-    function updateFollowToggleUi() {
-      const tgl = document.getElementById("tglFollow");
-      const knob = document.getElementById("tglFollowKnob");
-      if (tgl && knob) setToggleUI(tgl, knob, STATE.ui.followGps);
+    function ensureBalloonMarker() {
+      if (!STATE.map) return;
+
+      if (STATE.balloon.marker) {
+        if (!STATE.balloon.el) {
+          const el = STATE.balloon.marker.getElement?.();
+          STATE.balloon.el = el ? el.querySelector(".balloon-rot") : null;
+        }
+        return;
+      }
+
+      const icon = L.divIcon({
+        className: "",
+        iconSize: [34, 34],
+        iconAnchor: [17, 17],
+        html: `
+          <div class="balloon-rot" style="width:34px;height:34px;display:grid;place-items:center;transform:rotate(0deg);">
+            <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2l7 19-7-4-7 4 7-19z" fill="#38bdf8" stroke="#0b1220" stroke-width="1.5" />
+            </svg>
+          </div>
+        `
+      });
+
+      const p = getCurrentPos() || APP.defaultCenter;
+      STATE.balloon.marker = L.marker([p.lat, p.lon], {
+        icon,
+        interactive: false,
+        zIndexOffset: 1000
+      }).addTo(STATE.map);
+
+      setTimeout(() => {
+        try {
+          const el = STATE.balloon.marker.getElement?.();
+          STATE.balloon.el = el ? el.querySelector(".balloon-rot") : null;
+        } catch {}
+      }, 0);
+    }
+
+    function setBalloonPose(lat, lon, headingDegVal) {
+      if (!STATE.map) return;
+      if (!STATE.balloon.marker) ensureBalloonMarker();
+
+      try { STATE.balloon.marker.setLatLng([lat, lon]); } catch {}
+
+      if (!STATE.balloon.el) {
+        try {
+          const el = STATE.balloon.marker.getElement?.();
+          STATE.balloon.el = el ? el.querySelector(".balloon-rot") : null;
+        } catch {}
+      }
+      if (STATE.balloon.el) {
+        STATE.balloon.el.style.transform = `rotate(${headingDegVal || 0}deg)`;
+      }
+    }
+
+    function installLongPress(map) {
+      const container = map.getContainer();
+      if (!container) return;
+
+      container.addEventListener("pointerdown", (ev) => {
+        try {
+          if (ev.button != null && ev.button !== 0) return;
+          if (STATE.ui.mapPickMode) return;
+          if (STATE.ui.longPress.pointerId != null) return;
+
+          const rect = container.getBoundingClientRect();
+          const x = ev.clientX - rect.left;
+          const y = ev.clientY - rect.top;
+
+          STATE.ui.longPress.pointerId = ev.pointerId;
+          STATE.ui.longPress.startX = x;
+          STATE.ui.longPress.startY = y;
+          STATE.ui.longPress.active = true;
+          STATE.ui.longPress.startLatLng = map.containerPointToLatLng(L.point(x, y));
+
+          STATE.ui.longPress.timer = setTimeout(() => {
+            if (!STATE.ui.longPress.active) return;
+            if (STATE.ui.mapUserInteracting) return;
+            const ll = STATE.ui.longPress.startLatLng;
+            if (!ll) return;
+
+            // free waypoint
+            setWaypoint(ll.lat, ll.lng);
+            cancelLongPress(true);
+          }, APP.longPressMs);
+
+          try { container.setPointerCapture(ev.pointerId); } catch {}
+        } catch {}
+      }, { passive: true });
+
+      container.addEventListener("pointermove", (ev) => {
+        if (!STATE.ui.longPress.active) return;
+        if (STATE.ui.longPress.pointerId !== ev.pointerId) return;
+
+        const rect = container.getBoundingClientRect();
+        const x = ev.clientX - rect.left;
+        const y = ev.clientY - rect.top;
+
+        const dx = x - STATE.ui.longPress.startX;
+        const dy = y - STATE.ui.longPress.startY;
+        if (Math.hypot(dx, dy) > APP.longPressMovePx) {
+          cancelLongPress();
+        }
+      }, { passive: true });
+
+      const end = (ev) => {
+        if (!STATE.ui.longPress.active) return;
+        if (STATE.ui.longPress.pointerId !== ev.pointerId) return;
+        cancelLongPress();
+      };
+
+      container.addEventListener("pointerup", end, { passive: true });
+      container.addEventListener("pointercancel", end, { passive: true });
+      container.addEventListener("pointerleave", () => cancelLongPress(), { passive: true });
+    }
+
+    function cancelLongPress() {
+      STATE.ui.longPress.active = false;
+      try { clearTimeout(STATE.ui.longPress.timer); } catch {}
+      STATE.ui.longPress.timer = null;
+      STATE.ui.longPress.pointerId = null;
+      STATE.ui.longPress.startLatLng = null;
+    }
+
+    function setWaypoint(lat, lon) {
+      STATE.waypoint = { active: { lat, lon, ts: now() } };
+      drawWaypoint();
+      updateButtons();
+      updateNavToast();
+      persistAll();
+      showSnackbar("Waypoint gesetzt (long press).", 1800);
+    }
+
+    function clearWaypoint() {
+      STATE.waypoint = { active: null };
+      try { STATE.layers.waypointLayer?.clearLayers(); } catch {}
+      updateButtons();
+      updateNavToast();
+      persistAll();
+      showSnackbar("Waypoint entfernt.", 1600);
+    }
+
+    function drawWaypoint() {
+      if (!STATE.map || !STATE.layers.waypointLayer) return;
+      try { STATE.layers.waypointLayer.clearLayers(); } catch {}
+      if (!STATE.waypoint?.active) return;
+
+      const wp = STATE.waypoint.active;
+      const latlng = [wp.lat, wp.lon];
+
+      const mk = L.circleMarker(latlng, {
+        radius: 10,
+        color: "#fbbf24",
+        weight: 3,
+        fillColor: "#fbbf24",
+        fillOpacity: 0.20,
+        interactive: true
+      }).addTo(STATE.layers.waypointLayer);
+      mk.on("click", () => clearWaypoint());
+
+      L.marker(latlng, {
+        icon: L.divIcon({ className:"", iconSize:[1,1], html:`<div class="mono text-xs font-extrabold" style="color:#fbbf24;text-shadow:0 6px 16px rgba(0,0,0,.45)">WP</div>` }),
+        interactive:false
+      }).addTo(STATE.layers.waypointLayer);
+    }
+
+    function renderTaskTypeOptions() {
+      const sel = document.getElementById("taskType");
+      if (!sel) return;
+      sel.innerHTML = CIA_TASKS.map(t => `<option value="${t.code}">${t.num} ${t.code} — ${escapeXml(t.title)}</option>`).join("");
+    }
+
+    function renderTaskFieldsForCode(code) {
+      const wrap = document.getElementById("taskFields");
+      if (!wrap) return;
+
+      const is3DT = code === "3DT";
+      const isANG = code === "ANG";
+      const isLRN = code === "LRN";
+
+      const pointCard = (label, which) => `
+        <div class="rounded-2xl bg-slate-950/40 border border-slate-800 p-3">
+          <div class="flex items-center justify-between mb-2">
+            <div class="font-extrabold">${escapeXml(label)}</div>
+            <button type="button" data-pick="${which}" class="btn-touch h-9 px-3 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-bold text-sm">
+              <i class="fa-solid fa-crosshairs mr-2"></i>auf Karte
+            </button>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <div class="text-xs text-slate-400 mb-1">Lat</div>
+              <input id="task${which}Lat" type="number" step="0.000001" class="h-11 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="49.123456" />
+            </div>
+            <div>
+              <div class="text-xs text-slate-400 mb-1">Lon</div>
+              <input id="task${which}Lon" type="number" step="0.000001" class="h-11 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="8.123456" />
+            </div>
+          </div>
+        </div>
+      `;
+
+      const radiusFields = `
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <div class="text-xs text-slate-400 mb-1">${is3DT ? "Innenradius (m)" : "Radius 1 (m)"}</div>
+            <input id="taskR1" type="number" class="h-11 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="z.B. 50" />
+          </div>
+          <div>
+            <div class="text-xs text-slate-400 mb-1">${is3DT ? "Außenradius (m)" : "Radius 2 (m)"}</div>
+            <input id="taskR2" type="number" class="h-11 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="z.B. 200" />
+          </div>
+        </div>
+      `;
+
+      const altFields = `
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <div class="text-xs text-slate-400 mb-1">Min Höhe (m)</div>
+            <input id="taskMinAlt" type="number" class="h-11 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="optional" />
+          </div>
+          <div>
+            <div class="text-xs text-slate-400 mb-1">Max Höhe (m)</div>
+            <input id="taskMaxAlt" type="number" class="h-11 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="optional" />
+          </div>
+        </div>
+      `;
+
+      const angFields = isANG ? `
+        <div>
+          <div class="text-xs text-slate-400 mb-1">Vorgegebene Richtung (°)</div>
+          <input id="taskSetDir" type="number" class="h-11 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 mono" placeholder="0..359" />
+        </div>
+      ` : "";
+
+      let coordsHtml = "";
+      if (isANG || isLRN) {
+        coordsHtml = `
+          ${pointCard("Punkt A", "A")}
+          ${pointCard("Punkt B", "B")}
+          ${isLRN ? pointCard("Punkt C", "C") : ""}
+        `;
+      } else {
+        coordsHtml = `${pointCard("Ziel", "A")}`;
+      }
+
+      wrap.innerHTML = `
+        <div class="text-xs text-slate-400 mb-1">Koordinaten</div>
+        <div class="space-y-3">${coordsHtml}</div>
+        <div class="mt-3">${radiusFields}</div>
+        <div class="mt-3">${angFields}</div>
+        <div class="mt-3">${altFields}</div>
+      `;
+
+      wrap.querySelectorAll("[data-pick]").forEach(btn => {
+        btn.addEventListener("click", () => startMapPick(btn.getAttribute("data-pick")));
+      });
+    }
+
+    function startMapPick(which) {
+      STATE.ui.mapPickMode = true;
+      STATE.ui.mapPickWhich = which || "A";
+      openDrawer(false);
+      setMapPickHint(STATE.ui.mapPickWhich, true);
+      showSnackbar(`Karte tippen: Punkt ${STATE.ui.mapPickWhich} setzen.`, 1800);
+    }
+    function stopMapPick() {
+      STATE.ui.mapPickMode = false;
+      setMapPickHint("A", false);
+    }
+
+    function updatePickMarker(which, lat, lon) {
+      if (!STATE.layers.pickLayer || !STATE.map) return;
+      const prev = STATE.ui.pickMarkers[which];
+      if (prev) {
+        try { STATE.layers.pickLayer.removeLayer(prev); } catch {}
+        STATE.ui.pickMarkers[which] = null;
+      }
+      const color = which === "A" ? "#60a5fa" : (which === "B" ? "#22d3ee" : "#a78bfa");
+      const g = L.layerGroup();
+      L.circleMarker([lat, lon], { radius: 10, color, weight: 3, fillColor: color, fillOpacity: 0.25, interactive: false }).addTo(g);
+      L.marker([lat, lon], {
+        icon: L.divIcon({ className:"", iconSize:[1,1], html:`<div class="mono text-xs font-extrabold" style="color:${color};text-shadow:0 6px 16px rgba(0,0,0,.45)">${which}</div>` }),
+        interactive:false
+      }).addTo(g);
+      STATE.layers.pickLayer.addLayer(g);
+      STATE.ui.pickMarkers[which] = g;
+    }
+
+    function setPointFromMap(which, lat, lon) {
+      const latEl = document.getElementById(`task${which}Lat`);
+      const lonEl = document.getElementById(`task${which}Lon`);
+      if (latEl) latEl.value = lat.toFixed(6);
+      if (lonEl) lonEl.value = lon.toFixed(6);
+      updatePickMarker(which, lat, lon);
+    }
+
+    function pickNextPoint(which) {
+      const order = ["A", "B", "C"];
+      const idx = order.indexOf(which);
+      for (let i = idx + 1; i < order.length; i++) {
+        const w = order[i];
+        const latEl = document.getElementById(`task${w}Lat`);
+        const lonEl = document.getElementById(`task${w}Lon`);
+        if (!latEl || !lonEl) continue;
+        const latVal = safeFloat(latEl.value, null);
+        const lonVal = safeFloat(lonEl.value, null);
+        if (latVal == null || lonVal == null) return w;
+      }
+      return null;
     }
 
     function initGPS() {
-      if (!("geolocation" in navigator)) { showSnackbar("Geolocation nicht verfügbar."); return; }
+      if (!("geolocation" in navigator)) {
+        showSnackbar("Geolocation nicht verfügbar.");
+        return;
+      }
       stopGPS();
       const opts = { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 };
-
       STATE.gps.watchId = navigator.geolocation.watchPosition(
         (pos) => { try { onGpsPosition(pos); } catch (e) { console.error(e); } },
         (err) => {
           console.warn(err);
           STATE.gps.hasFix = false;
           updateGpsBadge();
-          updateWindDock();
         },
         opts
       );
     }
 
     function stopGPS() {
-      try { if (STATE.gps.watchId != null) navigator.geolocation.clearWatch(STATE.gps.watchId); } catch {}
+      try {
+        if (STATE.gps.watchId != null) navigator.geolocation.clearWatch(STATE.gps.watchId);
+      } catch {}
       STATE.gps.watchId = null;
     }
 
@@ -1199,7 +1747,7 @@
       const lon = c.longitude;
       const alt = Number.isFinite(c.altitude) ? c.altitude : null;
       const spdKmh = Number.isFinite(c.speed) ? (c.speed * 3.6) : 0;
-      const head = Number.isFinite(c.heading) ? c.heading : (STATE.gps.headingDeg || 0);
+      const head = Number.isFinite(c.heading) ? c.heading : null;
       const acc = Number.isFinite(c.accuracy) ? c.accuracy : null;
 
       if (STATE.gps.smoothLat != null && STATE.gps.smoothLon != null) {
@@ -1211,17 +1759,26 @@
       STATE.gps.smoothLat = smooth(STATE.gps.smoothLat, lat, APP.gpsSmoothingAlpha);
       STATE.gps.smoothLon = smooth(STATE.gps.smoothLon, lon, APP.gpsSmoothingAlpha);
 
+      let course = head;
+      if (course == null) {
+        if (STATE.gps.lat != null && STATE.gps.lon != null) {
+          const d = haversineM({ lat: STATE.gps.lat, lon: STATE.gps.lon }, { lat: STATE.gps.smoothLat, lon: STATE.gps.smoothLon });
+          if (d > 4) course = bearingDeg({ lat: STATE.gps.lat, lon: STATE.gps.lon }, { lat: STATE.gps.smoothLat, lon: STATE.gps.smoothLon });
+        }
+      }
+      if (course != null && isFinite(course)) STATE.gps.lastCourseDeg = ((course%360)+360)%360;
+
       STATE.gps.lat = STATE.gps.smoothLat;
       STATE.gps.lon = STATE.gps.smoothLon;
       STATE.gps.altM = alt;
       STATE.gps.speedKmh = spdKmh;
       STATE.gps.headingDeg = head;
       STATE.gps.accuracyM = acc;
-
       STATE.gps.hasFix = true;
       STATE.gps.fixTs = now();
 
-      setBalloonPose(STATE.gps.lat, STATE.gps.lon, head);
+      ensureBalloonMarker();
+      setBalloonPose(STATE.gps.lat, STATE.gps.lon, getCourseDeg());
 
       if (STATE.ui.followGps && !STATE.ui.mapUserInteracting) {
         const ts = now();
@@ -1233,81 +1790,16 @@
 
       if (STATE.flight.active) {
         maybeAddTrackPoint({ lat: STATE.gps.lat, lon: STATE.gps.lon, altM: alt, ts: now() });
-        maybeAutoRecordWind({ altM: alt, courseDeg: head, speedKmh: spdKmh, ts: now() });
+        maybeAutoRecordWind({ altM: alt, courseDeg: getCourseDeg(), speedKmh: spdKmh, ts: now() });
       }
 
       updateGpsBadge();
       updateInstruments();
-      updateWindDock();
-      updatePointDock();
+      updateButtons();
+      updateNavToast();
+      updateWindHud();
+      rebuildTrajectory();
       persistAllThrottled();
-    }
-
-    function getCurrentPos() {
-      if (STATE.sim.enabled && STATE.sim.lat != null && STATE.sim.lon != null) return { lat: STATE.sim.lat, lon: STATE.sim.lon };
-      if (!STATE.gps.hasFix || STATE.gps.lat == null || STATE.gps.lon == null) return null;
-      return { lat: STATE.gps.lat, lon: STATE.gps.lon };
-    }
-
-    function getCurrentAltM() {
-      if (STATE.sim.enabled) return STATE.sim.altM;
-      return STATE.gps.altM;
-    }
-
-    function beginFlight() {
-      if (STATE.flight.active) return;
-      const t = getActiveTask();
-      const briefingTitle = (STATE.briefing.title || "").trim();
-      const taskTitle = t ? `${t.code} — ${t.title || t.typeTitle}` : "Ohne Task";
-      const finalTitle = briefingTitle ? `${briefingTitle} • ${taskTitle}` : taskTitle;
-
-      STATE.flight.active = true;
-      STATE.flight.title = finalTitle;
-      STATE.flight.startedTs = now();
-      STATE.flight.track = [];
-      STATE.flight.markers = [];
-
-      try { STATE.layers.trackLine?.setLatLngs([]); } catch {}
-      try { STATE.layers.markersLayer?.clearLayers(); } catch {}
-
-      STATE.gps.lastAltM = null;
-      STATE.gps.lastAltTs = null;
-      STATE.wind.lastAuto = { altM: null, courseDeg: null, ts: 0 };
-      STATE.task.apt.startTs = null;
-
-      STATE.ui.mapShownTaskId = null;
-      drawDisplayedTaskOnMap();
-
-      updateButtons();
-      updateWindDock();
-      showSnackbar("Fahrt gestartet.");
-      persistAll();
-    }
-
-    function finishFlight() {
-      if (!STATE.flight.active) return;
-
-      const endedTs = now();
-      const flight = {
-        id: uid(),
-        title: STATE.flight.title || "Fahrt",
-        startedTs: STATE.flight.startedTs,
-        endedTs,
-        track: STATE.flight.track.slice(0),
-        markers: STATE.flight.markers.slice(0),
-      };
-
-      STATE.flight.archive.push(flight);
-      STATE.flight.active = false;
-      STATE.flight.title = "";
-      STATE.flight.startedTs = 0;
-      STATE.task.apt.startTs = null;
-
-      updateButtons();
-      updateArchivePanel();
-      updateWindDock();
-      showSnackbar("Fahrt beendet & archiviert.");
-      persistAll();
     }
 
     function maybeAddTrackPoint(p) {
@@ -1323,14 +1815,10 @@
 
       track.push({ lat:p.lat, lon:p.lon, altM:p.altM, ts:p.ts });
       if (track.length > APP.maxTrackPoints) track.shift();
-
-      try {
-        const latlngs = track.map(x => [x.lat, x.lon]);
-        STATE.layers.trackLine?.setLatLngs(latlngs);
-      } catch {}
+      try { STATE.layers.trackLine?.setLatLngs(track.map(x => [x.lat, x.lon])); } catch {}
     }
 
-    function maybeAutoRecordWind({ altM, courseDeg, speedKmh, ts }) {
+    function maybeAutoRecordWind({ altM, courseDeg, speedKmh }) {
       if (!STATE.flight.active) return;
       if (speedKmh == null || speedKmh < 10) return;
       if (altM == null || !isFinite(altM)) return;
@@ -1341,8 +1829,8 @@
 
       if (dAlt > 50 || dCrs > 5) {
         const fromDeg = (courseDeg + 180) % 360;
-        addWindLayer({ altM, fromDeg, speedKmh, ts, source: "auto" });
-        STATE.wind.lastAuto = { altM, courseDeg, ts };
+        addWindLayer({ altM, fromDeg, speedKmh, ts: now(), source: "auto" });
+        STATE.wind.lastAuto = { altM, courseDeg, ts: now() };
       }
     }
 
@@ -1356,918 +1844,23 @@
       const item = { altM: alt, fromDeg: from, speedKmh: spd, ts, source: w.source || "manual" };
       if (idx >= 0) STATE.wind.layers[idx] = item;
       else STATE.wind.layers.push(item);
-
       STATE.wind.layers.sort((a,b)=>a.altM-b.altM);
+
       persistAll();
       updateWindPanel();
-      updateWindDock();
+      updateWindHud();
+      updateNavToast();
+      rebuildTrajectory();
     }
 
-    function windAtAltitude(altM) {
-      if (!STATE.wind.layers.length || altM == null) return null;
-      let best = null, bestD = Infinity;
-      for (const w of STATE.wind.layers) {
-        const d = Math.abs(w.altM - altM);
-        if (d < bestD) { bestD = d; best = w; }
-      }
-      return best;
-    }
-
-    function recommendLayerText(task, pos, target) {
-      if (task && task.code === "3DT" && task.center && task.r1M && task.r2M) {
-        const dC = haversineM(pos, task.center);
-        if (dC < task.r1M) return "Ungültig (im inneren Kreis)";
-        if (dC <= task.r2M) return "Im Ring: Distanz maximieren";
-        return "Außerhalb: Ziel = Zentrum";
-      }
-
-      if (!STATE.wind.layers.length) return "Kein Windprofil";
-      const brg = bearingDeg(pos, target);
-
-      let best = null;
-      let bestScore = Infinity;
-      for (const w of STATE.wind.layers) {
-        const driftTo = windToDegFrom(w.fromDeg);
-        const score = angDiffDeg(driftTo, brg);
-        if (score < bestScore) { bestScore = score; best = w; }
-      }
-      if (!best) return "Kein Layer";
-
-      const curAlt = getCurrentAltM();
-      const need = Math.round(best.altM);
-      if (curAlt == null) return `Layer: ${need}m`;
-      const dAlt = need - curAlt;
-      if (Math.abs(dAlt) < 25) return `Halten ~${need}m`;
-      return dAlt > 0 ? `Steigen auf ${need}m` : `Sinken auf ${need}m`;
-    }
-
-    function clearTaskOverlays() {
-      try { STATE.layers.tasksLayer?.clearLayers(); } catch {}
-    }
-
-    function drawTaskOnMap(task) {
-      clearTaskOverlays();
-      if (!task || !STATE.map) return;
-
-      const NI = { interactive: false };
-      const pts = (task.points || []).filter(p => p && isFinite(p.lat) && isFinite(p.lon));
-
-      pts.forEach((p, idx) => {
-        const color = idx === 0 ? "#60a5fa" : "#93c5fd";
-        L.circleMarker([p.lat, p.lon], {
-          radius: 9, color, weight: 3, fillColor: color, fillOpacity: 0.25, ...NI
-        }).addTo(STATE.layers.tasksLayer);
-
-        L.marker([p.lat, p.lon], {
-          icon: L.divIcon({
-            className: "",
-            iconSize: [1,1],
-            html: `<div class="mono text-xs font-extrabold text-sky-200 drop-shadow">${escapeXml(p.name||String.fromCharCode(65+idx))}</div>`
-          }),
-          interactive: false
-        }).addTo(STATE.layers.tasksLayer);
-      });
-
-      const center = task.center || (pts[0] ? { lat: pts[0].lat, lon: pts[0].lon } : null);
-      if (center && (task.r2M || task.r1M)) {
-        if (task.r2M) {
-          L.circle([center.lat, center.lon], {
-            radius: task.r2M, color: "#60a5fa", weight: 3, opacity: 0.9, fillOpacity: 0.05, ...NI
-          }).addTo(STATE.layers.tasksLayer);
-        }
-        if (task.r1M) {
-          L.circle([center.lat, center.lon], {
-            radius: task.r1M, color: "#93c5fd", weight: 2, opacity: 0.8, dashArray: "6 8", fillOpacity: 0.01, ...NI
-          }).addTo(STATE.layers.tasksLayer);
-        }
-      }
-
-      if (task.code === "ANG" && pts.length >= 2) {
-        L.polyline(pts.slice(0,2).map(p => [p.lat,p.lon]), { color:"#38bdf8", weight:3, opacity:0.9, dashArray:"8 8", ...NI })
-          .addTo(STATE.layers.tasksLayer);
-      }
-      if (task.code === "LRN" && pts.length >= 3) {
-        L.polyline(pts.slice(0,3).map(p => [p.lat,p.lon]).concat([[pts[0].lat, pts[0].lon]]), { color:"#38bdf8", weight:3, opacity:0.9, ...NI })
-          .addTo(STATE.layers.tasksLayer);
-      }
-    }
-
-    function drawDisplayedTaskOnMap() {
-      if (STATE.flight.active) { drawTaskOnMap(STATE.task.active); return; }
-      const shownId = STATE.ui.mapShownTaskId;
-      if (shownId) {
-        const t = STATE.briefing.tasks.find(x => x.id === shownId);
-        if (t) { drawTaskOnMap(t); return; }
-        STATE.ui.mapShownTaskId = null;
-      }
-      drawTaskOnMap(STATE.task.active);
-    }
-
-    function getDisplayedTaskSource() {
-      // Während Fahrt: aktiver Task
-      if (STATE.flight.active) {
-        return {
-          kind: "active",
-          get: () => STATE.task.active,
-          set: (t) => { STATE.task.active = t; }
-        };
-      }
-
-      // Vor Fahrt: wenn Vorschau gewählt, dann Briefing-Task
-      if (STATE.ui.mapShownTaskId) {
-        const id = STATE.ui.mapShownTaskId;
-        const idx = STATE.briefing.tasks.findIndex(x => x.id === id);
-        if (idx >= 0) {
-          return {
-            kind: "briefing",
-            get: () => STATE.briefing.tasks[idx],
-            set: (t) => {
-              STATE.briefing.tasks[idx] = t;
-              // falls derselbe Task auch aktiv ist (via briefingId) -> aktualisieren
-              if (STATE.task.active?.briefingId === id) {
-                const a = deepClone(t);
-                a.briefingId = id;
-                STATE.task.active = a;
-              }
-            }
-          };
-        }
-      }
-
-      // Default: aktiver Task
-      return {
-        kind: "active",
-        get: () => STATE.task.active,
-        set: (t) => { STATE.task.active = t; }
-      };
-    }
-
-    function setDisplayedTaskPoint(index, lat, lon) {
-      const src = getDisplayedTaskSource();
-      let t = src.get();
-      if (!t) { showSnackbar("Kein Task ausgewählt."); return; }
-      t = deepClone(t);
-
-      const labels = pointLabelsForTask(t.code, (t.points||[]).length);
-      const label = labels[index] || `P${index+1}`;
-
-      if (!Array.isArray(t.points)) t.points = [];
-      while (t.points.length <= index) t.points.push({ name: labels[t.points.length] || `P${t.points.length+1}`, lat: null, lon: null });
-
-      t.points[index] = { name: label, lat, lon };
-
-      // Spezial: 3DT center
-      if (t.code === "3DT") t.center = { lat: t.points[0].lat, lon: t.points[0].lon };
-
-      src.set(t);
-
-      // sync editor fields if this is the editor task
-      syncEditorPointInputsFromTask(t);
-      drawDisplayedTaskOnMap();
-      renderBriefingList();
-      renderBriefingQuickList();
-      updatePointDock();
-      updateWindDock();
-      persistAll();
-    }
-
-    function getPrimaryTarget(task) {
-      if (!task) return null;
-      if (task.code === "3DT" && task.center) return task.center;
-      const pts = (task.points || []).filter(p => p && isFinite(p.lat) && isFinite(p.lon));
-      if (pts.length) return { lat: pts[0].lat, lon: pts[0].lon };
-      return null;
-    }
-
-    function dropMarker() {
-      if (!STATE.flight.active) { showSnackbar("Bitte zuerst die Fahrt starten."); return; }
-      const pos = getCurrentPos();
-      if (!pos) { showSnackbar("Keine Position."); return; }
-
-      const alt = getCurrentAltM();
-      const t = getActiveTask();
-      const colorKey = t ? MARKER_COLORS[Math.abs(hashStr(t.code)) % MARKER_COLORS.length] : "pink";
-      const color = COLOR_HEX[colorKey];
-
-      const m = { lat: pos.lat, lon: pos.lon, altM: alt, ts: now(), color: colorKey, label: t ? t.code : "MARK" };
-      STATE.flight.markers.push(m);
-
-      L.circleMarker([m.lat, m.lon], { radius: 8, color, weight: 3, fillColor: color, fillOpacity: 0.25, interactive: false })
-        .addTo(STATE.layers.markersLayer);
-
-      showSnackbar("Marker gesetzt.");
-      persistAll();
-    }
-
-    async function fetchWindFromOpenMeteo() {
-      const pos = getCurrentPos();
-      if (!pos) { showSnackbar("Keine Position für Online-Wind."); return; }
-
-      const lat = pos.lat.toFixed(4);
-      const lon = pos.lon.toFixed(4);
-
-      const hourly = [
-        "windspeed_10m","winddirection_10m",
-        "windspeed_80m","winddirection_80m",
-        "windspeed_120m","winddirection_120m",
-        "windspeed_180m","winddirection_180m"
-      ].join(",");
-
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=${hourly}&forecast_days=1&timezone=auto`;
-
-      try {
-        showSnackbar("Lade Wind…", 1200);
-        const r = await fetch(url, { cache: "no-store" });
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        const j = await r.json();
-
-        const h = j.hourly;
-        if (!h || !h.time || !h.time.length) throw new Error("no hourly data");
-
-        const tNow = now();
-        let bestI = 0, bestD = Infinity;
-        for (let i=0;i<h.time.length;i++) {
-          const t = Date.parse(h.time[i]);
-          const d = Math.abs(t - tNow);
-          if (d < bestD) { bestD = d; bestI = i; }
-        }
-
-        const mapping = [
-          { altM: 10,  spd: h.windspeed_10m?.[bestI],  dir: h.winddirection_10m?.[bestI] },
-          { altM: 80,  spd: h.windspeed_80m?.[bestI],  dir: h.winddirection_80m?.[bestI] },
-          { altM: 120, spd: h.windspeed_120m?.[bestI], dir: h.winddirection_120m?.[bestI] },
-          { altM: 180, spd: h.windspeed_180m?.[bestI], dir: h.winddirection_180m?.[bestI] },
-        ];
-
-        let added = 0;
-        for (const m of mapping) {
-          if (m.spd == null || m.dir == null) continue;
-          addWindLayer({ altM: m.altM, fromDeg: m.dir, speedKmh: m.spd, ts: now(), source: "open-meteo" });
-          added++;
-        }
-        showSnackbar(added ? `Wind geladen (${added} Schichten).` : "Keine Windschichten gefunden.");
-      } catch (e) {
-        console.error(e);
-        showSnackbar("Online-Wind fehlgeschlagen.");
-      }
-    }
-
-    function centerOnPos() {
-      const p = getCurrentPos();
-      if (!p || !STATE.map) return;
-      STATE.ui.followGps = true;
-      updateFollowToggleUi();
-      STATE.map.panTo([p.lat, p.lon], { animate:true, duration:0.35 });
-      showSnackbar("Zentriert.");
-    }
-
-    /********************************************************************
-     * Editor: Nur notwendige Felder anzeigen
-     ********************************************************************/
-    function renderTaskFieldsForCode(code, existingTask=null) {
-      const wrap = document.getElementById("taskFields");
-      if (!wrap) return;
-
-      const s = schemaFor(code);
-      setEditorMarkerBadge(code);
-
-      const labels = pointLabelsForTask(code, (existingTask?.points || []).length);
-
-      const pointRow = (label, idx, latVal=null, lonVal=null) => `
-        <div class="grid grid-cols-[40px_1fr_1fr] gap-2 items-center" data-pt-row="${idx}">
-          <div class="text-xs font-extrabold text-slate-200">${escapeXml(label)}</div>
-          <input data-pt-lat="${idx}" type="number" step="0.000001" class="h-10 rounded-xl bg-slate-950 border border-slate-700 px-3 mono text-sm" placeholder="Lat"
-                 value="${latVal ?? ""}" />
-          <input data-pt-lon="${idx}" type="number" step="0.000001" class="h-10 rounded-xl bg-slate-950 border border-slate-700 px-3 mono text-sm" placeholder="Lon"
-                 value="${lonVal ?? ""}" />
-        </div>
-      `;
-
-      let pointsHtml = "";
-      if (s.points === "NONE") {
-        pointsHtml = `<div class="text-sm text-slate-400">Keine Koordinaten nötig.</div>`;
-      } else {
-        const pts = (existingTask?.points || []);
-        pointsHtml = `
-          <div class="rounded-2xl bg-slate-950/50 border border-slate-800 p-3 space-y-2">
-            <div class="flex items-center justify-between">
-              <div class="font-extrabold text-sm"><i class="fa-solid fa-location-crosshairs mr-2 text-sky-300"></i>Koordinaten</div>
-              <button id="btnEditorPickOpen" class="btn-touch h-9 px-3 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-extrabold text-xs">
-                <i class="fa-solid fa-crosshairs mr-2"></i>Über Karte
-              </button>
-            </div>
-            <div id="editorPointsWrap" class="space-y-2">
-              ${labels.map((lab, idx) => {
-                const p = pts[idx];
-                const lv = (p && isFinite(p.lat)) ? p.lat : null;
-                const ov = (p && isFinite(p.lon)) ? p.lon : null;
-                return pointRow(lab, idx, lv, ov);
-              }).join("")}
-            </div>
-            ${s.points === "MULTI" ? `
-              <button id="btnAddTarget" class="btn-touch h-10 w-full rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-extrabold text-sm">
-                <i class="fa-solid fa-plus mr-2"></i>Weiteres Ziel (HWZ)
-              </button>
-            ` : ""}
-            <div class="text-xs text-slate-400">
-              Schnell ändern ohne Menü: oben <span class="text-slate-200 font-bold">Fadenkreuz</span>.
-            </div>
-          </div>
-        `;
-      }
-
-      const radiiHtml = s.radii ? `
-        <div class="rounded-2xl bg-slate-950/50 border border-slate-800 p-3">
-          <div class="font-extrabold text-sm mb-2"><i class="fa-solid fa-circle-nodes mr-2 text-sky-300"></i>Radien (3DT)</div>
-          <div class="grid grid-cols-2 gap-2">
-            <div>
-              <div class="text-[11px] text-slate-400 mb-1">Innen (m)</div>
-              <input id="taskR1" type="number" class="h-10 rounded-xl bg-slate-950 border border-slate-700 px-3 mono text-sm" placeholder="z.B. 50" value="${existingTask?.r1M ?? ""}" />
-            </div>
-            <div>
-              <div class="text-[11px] text-slate-400 mb-1">Außen (m)</div>
-              <input id="taskR2" type="number" class="h-10 rounded-xl bg-slate-950 border border-slate-700 px-3 mono text-sm" placeholder="z.B. 200" value="${existingTask?.r2M ?? ""}" />
-            </div>
-          </div>
-        </div>
-      ` : "";
-
-      const setDirHtml = s.setDir ? `
-        <div class="rounded-2xl bg-slate-950/50 border border-slate-800 p-3">
-          <div class="font-extrabold text-sm mb-2"><i class="fa-solid fa-compass mr-2 text-amber-300"></i>Vorgegebene Richtung (ANG)</div>
-          <input id="taskSetDir" type="number" class="h-10 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 mono text-sm" placeholder="0..359"
-                 value="${existingTask?.setDirDeg ?? ""}" />
-        </div>
-      ` : "";
-
-      // Advanced (optional)
-      const advHtml = `
-        <div class="rounded-2xl bg-slate-950/50 border border-slate-800 p-3">
-          <div class="flex items-center justify-between">
-            <div class="font-extrabold text-sm"><i class="fa-solid fa-sliders mr-2 text-slate-300"></i>Erweitert</div>
-            <button id="btnToggleAdv" class="btn-touch h-9 px-3 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-extrabold text-xs">
-              ${STATE.ui.showAdvanced ? "Ausblenden" : "Anzeigen"}
-            </button>
-          </div>
-          <div id="advWrap" class="${STATE.ui.showAdvanced ? "" : "hidden"} mt-2">
-            <div class="grid grid-cols-2 gap-2">
-              <div>
-                <div class="text-[11px] text-slate-400 mb-1">Min Höhe (m)</div>
-                <input id="taskMinAlt" type="number" class="h-10 rounded-xl bg-slate-950 border border-slate-700 px-3 mono text-sm" placeholder="optional" value="${existingTask?.minAltM ?? ""}" />
-              </div>
-              <div>
-                <div class="text-[11px] text-slate-400 mb-1">Max Höhe (m)</div>
-                <input id="taskMaxAlt" type="number" class="h-10 rounded-xl bg-slate-950 border border-slate-700 px-3 mono text-sm" placeholder="optional" value="${existingTask?.maxAltM ?? ""}" />
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-
-      wrap.innerHTML = `${pointsHtml}${radiiHtml}${setDirHtml}${advHtml}`;
-      wireTaskFieldsDynamic(code);
-    }
-
-    function wireTaskFieldsDynamic(code) {
-      const s = schemaFor(code);
-
-      // Advanced toggle
-      const btnAdv = document.getElementById("btnToggleAdv");
-      const advWrap = document.getElementById("advWrap");
-      if (btnAdv && advWrap) {
-        btnAdv.onclick = () => {
-          STATE.ui.showAdvanced = !STATE.ui.showAdvanced;
-          advWrap.classList.toggle("hidden", !STATE.ui.showAdvanced);
-          btnAdv.textContent = STATE.ui.showAdvanced ? "Ausblenden" : "Anzeigen";
-          persistAll();
-        };
-      }
-
-      // Open point dock quickly
-      const btnPick = document.getElementById("btnEditorPickOpen");
-      if (btnPick) btnPick.onclick = () => {
-        togglePointDock(true);
-        showSnackbar("Punkt-Dock geöffnet. Punkt wählen → auf Karte setzen.");
-      };
-
-      // Multi-target add
-      const btnAdd = document.getElementById("btnAddTarget");
-      const wrap = document.getElementById("editorPointsWrap");
-      if (btnAdd && wrap && s.points === "MULTI") {
-        btnAdd.onclick = () => {
-          const idx = wrap.querySelectorAll('[data-pt-row]').length;
-          const lab = `T${idx+1}`;
-          const row = document.createElement("div");
-          row.setAttribute("data-pt-row", String(idx));
-          row.className = "grid grid-cols-[40px_1fr_1fr] gap-2 items-center";
-          row.innerHTML = `
-            <div class="text-xs font-extrabold text-slate-200">${escapeXml(lab)}</div>
-            <input data-pt-lat="${idx}" type="number" step="0.000001" class="h-10 rounded-xl bg-slate-950 border border-slate-700 px-3 mono text-sm" placeholder="Lat" />
-            <input data-pt-lon="${idx}" type="number" step="0.000001" class="h-10 rounded-xl bg-slate-950 border border-slate-700 px-3 mono text-sm" placeholder="Lon" />
-          `;
-          wrap.appendChild(row);
-          showSnackbar("Ziel hinzugefügt.");
-        };
-      }
-    }
-
-    function buildTaskFromForm() {
-      const code = document.getElementById("taskType")?.value;
-      const meta = CIA_TASKS.find(x => x.code === code);
-      if (!code || !meta) return null;
-      const s = schemaFor(code);
-
-      const title = document.getElementById("taskTitle")?.value?.trim() || "";
-
-      // points
-      let points = [];
-      if (s.points !== "NONE") {
-        // dynamic inputs
-        const latInputs = Array.from(document.querySelectorAll("[data-pt-lat]"));
-        const lonInputs = Array.from(document.querySelectorAll("[data-pt-lon]"));
-        const map = new Map();
-        latInputs.forEach(inp => {
-          const idx = parseInt(inp.getAttribute("data-pt-lat"),10);
-          if (!Number.isFinite(idx)) return;
-          map.set(idx, map.get(idx) || {});
-          map.get(idx).lat = safeFloat(inp.value, null);
-        });
-        lonInputs.forEach(inp => {
-          const idx = parseInt(inp.getAttribute("data-pt-lon"),10);
-          if (!Number.isFinite(idx)) return;
-          map.set(idx, map.get(idx) || {});
-          map.get(idx).lon = safeFloat(inp.value, null);
-        });
-
-        const labels = pointLabelsForTask(code, map.size);
-        const maxIdx = Math.max(...Array.from(map.keys()), labels.length-1, -1);
-        for (let i=0;i<=maxIdx;i++) {
-          const o = map.get(i) || {};
-          if (o.lat == null || o.lon == null) continue;
-          points.push({ name: labels[i] || `P${i+1}`, lat:o.lat, lon:o.lon });
-        }
-      }
-
-      // minimal validation for required points
-      if ((s.minPoints || 0) > 0 && points.length < (s.minPoints || 0)) {
-        return { _error: `Bitte mind. ${s.minPoints} Punkt(e) setzen.` };
-      }
-
-      const task = {
-        id: uid(),
-        code,
-        typeTitle: meta.title,
-        title,
-        points,
-        r1M: null,
-        r2M: null,
-        minAltM: null,
-        maxAltM: null,
-        setDirDeg: null,
-        center: null,
-        apt: null,
-      };
-
-      if (s.radii) {
-        const r1 = safeFloat(document.getElementById("taskR1")?.value, null);
-        const r2 = safeFloat(document.getElementById("taskR2")?.value, null);
-        task.r1M = r1 != null ? Math.max(0, r1) : null;
-        task.r2M = r2 != null ? Math.max(0, r2) : null;
-      }
-      if (s.setDir) {
-        const setDir = safeFloat(document.getElementById("taskSetDir")?.value, null);
-        task.setDirDeg = setDir != null ? ((setDir%360)+360)%360 : null;
-      }
-
-      if (STATE.ui.showAdvanced) {
-        const minAlt = safeFloat(document.getElementById("taskMinAlt")?.value, null);
-        const maxAlt = safeFloat(document.getElementById("taskMaxAlt")?.value, null);
-        task.minAltM = minAlt;
-        task.maxAltM = maxAlt;
-      }
-
-      if (task.code === "3DT") {
-        const p0 = task.points[0];
-        if (p0) task.center = { lat: p0.lat, lon: p0.lon };
-      }
-      return task;
-    }
-
-    function syncEditorPointInputsFromTask(task) {
-      // Nur wenn der Editor gerade genau diesen Briefing-Task bearbeitet (oder aktiv ohne briefingId)
-      const editorId = STATE.briefing.editorTaskId;
-      if (!editorId) return;
-      const edited = STATE.briefing.tasks.find(x => x.id === editorId);
-      if (!edited) return;
-
-      // Wenn task.id nicht passt, nichts
-      if (task.id !== editorId) return;
-
-      // Update only point fields (do not rerender whole form)
-      const pts = (task.points || []);
-      pts.forEach((p, idx) => {
-        const latEl = document.querySelector(`[data-pt-lat="${idx}"]`);
-        const lonEl = document.querySelector(`[data-pt-lon="${idx}"]`);
-        if (latEl) latEl.value = (p.lat != null) ? p.lat.toFixed(6) : "";
-        if (lonEl) lonEl.value = (p.lon != null) ? p.lon.toFixed(6) : "";
-      });
-    }
-
-    function restoreFormFromTask(task) {
-      if (!task) return;
-      const typeSel = document.getElementById("taskType");
-      const titleIn = document.getElementById("taskTitle");
-      if (typeSel) typeSel.value = task.code;
-      if (titleIn) titleIn.value = task.title || "";
-
-      renderTaskFieldsForCode(task.code, task);
-
-      // (Radii/SetDir/Advanced values are embedded via render)
-    }
-
-    /********************************************************************
-     * Briefing CRUD
-     ********************************************************************/
-    function briefingNew() {
-      STATE.briefing.editorTaskId = null;
-      setEditorBadge("Neu");
-      const typeSel = document.getElementById("taskType");
-      if (typeSel) typeSel.value = "JDG";
-      const titleIn = document.getElementById("taskTitle");
-      if (titleIn) titleIn.value = "";
-      renderTaskFieldsForCode("JDG", null);
-      showSnackbar("Neuer Task (Editor).");
-    }
-
-    function briefingEdit(id) {
-      const t = STATE.briefing.tasks.find(x => x.id === id);
-      if (!t) return;
-      STATE.briefing.editorTaskId = id;
-      setEditorBadge("Edit");
-      restoreFormFromTask(t);
-      showSnackbar("Task im Editor geladen.");
-    }
-
-    function briefingSaveFromEditor() {
-      const built = buildTaskFromForm();
-      if (!built) { showSnackbar("Task unvollständig."); return; }
-      if (built._error) { showSnackbar(built._error); return; }
-
-      const editorId = STATE.briefing.editorTaskId;
-      if (editorId) {
-        const idx = STATE.briefing.tasks.findIndex(x => x.id === editorId);
-        if (idx >= 0) {
-          built.id = editorId;
-          STATE.briefing.tasks[idx] = built;
-          showSnackbar("Briefing-Task aktualisiert.");
-        } else {
-          STATE.briefing.editorTaskId = null;
-          STATE.briefing.tasks.push(built);
-          showSnackbar("Briefing-Task gespeichert.");
-        }
-      } else {
-        STATE.briefing.tasks.push(built);
-        STATE.briefing.editorTaskId = built.id;
-        setEditorBadge("Edit");
-        showSnackbar("Briefing-Task gespeichert.");
-      }
-
-      persistAll();
-      renderBriefingList();
-      renderBriefingQuickList();
-
-      // wenn dieser Task als Vorschau gezeigt wird, neu zeichnen
-      if (STATE.ui.mapShownTaskId === built.id) drawDisplayedTaskOnMap();
-      updatePointDock();
-      updateWindDock();
-    }
-
-    function briefingDelete(id) {
-      const idx = STATE.briefing.tasks.findIndex(x => x.id === id);
-      if (idx < 0) return;
-
-      if (STATE.ui.mapShownTaskId === id) STATE.ui.mapShownTaskId = null;
-      if (STATE.task.active?.briefingId === id) clearActiveTask();
-
-      if (STATE.briefing.editorTaskId === id) {
-        STATE.briefing.editorTaskId = null;
-        setEditorBadge("Neu");
-      }
-
-      STATE.briefing.tasks.splice(idx, 1);
-      persistAll();
-      renderBriefingList();
-      renderBriefingQuickList();
-      drawDisplayedTaskOnMap();
-      updatePointDock();
-      showSnackbar("Briefing-Task gelöscht.");
-    }
-
-    function briefingMove(id, delta) {
-      const i = STATE.briefing.tasks.findIndex(x => x.id === id);
-      if (i < 0) return;
-      const j = i + delta;
-      if (j < 0 || j >= STATE.briefing.tasks.length) return;
-      const tmp = STATE.briefing.tasks[i];
-      STATE.briefing.tasks[i] = STATE.briefing.tasks[j];
-      STATE.briefing.tasks[j] = tmp;
-      persistAll();
-      renderBriefingList();
-      renderBriefingQuickList();
-    }
-
-    function briefingShowOnMap(id) {
-      if (STATE.flight.active) { showSnackbar("Während der Fahrt wird der aktive Task angezeigt."); return; }
-      STATE.ui.mapShownTaskId = id;
-      drawDisplayedTaskOnMap();
-      renderBriefingList();
-      updatePointDock();
-      showSnackbar("Task-Vorschau auf Karte.");
-    }
-
-    function setActiveTaskFromTaskObject(task, briefingId=null) {
-      if (!task) return;
-      const t = deepClone(task);
-      t.briefingId = briefingId || null;
-      STATE.task.active = t;
-
-      STATE.ui.mapShownTaskId = null;
-      drawDisplayedTaskOnMap();
-
-      setMarkerButtonColor(t.code);
-      updateButtons();
-      updateWindDock();
-      persistAll();
-
-      renderBriefingList();
-      renderBriefingQuickList();
-      updatePointDock();
-    }
-
-    function briefingSetActive(id) {
-      const t = STATE.briefing.tasks.find(x => x.id === id);
-      if (!t) return;
-      setActiveTaskFromTaskObject(t, id);
-      showSnackbar("Task ist jetzt aktiv.");
-    }
-
-    function clearActiveTask() {
-      STATE.task.active = null;
-      setMarkerButtonColor("x");
-      drawDisplayedTaskOnMap();
-      updateButtons();
-      updateWindDock();
-      persistAll();
-      renderBriefingList();
-      renderBriefingQuickList();
-      updatePointDock();
-      showSnackbar("Aktiver Task gelöscht.");
-    }
-
-    function cycleToNextTask() {
-      const tasks = STATE.briefing.tasks || [];
-      if (!tasks.length) { showSnackbar("Keine Briefing-Aufgaben."); return; }
-      const activeId = STATE.task.active?.briefingId || null;
-      let idx = activeId ? tasks.findIndex(x => x.id === activeId) : -1;
-      idx = (idx + 1) % tasks.length;
-      briefingSetActive(tasks[idx].id);
-    }
-
-    function previewEditorTask() {
-      if (STATE.flight.active) { showSnackbar("Während der Fahrt wird der aktive Task angezeigt."); return; }
-      const built = buildTaskFromForm();
-      if (!built || built._error) { showSnackbar(built? built._error : "Task unvollständig."); return; }
-      drawTaskOnMap(built);
-      showSnackbar("Editor-Vorschau (nicht gespeichert).");
-      updatePointDock();
-    }
-
-    function setActiveFromEditor() {
-      const built = buildTaskFromForm();
-      if (!built || built._error) { showSnackbar(built? built._error : "Task unvollständig."); return; }
-
-      const editorId = STATE.briefing.editorTaskId;
-      if (editorId) {
-        const t = STATE.briefing.tasks.find(x => x.id === editorId);
-        if (t) { briefingSetActive(editorId); return; }
-      }
-      setActiveTaskFromTaskObject(built, null);
-      showSnackbar("Editor-Task als aktiv gesetzt.");
-    }
-
-    function clearEditor() {
-      STATE.briefing.editorTaskId = null;
-      setEditorBadge("Neu");
-      briefingNew();
-    }
-
-    function showActiveOnMap() {
-      STATE.ui.mapShownTaskId = null;
-      drawDisplayedTaskOnMap();
-      renderBriefingList();
-      updatePointDock();
-      showSnackbar("Aktiver Task auf Karte.");
-    }
-
-    /********************************************************************
-     * Point Dock Logic
-     ********************************************************************/
-    function getDisplayedTaskForPointDock() {
-      const src = getDisplayedTaskSource();
-      const t = src.get();
-      return t ? deepClone(t) : null;
-    }
-
-    function updatePointDock() {
-      const nameEl = document.getElementById("pointDockTaskName");
-      const ptsEl = document.getElementById("pointDockPoints");
-      const coordEl = document.getElementById("pointDockCoords");
-      if (!nameEl || !ptsEl || !coordEl) return;
-
-      const t = getDisplayedTaskForPointDock();
-      if (!t) {
-        nameEl.textContent = "Kein Task";
-        ptsEl.innerHTML = "";
-        coordEl.textContent = "–";
-        return;
-      }
-
-      nameEl.textContent = `${t.code} — ${t.title || t.typeTitle || ""}`.trim();
-      const labels = pointLabelsForTask(t.code, (t.points||[]).length);
-      const s = schemaFor(t.code);
-
-      if (s.points === "NONE") {
-        ptsEl.innerHTML = `<div class="text-xs text-slate-400">Keine Punkte.</div>`;
-        coordEl.textContent = "–";
-        return;
-      }
-
-      // ensure selected index valid
-      STATE.ui.pointSelectedIndex = clamp(STATE.ui.pointSelectedIndex, 0, Math.max(0, labels.length-1));
-
-      ptsEl.innerHTML = labels.map((lab, idx) => {
-        const active = idx === STATE.ui.pointSelectedIndex;
-        return `
-          <button data-pidx="${idx}" class="btn-touch px-3 h-9 rounded-xl border ${active ? "bg-amber-300 text-slate-950 border-amber-200" : "bg-slate-900 text-slate-100 border-slate-800 hover:bg-slate-800"} font-extrabold text-xs">
-            ${escapeXml(lab)}
-          </button>
-        `;
-      }).join("");
-
-      ptsEl.querySelectorAll("button[data-pidx]").forEach(b => {
-        b.addEventListener("click", (e) => {
-          const idx = parseInt(e.currentTarget.getAttribute("data-pidx"), 10);
-          if (!Number.isFinite(idx)) return;
-          STATE.ui.pointSelectedIndex = idx;
-          STATE.ui.mapPickIndex = idx;
-          STATE.ui.mapPickLabel = labels[idx] || `P${idx+1}`;
-          updatePointDock();
-          persistAll();
-        });
-      });
-
-      // show coords
-      const pt = (t.points || [])[STATE.ui.pointSelectedIndex];
-      if (pt && isFinite(pt.lat) && isFinite(pt.lon)) coordEl.textContent = `${pt.lat.toFixed(6)}, ${pt.lon.toFixed(6)}`;
-      else coordEl.textContent = "–";
-
-      // keep map pick label in sync
-      STATE.ui.mapPickIndex = STATE.ui.pointSelectedIndex;
-      STATE.ui.mapPickLabel = labels[STATE.ui.pointSelectedIndex] || `P${STATE.ui.pointSelectedIndex+1}`;
-    }
-
-    function startPointPick() {
-      const t = getDisplayedTaskForPointDock();
-      if (!t) { showSnackbar("Kein Task ausgewählt."); return; }
-      const s = schemaFor(t.code);
-      if (s.points === "NONE") { showSnackbar("Dieser Task hat keine Punkte."); return; }
-      STATE.ui.mapPickMode = true;
-      const hint = document.getElementById("pointPickHint");
-      if (hint) hint.classList.remove("hidden");
-      showSnackbar("Jetzt auf die Karte tippen.");
-    }
-
-    function cancelPointPick() {
-      STATE.ui.mapPickMode = false;
-      const hint = document.getElementById("pointPickHint");
-      if (hint) hint.classList.add("hidden");
-      showSnackbar("Abgebrochen.");
-    }
-
-    /********************************************************************
-     * ELB helper
-     ********************************************************************/
-    function setHelperPoint(which) {
-      if (!STATE.flight.active) { showSnackbar("Nur während aktiver Fahrt."); return; }
-      const pos = getCurrentPos();
-      if (!pos) { showSnackbar("Keine Position."); return; }
-      STATE.task.pointsABC[which] = { ...pos };
-      showSnackbar(`Punkt ${which} gesetzt.`);
-      updateElbowResult();
-    }
-
-    function updateElbowResult() {
-      const out = document.getElementById("elbowResult");
-      if (!out) return;
-      const A = STATE.task.pointsABC.A;
-      const B = STATE.task.pointsABC.B;
-      const C = STATE.task.pointsABC.C;
-      if (!A || !B || !C) { out.textContent = "–"; return; }
-
-      const brgBA = bearingDeg(B, A);
-      const brgBC = bearingDeg(B, C);
-      let ang = angDiffDeg(brgBA, brgBC);
-      const res = 180 - ang;
-      out.textContent = fmtNum(res, 1);
-    }
-
-    /********************************************************************
-     * Wind Dock
-     ********************************************************************/
-    function updateWindDock() {
-      const list = document.getElementById("windDockLayers");
-      const navName = document.getElementById("windDockNavName");
-      const navDist = document.getElementById("windDockNavDist");
-      const navBrg  = document.getElementById("windDockNavBrg");
-      const navRec  = document.getElementById("windDockNavRec");
-      const miniDist = document.getElementById("windDockMiniDist");
-      if (!list || !navName || !navDist || !navBrg || !navRec || !miniDist) return;
-
-      const items = [...STATE.wind.layers].sort((a,b)=>a.altM-b.altM).slice(0, 10);
-      if (!items.length) {
-        list.innerHTML = `
-          <div class="rounded-2xl bg-slate-900/50 border border-slate-800 px-3 py-2 text-sm text-slate-400">
-            Keine Winddaten.
-          </div>
-        `;
-      } else {
-        list.innerHTML = items.map(w => {
-          const driftTo = windToDegFrom(w.fromDeg);
-          const spd = fmtNum(w.speedKmh,1);
-          const alt = Math.round(w.altM);
-          const from = Math.round(w.fromDeg);
-          const to = Math.round(driftTo);
-          return `
-            <div class="rounded-2xl bg-slate-900/55 border border-slate-800 px-3 py-2 flex items-center gap-3">
-              <div class="w-9 h-9 rounded-2xl bg-slate-950/70 border border-slate-800 grid place-items-center">
-                <div style="transform: rotate(${to}deg);" class="text-sky-300">
-                  <i class="fa-solid fa-location-arrow"></i>
-                </div>
-              </div>
-              <div class="flex-1 min-w-0">
-                <div class="flex items-baseline justify-between gap-2">
-                  <div class="font-extrabold mono">${alt} m</div>
-                  <div class="font-extrabold mono text-slate-200">${spd} <span class="text-[11px] text-slate-400">km/h</span></div>
-                </div>
-                <div class="text-[11px] text-slate-400 mono truncate">to ${to}° • from ${from}°</div>
-              </div>
-            </div>
-          `;
-        }).join("");
-      }
-
-      const t = getActiveTask();
-      const pos = getCurrentPos();
-      if (!t) {
-        navName.textContent = "Kein Task aktiv";
-        navDist.textContent = "–";
-        navBrg.textContent = "–";
-        navRec.textContent = "–";
-        miniDist.textContent = "–";
-        return;
-      }
-
-      navName.textContent = `${t.code} — ${t.title || t.typeTitle}`;
-      const target = getPrimaryTarget(t);
-      if (!pos || !target) {
-        navDist.textContent = "–";
-        navBrg.textContent = "–";
-        navRec.textContent = !pos ? "Keine Position" : "Kein Ziel";
-        miniDist.textContent = "–";
-        return;
-      }
-
-      const d = haversineM(pos, target);
-      const brg = bearingDeg(pos, target);
-      navDist.textContent = fmtDist(d);
-      navBrg.textContent = `${Math.round(brg)}°`;
-      navRec.textContent = recommendLayerText(t, pos, target) || "–";
-      miniDist.textContent = fmtDist(d);
-    }
-
-    /********************************************************************
-     * Wind/Archiv Panels
-     ********************************************************************/
     function updateWindPanel() {
       const list = document.getElementById("windList");
       if (!list) return;
-
       const items = [...STATE.wind.layers].sort((a,b)=>a.altM-b.altM);
       if (!items.length) {
         list.innerHTML = `<div class="text-sm text-slate-400">Keine Schichten vorhanden.</div>`;
         return;
       }
-
       list.innerHTML = items.map((w, idx) => `
         <div class="flex items-center gap-2 rounded-2xl bg-slate-950/60 border border-slate-800 px-3 py-2">
           <div class="flex-1">
@@ -2287,16 +1880,621 @@
           STATE.wind.layers.splice(idx, 1);
           persistAll();
           updateWindPanel();
-          updateWindDock();
+          updateWindHud();
+          updateNavToast();
+          rebuildTrajectory();
         });
       });
+    }
+
+    function windAtAltitude(altM) {
+      if (!STATE.wind.layers.length || altM == null) return null;
+      let best = null, bestD = Infinity;
+      for (const w of STATE.wind.layers) {
+        const d = Math.abs(w.altM - altM);
+        if (d < bestD) { bestD = d; best = w; }
+      }
+      return best;
+    }
+
+    function rebuildTrajectory() {
+      if (!STATE.map || !STATE.layers.trajectoryLayer) return;
+      try { STATE.layers.trajectoryLayer.clearLayers(); } catch {}
+      const pos = getCurrentPos();
+      const alt = getCurrentAltM();
+      if (!pos || alt == null) return;
+
+      const w = windAtAltitude(alt);
+      if (!w) return;
+
+      const driftTo = windToDegFrom(w.fromDeg);
+      const spdMps = Math.max(0, (w.speedKmh||0) / 3.6);
+      if (spdMps < 0.1) return;
+
+      const mins = [5,10,15];
+      mins.forEach((m, idx) => {
+        const dist = spdMps * (m*60);
+        const q = destPoint(pos, driftTo, dist);
+        L.polyline([[pos.lat,pos.lon],[q.lat,q.lon]], {
+          color: "#22c55e",
+          weight: 4,
+          opacity: 0.75,
+          dashArray: idx === 0 ? null : (idx === 1 ? "8 8" : "3 10"),
+          interactive:false
+        }).addTo(STATE.layers.trajectoryLayer);
+      });
+    }
+
+    function getPrimaryTarget(task) {
+      if (!task) return null;
+      if (task.code === "3DT" && task.center) return task.center;
+      if (task.points && task.points.length) return { lat: task.points[0].lat, lon: task.points[0].lon };
+      return null;
+    }
+
+    function recommendLayerText(task, pos, target) {
+      if (task && task.code === "3DT" && task.center && task.r1M && task.r2M) {
+        const dC = haversineM(pos, task.center);
+        if (dC < task.r1M) return "Ungültig (im inneren Kreis)";
+        if (dC <= task.r2M) return "Im Ring: Distanz maximieren";
+        return "Außerhalb: Ziel = Zentrum";
+      }
+
+      if (!STATE.wind.layers.length) return "Kein Windprofil";
+      const brg = bearingDeg(pos, target);
+
+      let best = null, bestScore = Infinity;
+      for (const w of STATE.wind.layers) {
+        const driftTo = windToDegFrom(w.fromDeg);
+        const score = angDiffDeg(driftTo, brg);
+        if (score < bestScore) { bestScore = score; best = w; }
+      }
+      if (!best) return "Kein Layer";
+
+      const curAlt = getCurrentAltM();
+      const need = Math.round(best.altM);
+      if (curAlt == null) return `Layer: ${need}m`;
+      const dAlt = need - curAlt;
+      if (Math.abs(dAlt) < 25) return `Halten ~${need}m`;
+      return dAlt > 0 ? `Steigen auf ${need}m` : `Sinken auf ${need}m`;
+    }
+
+    function clearTaskOverlays() { try { STATE.layers.tasksLayer?.clearLayers(); } catch {} }
+
+    function drawTaskOnMap(task) {
+      clearTaskOverlays();
+      if (!task || !STATE.map) return;
+
+      const NI = { interactive:false };
+
+      if (task.points && task.points.length) {
+        task.points.forEach((p, idx) => {
+          const color = idx === 0 ? "#60a5fa" : "#93c5fd";
+          L.circleMarker([p.lat, p.lon], { radius: 9, color, weight: 3, fillColor: color, fillOpacity: 0.25, ...NI })
+            .addTo(STATE.layers.tasksLayer);
+          L.marker([p.lat, p.lon], {
+            icon: L.divIcon({ className:"", iconSize:[1,1], html:`<div class="mono text-xs font-extrabold" style="color:${color};text-shadow:0 6px 16px rgba(0,0,0,.45)">${escapeXml(p.name||String.fromCharCode(65+idx))}</div>` }),
+            interactive:false
+          }).addTo(STATE.layers.tasksLayer);
+        });
+      }
+
+      const center = task.center || (task.points && task.points[0] ? { lat: task.points[0].lat, lon: task.points[0].lon } : null);
+      if (center && (task.r2M || task.r1M)) {
+        if (task.r2M) L.circle([center.lat, center.lon], { radius: task.r2M, color: "#60a5fa", weight: 3, opacity: 0.9, fillOpacity: 0.05, ...NI }).addTo(STATE.layers.tasksLayer);
+        if (task.r1M) L.circle([center.lat, center.lon], { radius: task.r1M, color: "#93c5fd", weight: 2, opacity: 0.8, dashArray: "6 8", fillOpacity: 0.01, ...NI }).addTo(STATE.layers.tasksLayer);
+      }
+
+      if (task.code === "ANG" && task.points && task.points.length >= 2) {
+        L.polyline(task.points.slice(0,2).map(p => [p.lat,p.lon]), { color:"#38bdf8", weight:3, opacity:0.9, dashArray:"8 8", ...NI }).addTo(STATE.layers.tasksLayer);
+      }
+      if (task.code === "LRN" && task.points && task.points.length >= 3) {
+        const pts = task.points.slice(0,3).map(p => [p.lat,p.lon]);
+        pts.push([task.points[0].lat, task.points[0].lon]);
+        L.polyline(pts, { color:"#38bdf8", weight:3, opacity:0.9, ...NI }).addTo(STATE.layers.tasksLayer);
+      }
+    }
+
+    function buildTaskFromForm() {
+      const code = document.getElementById("taskType")?.value;
+      const meta = CIA_TASKS.find(x => x.code === code);
+      if (!code || !meta) return null;
+
+      const title = document.getElementById("taskTitle")?.value?.trim() || "";
+      const r1 = safeFloat(document.getElementById("taskR1")?.value, null);
+      const r2 = safeFloat(document.getElementById("taskR2")?.value, null);
+      const minAlt = safeFloat(document.getElementById("taskMinAlt")?.value, null);
+      const maxAlt = safeFloat(document.getElementById("taskMaxAlt")?.value, null);
+      const setDir = safeFloat(document.getElementById("taskSetDir")?.value, null);
+
+      const markerCount = clamp(parseInt(document.getElementById("taskMarkerCount")?.value || "0", 10) || 0, 0, APP.maxMarkerButtons);
+
+      const markerColors = [];
+      document.querySelectorAll("#taskMarkerColors input[type='color']").forEach(inp => markerColors.push(inp.value || "#fb7185"));
+
+      const points = [];
+      const aLat = safeFloat(document.getElementById("taskALat")?.value, null);
+      const aLon = safeFloat(document.getElementById("taskALon")?.value, null);
+      if (aLat != null && aLon != null) points.push({ name:"A", lat:aLat, lon:aLon });
+
+      const bLat = safeFloat(document.getElementById("taskBLat")?.value, null);
+      const bLon = safeFloat(document.getElementById("taskBLon")?.value, null);
+      if (bLat != null && bLon != null) points.push({ name:"B", lat:bLat, lon:bLon });
+
+      const cLat = safeFloat(document.getElementById("taskCLat")?.value, null);
+      const cLon = safeFloat(document.getElementById("taskCLon")?.value, null);
+      if (cLat != null && cLon != null) points.push({ name:"C", lat:cLat, lon:cLon });
+
+      const task = {
+        id: uid(),
+        code,
+        typeTitle: meta.title,
+        title,
+        points,
+        r1M: r1 != null ? Math.max(0, r1) : null,
+        r2M: r2 != null ? Math.max(0, r2) : null,
+        minAltM: minAlt,
+        maxAltM: maxAlt,
+        setDirDeg: setDir != null ? ((setDir%360)+360)%360 : null,
+        center: null,
+
+        markerCount,
+        markerColors: ensureMarkerColorsArray({ markerColors }, markerCount),
+      };
+
+      if (task.code === "3DT") {
+        if (points[0]) task.center = { lat: points[0].lat, lon: points[0].lon };
+      }
+      return task;
+    }
+
+    /***********************
+     * Briefing CRUD
+     ***********************/
+    function createBriefing() {
+      const b = {
+        id: uid(),
+        title: "Neues Briefing",
+        startFrom: "",
+        startTo: "",
+        scoringEnd: "",
+        orderMode: "fixed", // fixed | free
+        tasks: [],
+        createdTs: now(),
+        updatedTs: now(),
+      };
+      STATE.briefings.list.push(b);
+      STATE.ui.selectedBriefingId = b.id;
+      STATE.ui.selectedBriefTaskId = null;
+      persistAll();
+      renderBriefingSelect();
+      showSnackbar("Briefing erstellt.");
+    }
+
+    function duplicateBriefing() {
+      const b = getSelectedBriefing();
+      if (!b) { showSnackbar("Kein Briefing."); return; }
+      const copy = JSON.parse(JSON.stringify(b));
+      copy.id = uid();
+      copy.title = (b.title || "Briefing") + " (Kopie)";
+      copy.createdTs = now();
+      copy.updatedTs = now();
+      // new ids for tasks
+      copy.tasks = (copy.tasks || []).map(t => ({ ...t, id: uid() }));
+      STATE.briefings.list.push(copy);
+      STATE.ui.selectedBriefingId = copy.id;
+      STATE.ui.selectedBriefTaskId = null;
+      persistAll();
+      renderBriefingSelect();
+      showSnackbar("Briefing dupliziert.");
+    }
+
+    function deleteBriefing() {
+      const b = getSelectedBriefing();
+      if (!b) { showSnackbar("Kein Briefing."); return; }
+      STATE.briefings.list = STATE.briefings.list.filter(x => x.id !== b.id);
+      if (STATE.briefings.activeId === b.id) STATE.briefings.activeId = null;
+      if (STATE.ui.selectedBriefingId === b.id) STATE.ui.selectedBriefingId = STATE.briefings.list[0]?.id || null;
+      STATE.ui.selectedBriefTaskId = null;
+      persistAll();
+      renderBriefingSelect();
+      updateButtons();
+      showSnackbar("Briefing gelöscht.");
+    }
+
+    function saveBriefingFromForm() {
+      const b = getSelectedBriefing();
+      if (!b) { showSnackbar("Kein Briefing."); return; }
+
+      b.title = (document.getElementById("briefTitle")?.value || "").trim();
+      b.startFrom = document.getElementById("briefStartFrom")?.value || "";
+      b.startTo = document.getElementById("briefStartTo")?.value || "";
+      b.scoringEnd = document.getElementById("briefScoringEnd")?.value || "";
+      b.orderMode = document.getElementById("briefOrderMode")?.value === "free" ? "free" : "fixed";
+      b.updatedTs = now();
+
+      persistAll();
+      renderBriefingSelect();
+      showSnackbar("Briefing gespeichert.");
+    }
+
+    function activateBriefing() {
+      const b = getSelectedBriefing();
+      if (!b) { showSnackbar("Kein Briefing."); return; }
+      STATE.briefings.activeId = b.id;
+      // when switching active briefing, reset run state if flight active (keep flight track)
+      if (STATE.flight.active) {
+        STATE.flight.briefingRun = buildRunStateFromBriefing(b);
+      }
+      persistAll();
+      updateButtons();
+      renderBriefTasksList();
+      showSnackbar("Briefing aktiviert.");
+    }
+
+    function deactivateBriefing() {
+      STATE.briefings.activeId = null;
+      STATE.flight.briefingRun = null;
+      // also clear active task overlay if it came from briefing
+      STATE.task.active = null;
+      clearTaskOverlays();
+      persistAll();
+      updateButtons();
+      updateNavToast();
+      renderBriefTasksList();
+      showSnackbar("Briefing deaktiviert.");
+    }
+
+    function addTaskToSelectedBriefing() {
+      const b = getSelectedBriefing();
+      if (!b) { showSnackbar("Bitte erst Briefing anlegen."); return; }
+
+      const t = buildTaskFromForm();
+      if (!t) { showSnackbar("Task unvollständig."); return; }
+      // require at least A for those with target-based navigation (except pure track tasks)
+      const needPoint = !(t.code === "ELB" || t.code === "LRN" || t.code === "RTA" || t.code === "3DT" || t.code === "APT" || t.code === "ANG");
+      if (needPoint && (!t.points || !t.points.length)) {
+        showSnackbar("Bitte Koordinaten setzen (mind. A).");
+        return;
+      }
+
+      // If markerCount was left 0 but default suggests something, keep user choice (free) — but you said derived:
+      // We'll auto-fill if empty AND default>0.
+      if ((t.markerCount ?? 0) === 0) {
+        const def = defaultMarkerCountForTask(t.code);
+        if (def > 0) {
+          t.markerCount = def;
+          t.markerColors = ensureMarkerColorsArray(t, def);
+        }
+      }
+
+      b.tasks = b.tasks || [];
+      b.tasks.push(t);
+      b.updatedTs = now();
+
+      STATE.ui.selectedBriefTaskId = t.id;
+
+      persistAll();
+      renderBriefingSelect();
+      renderBriefTasksList();
+      showSnackbar("Task zum Briefing hinzugefügt.");
+    }
+
+    function deleteTaskFromBriefing(taskId) {
+      const b = getSelectedBriefing();
+      if (!b) return;
+      b.tasks = (b.tasks || []).filter(t => t.id !== taskId);
+      b.updatedTs = now();
+
+      if (STATE.ui.selectedBriefTaskId === taskId) STATE.ui.selectedBriefTaskId = b.tasks[0]?.id || null;
+
+      // if active briefing + running state references this task, rebuild run state
+      if (STATE.briefings.activeId === b.id && STATE.flight.briefingRun) {
+        if (STATE.flight.briefingRun.activeTaskId === taskId) {
+          STATE.flight.briefingRun.activeTaskId = null;
+          STATE.task.active = null;
+          clearTaskOverlays();
+        }
+        STATE.flight.briefingRun = buildRunStateFromBriefing(b, STATE.flight.briefingRun);
+      }
+
+      persistAll();
+      renderBriefingSelect();
+      renderBriefTasksList();
+      updateButtons();
+      showSnackbar("Task gelöscht.");
+    }
+
+    function moveTaskInBriefing(taskId, dir) {
+      const b = getSelectedBriefing();
+      if (!b || !b.tasks) return;
+      const i = b.tasks.findIndex(t => t.id === taskId);
+      if (i < 0) return;
+      const j = i + dir;
+      if (j < 0 || j >= b.tasks.length) return;
+      const tmp = b.tasks[i]; b.tasks[i] = b.tasks[j]; b.tasks[j] = tmp;
+      b.updatedTs = now();
+      persistAll();
+      renderBriefTasksList();
+    }
+
+    function activateBriefingTask(taskId, allowFree=true) {
+      const b = getSelectedBriefing();
+      if (!b) { showSnackbar("Kein Briefing ausgewählt."); return; }
+      const task = getBriefTask(b, taskId);
+      if (!task) return;
+
+      // if briefing is active and flight active, enforce modes
+      if (STATE.briefings.activeId === b.id && STATE.flight.active && STATE.flight.briefingRun) {
+        const mode = b.orderMode || "fixed";
+        if (mode === "fixed" && allowFree) {
+          // fixed mode: only allow selecting current or next
+          const nextId = getNextTaskIdInRun(b, STATE.flight.briefingRun);
+          const curId = STATE.flight.briefingRun.activeTaskId;
+          if (taskId !== curId && taskId !== nextId) {
+            showSnackbar("Fix-Modus: nur aktueller oder nächster Task.");
+            return;
+          }
+        }
+        ensureRunStateHasTask(STATE.flight.briefingRun, task);
+        STATE.flight.briefingRun.activeTaskId = taskId;
+      }
+
+      // also set navigation task overlay (even in briefing planning)
+      STATE.task.active = { ...task };
+      drawTaskOnMap(STATE.task.active);
+      updateButtons();
+      updateNavToast();
+      persistAll();
+      showSnackbar("Task aktiv auf Karte.");
+    }
+
+    function clearActiveTaskOverlay() {
+      STATE.task.active = null;
+      clearTaskOverlays();
+      updateButtons();
+      updateNavToast();
+      persistAll();
+      showSnackbar("Task Overlay entfernt.");
+    }
+
+    function markTaskDone(taskId) {
+      const b = getActiveBriefing();
+      const run = STATE.flight.briefingRun;
+      if (!STATE.flight.active || !b || !run) { showSnackbar("Nur während aktiver Fahrt mit Briefing."); return; }
+
+      const st = run.taskStates?.find(s => s.taskId === taskId);
+      if (!st) { showSnackbar("Task-State fehlt."); return; }
+      st.finishedTs = now();
+
+      // auto advance in fixed mode
+      if ((b.orderMode || "fixed") === "fixed") {
+        const nextId = getNextTaskIdInRun(b, run);
+        if (nextId) {
+          run.activeTaskId = nextId;
+          const nt = getBriefTask(b, nextId);
+          if (nt) activateBriefingTask(nextId, false);
+        } else {
+          run.activeTaskId = null;
+          clearActiveTaskOverlay();
+        }
+      }
+
+      persistAll();
+      renderBriefTasksList();
+      updateButtons();
+      updateNavToast();
+      showSnackbar("Task als Done markiert.");
+    }
+
+    function nextTask() {
+      const b = getActiveBriefing();
+      const run = STATE.flight.briefingRun;
+      if (!STATE.flight.active || !b || !run) { showSnackbar("Nur während aktiver Fahrt mit Briefing."); return; }
+      if ((b.orderMode || "fixed") !== "fixed") { showSnackbar("Frei-Modus: wähle Task direkt."); return; }
+
+      const nextId = getNextTaskIdInRun(b, run);
+      if (!nextId) { showSnackbar("Kein weiterer Task."); return; }
+      run.activeTaskId = nextId;
+      activateBriefingTask(nextId, false);
+      persistAll();
+      renderBriefTasksList();
+      updateButtons();
+      updateNavToast();
+    }
+
+    function buildRunStateFromBriefing(briefing, prevRun=null) {
+      const tasks = briefing.tasks || [];
+      const run = {
+        briefingId: briefing.id,
+        activeTaskId: prevRun?.activeTaskId || null,
+        taskStates: tasks.map(t => {
+          const prev = prevRun?.taskStates?.find(s => s.taskId === t.id);
+          const mc = Math.max(0, Math.min(APP.maxMarkerButtons, t.markerCount ?? 0));
+          return {
+            taskId: t.id,
+            startedTs: prev?.startedTs || null,
+            finishedTs: prev?.finishedTs || null,
+            usedMarkers: Array.from({length:mc}).map((_,i)=> !!prev?.usedMarkers?.[i]),
+          };
+        })
+      };
+
+      // if activeTaskId no longer exists, clear
+      if (run.activeTaskId && !tasks.some(t => t.id === run.activeTaskId)) run.activeTaskId = null;
+
+      // if no activeTaskId, set first not-done in fixed mode
+      if (!run.activeTaskId && (briefing.orderMode || "fixed") === "fixed") {
+        const first = tasks.find(t => {
+          const st = run.taskStates.find(s => s.taskId === t.id);
+          return !st?.finishedTs;
+        });
+        if (first) run.activeTaskId = first.id;
+      }
+      return run;
+    }
+
+    function ensureRunStateHasTask(run, task) {
+      if (!run.taskStates) run.taskStates = [];
+      if (run.taskStates.some(s => s.taskId === task.id)) return;
+      const mc = Math.max(0, Math.min(APP.maxMarkerButtons, task.markerCount ?? 0));
+      run.taskStates.push({ taskId: task.id, startedTs:null, finishedTs:null, usedMarkers:Array.from({length:mc}).map(()=>false) });
+    }
+
+    function getNextTaskIdInRun(briefing, run) {
+      const tasks = briefing.tasks || [];
+      if (!tasks.length) return null;
+
+      const cur = run.activeTaskId;
+      if (!cur) {
+        const first = tasks.find(t => {
+          const st = run.taskStates?.find(s => s.taskId === t.id);
+          return !st?.finishedTs;
+        });
+        return first?.id || null;
+      }
+
+      const idx = tasks.findIndex(t => t.id === cur);
+      for (let i = idx + 1; i < tasks.length; i++) {
+        const t = tasks[i];
+        const st = run.taskStates?.find(s => s.taskId === t.id);
+        if (!st?.finishedTs) return t.id;
+      }
+      return null;
+    }
+
+    function getTaskProgressLabel(briefing, run, taskId) {
+      const st = run.taskStates?.find(s => s.taskId === taskId);
+      if (!st) return "";
+      if (st.finishedTs) return "DONE";
+      const used = (st.usedMarkers||[]).filter(Boolean).length;
+      const total = (st.usedMarkers||[]).length;
+      if (total > 0) return `${used}/${total}`;
+      return "";
+    }
+
+    function beginFlight(title) {
+      if (STATE.flight.active) return;
+
+      STATE.flight.active = true;
+      STATE.flight.title = title || "Fahrt";
+      STATE.flight.startedTs = now();
+      STATE.flight.track = [];
+      STATE.flight.markers = [];
+      try { STATE.layers.trackLine?.setLatLngs([]); } catch {}
+      try { STATE.layers.markersLayer?.clearLayers(); } catch {}
+
+      STATE.gps.lastAltM = null;
+      STATE.gps.lastAltTs = null;
+      STATE.wind.lastAuto = { altM: null, courseDeg: null, ts: 0 };
+
+      // if briefing active, create run state
+      const b = getActiveBriefing();
+      if (b) {
+        STATE.flight.briefingRun = buildRunStateFromBriefing(b);
+        // set active task (fixed mode => first), free mode => none until picked
+        if (STATE.flight.briefingRun.activeTaskId) {
+          const t = getBriefTask(b, STATE.flight.briefingRun.activeTaskId);
+          if (t) {
+            STATE.task.active = { ...t };
+            drawTaskOnMap(STATE.task.active);
+          }
+        } else {
+          STATE.task.active = null;
+          clearTaskOverlays();
+        }
+      } else {
+        STATE.flight.briefingRun = null;
+      }
+
+      updateButtons();
+      updateNavToast();
+      renderBriefTasksList();
+      showSnackbar("Fahrt gestartet.");
+      persistAll();
+    }
+
+    function finishFlight() {
+      if (!STATE.flight.active) return;
+
+      const endedTs = now();
+      const flight = {
+        id: uid(),
+        title: STATE.flight.title || "Fahrt",
+        startedTs: STATE.flight.startedTs,
+        endedTs,
+        track: STATE.flight.track.slice(0),
+        markers: STATE.flight.markers.slice(0),
+        briefingRun: STATE.flight.briefingRun ? JSON.parse(JSON.stringify(STATE.flight.briefingRun)) : null
+      };
+
+      STATE.flight.archive.push(flight);
+      STATE.flight.active = false;
+      STATE.flight.title = "";
+      STATE.flight.startedTs = 0;
+      STATE.flight.briefingRun = null;
+
+      updateButtons();
+      updateArchivePanel();
+      renderBriefTasksList();
+      showSnackbar("Fahrt beendet & archiviert.");
+      persistAll();
+    }
+
+    function dropMarkerFromBriefingTask(markerIndex) {
+      if (!STATE.flight.active) { showSnackbar("Bitte zuerst die Fahrt starten."); return; }
+
+      const run = STATE.flight.briefingRun;
+      const b = getActiveBriefing();
+      if (!run || !b) { showSnackbar("Kein aktives Briefing für Marker."); return; }
+
+      const taskId = run.activeTaskId;
+      if (!taskId) { showSnackbar("Kein aktiver Task. Wähle Task im Briefing."); return; }
+
+      const task = getBriefTask(b, taskId);
+      if (!task) { showSnackbar("Task fehlt."); return; }
+
+      const st = run.taskStates?.find(s => s.taskId === taskId);
+      if (!st) { showSnackbar("Task-State fehlt."); return; }
+
+      const mc = Math.max(0, Math.min(APP.maxMarkerButtons, task.markerCount ?? 0));
+      if (markerIndex < 0 || markerIndex >= mc) return;
+      if (st.usedMarkers?.[markerIndex]) { showSnackbar("Marker bereits verwendet."); return; }
+
+      const pos = getCurrentPos();
+      if (!pos) { showSnackbar("Keine Position."); return; }
+
+      const color = ensureMarkerColorsArray(task, mc)[markerIndex] || "#fb7185";
+      const alt = getCurrentAltM();
+
+      const m = {
+        lat: pos.lat, lon: pos.lon, altM: alt, ts: now(),
+        color,
+        label: `${task.code}-M${markerIndex+1}`,
+        taskId: task.id,
+        taskCode: task.code
+      };
+      STATE.flight.markers.push(m);
+
+      L.circleMarker([m.lat, m.lon], {
+        radius: 8, color, weight: 3, fillColor: color, fillOpacity: 0.25, interactive: false
+      }).addTo(STATE.layers.markersLayer);
+
+      st.usedMarkers[markerIndex] = true;
+      if (!st.startedTs) st.startedTs = now();
+
+      persistAll();
+      updateButtons();
+      updateNavToast();
+      renderBriefTasksList();
+      showSnackbar(`Marker ${markerIndex+1} gesetzt.`);
     }
 
     function updateArchivePanel() {
       const list = document.getElementById("archiveList");
       if (!list) return;
-      const items = [...STATE.flight.archive].sort((a,b)=>b.startedTs-a.startedTs);
 
+      const items = [...STATE.flight.archive].sort((a,b)=>b.startedTs-a.startedTs);
       if (!items.length) {
         list.innerHTML = `<div class="text-sm text-slate-400">Noch keine Fahrten im Archiv.</div>`;
         return;
@@ -2307,12 +2505,13 @@
         const durMin = f.endedTs ? Math.round((f.endedTs - f.startedTs)/60000) : 0;
         const mCount = (f.markers||[]).length;
         const tCount = (f.track||[]).length;
+        const hasBrief = !!f.briefingRun?.briefingId;
         return `
           <div class="rounded-2xl bg-slate-950/60 border border-slate-800 p-3">
             <div class="flex items-center gap-2">
               <div class="flex-1 min-w-0">
                 <div class="font-extrabold truncate">${escapeXml(f.title || "Fahrt")}</div>
-                <div class="text-xs text-slate-400">${dt.toLocaleString()} • ${durMin} min • ${tCount} pts • ${mCount} marks</div>
+                <div class="text-xs text-slate-400">${dt.toLocaleString()} • ${durMin} min • ${tCount} pts • ${mCount} marks ${hasBrief ? "• Briefing" : ""}</div>
               </div>
               <button data-fid="${f.id}" class="btn-touch btnExport h-10 px-3 rounded-xl bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 text-slate-950 font-extrabold text-sm">
                 <i class="fa-solid fa-file-arrow-down mr-2"></i>KML
@@ -2334,13 +2533,16 @@
 
     function exportFlightToKml(f) {
       try {
-        const name = escapeXml(f.title || APP.kmlName);
+        const name = escapeXml(f.title || "CompNavAir");
         const trackCoords = (f.track || []).map(p => `${p.lon},${p.lat},${p.altM||0}`).join(" ");
+
         const markerPlacemarks = (f.markers || []).map(m => {
           const when = new Date(m.ts).toISOString();
+          const desc = escapeXml(`${m.label || "MARK"}${m.taskCode ? ` (${m.taskCode})` : ""}`);
           return `
             <Placemark>
               <name>${escapeXml(m.label || "MARK")}</name>
+              <description>${desc}</description>
               <TimeStamp><when>${when}</when></TimeStamp>
               <Point><coordinates>${m.lon},${m.lat},${m.altM||0}</coordinates></Point>
             </Placemark>
@@ -2380,105 +2582,38 @@
       }
     }
 
-    function renderBriefingList() {
-      const wrap = document.getElementById("briefingList");
-      if (!wrap) return;
-
-      const tasks = STATE.briefing.tasks || [];
-      if (!tasks.length) {
-        wrap.innerHTML = `<div class="text-sm text-slate-400">Noch keine Aufgaben im Briefing.</div>`;
-        return;
-      }
-
-      const activeId = STATE.task.active?.briefingId || null;
-
-      wrap.innerHTML = tasks.map((t) => {
-        const isActive = activeId && t.id === activeId;
-        const isShown = STATE.ui.mapShownTaskId && t.id === STATE.ui.mapShownTaskId;
-        const badge = isActive ? `<span class="ml-2 text-[10px] px-2 py-0.5 rounded-full bg-emerald-400 text-slate-950 font-extrabold">aktiv</span>` : "";
-        const badge2 = (!isActive && isShown) ? `<span class="ml-2 text-[10px] px-2 py-0.5 rounded-full bg-sky-400 text-slate-950 font-extrabold">Vorschau</span>` : "";
-
-        return `
-          <div class="rounded-2xl bg-slate-950/60 border border-slate-800 p-3">
-            <div class="flex items-start gap-2">
-              <div class="flex-1 min-w-0">
-                <div class="font-extrabold truncate">
-                  ${escapeXml(t.code)} — ${escapeXml(t.title || t.typeTitle || "")}
-                  ${badge}${badge2}
-                </div>
-                <div class="text-xs text-slate-400 mono mt-1 truncate">${escapeXml(taskSummary(t))}</div>
-              </div>
-              <div class="flex items-center gap-1">
-                <button data-act="up" data-id="${t.id}" class="btn-touch h-9 w-9 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800" title="hoch">
-                  <i class="fa-solid fa-chevron-up"></i>
-                </button>
-                <button data-act="down" data-id="${t.id}" class="btn-touch h-9 w-9 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800" title="runter">
-                  <i class="fa-solid fa-chevron-down"></i>
-                </button>
-              </div>
-            </div>
-
-            <div class="mt-2 grid grid-cols-4 gap-2">
-              <button data-act="edit" data-id="${t.id}" class="btn-touch h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-bold text-sm" title="Edit">
-                <i class="fa-solid fa-pen"></i>
-              </button>
-              <button data-act="show" data-id="${t.id}" class="btn-touch h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-bold text-sm" title="Vorschau">
-                <i class="fa-solid fa-map"></i>
-              </button>
-              <button data-act="active" data-id="${t.id}" class="btn-touch h-10 rounded-xl bg-sky-400 hover:bg-sky-300 active:bg-sky-500 text-slate-950 font-extrabold text-sm" title="Als aktiv">
-                <i class="fa-solid fa-bullseye"></i>
-              </button>
-              <button data-act="del" data-id="${t.id}" class="btn-touch h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 font-bold text-sm" title="Löschen">
-                <i class="fa-solid fa-trash"></i>
-              </button>
-            </div>
-          </div>
-        `;
-      }).join("");
-
-      wrap.querySelectorAll("button[data-act]").forEach(btn => {
-        btn.addEventListener("click", (e) => {
-          const act = e.currentTarget.getAttribute("data-act");
-          const id = e.currentTarget.getAttribute("data-id");
-          if (!act || !id) return;
-          if (act === "edit") briefingEdit(id);
-          else if (act === "show") briefingShowOnMap(id);
-          else if (act === "active") briefingSetActive(id);
-          else if (act === "del") briefingDelete(id);
-          else if (act === "up") briefingMove(id, -1);
-          else if (act === "down") briefingMove(id, +1);
-        });
-      });
+    function importKmlFile(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const txt = String(reader.result || "");
+          if (STATE.layers.kmlLayer) {
+            try { STATE.map.removeLayer(STATE.layers.kmlLayer); } catch {}
+            STATE.layers.kmlLayer = null;
+          }
+          const layer = omnivore.kml.parse(txt);
+          layer.eachLayer(l => { if (l?.options) l.options.interactive = false; });
+          layer.addTo(STATE.map);
+          STATE.layers.kmlLayer = layer;
+          showSnackbar("KML importiert.");
+        } catch (e) {
+          console.error(e);
+          showSnackbar("KML Import fehlgeschlagen.");
+        }
+      };
+      reader.readAsText(file);
     }
 
-    function renderBriefingQuickList() {
-      const wrap = document.getElementById("briefingQuickList");
-      if (!wrap) return;
-
-      const tasks = STATE.briefing.tasks || [];
-      if (!tasks.length) {
-        wrap.innerHTML = `<div class="text-sm text-slate-400">Keine Briefing-Aufgaben.</div>`;
-        return;
+    async function requestWakeLock() {
+      try {
+        if (!("wakeLock" in navigator)) { showSnackbar("Wake Lock nicht unterstützt."); return; }
+        STATE.ui.wakeLock = await navigator.wakeLock.request("screen");
+        showSnackbar("Wake Lock aktiv.");
+      } catch (e) {
+        console.warn(e);
+        showSnackbar("Wake Lock fehlgeschlagen.");
       }
-
-      const activeId = STATE.task.active?.briefingId || null;
-
-      wrap.innerHTML = tasks.map(t => {
-        const isActive = activeId && t.id === activeId;
-        return `
-          <button data-id="${t.id}" class="btn-touch w-full text-left rounded-2xl ${isActive ? "bg-emerald-400 text-slate-950 border-emerald-300" : "bg-slate-950/60 text-slate-100 border-slate-800 hover:bg-slate-900/60"} border px-3 py-2">
-            <div class="font-extrabold truncate">${escapeXml(t.code)} — ${escapeXml(t.title || t.typeTitle || "")}</div>
-            <div class="text-xs ${isActive ? "text-slate-800" : "text-slate-400"} mono truncate">${escapeXml(taskSummary(t))}</div>
-          </button>
-        `;
-      }).join("");
-
-      wrap.querySelectorAll("button[data-id]").forEach(b => {
-        b.addEventListener("click", (e) => {
-          const id = e.currentTarget.getAttribute("data-id");
-          briefingSetActive(id);
-        });
-      });
     }
 
     /********************************************************************
@@ -2496,17 +2631,8 @@
       try {
         const payload = {
           version: APP.version,
-          ui: {
-            followGps: STATE.ui.followGps,
-            base: STATE.ui.base,
-            windDockCollapsed: STATE.ui.windDockCollapsed,
-            pointDockCollapsed: STATE.ui.pointDockCollapsed,
-            taskSubTab: STATE.ui.taskSubTab,
-            showAdvanced: STATE.ui.showAdvanced
-          },
+          ui: { followGps: STATE.ui.followGps, base: STATE.ui.base, selectedBriefingId: STATE.ui.selectedBriefingId },
           wind: { layers: STATE.wind.layers },
-          task: { active: STATE.task.active, aptStartTs: STATE.task.apt.startTs },
-          briefing: { title: STATE.briefing.title, tasks: STATE.briefing.tasks },
           flight: {
             active: STATE.flight.active,
             title: STATE.flight.title,
@@ -2514,8 +2640,14 @@
             track: STATE.flight.track,
             markers: STATE.flight.markers,
             archive: STATE.flight.archive,
+            briefingRun: STATE.flight.briefingRun
           },
-          sim: { enabled: STATE.sim.enabled }
+          sim: { enabled: STATE.sim.enabled },
+          waypoint: { active: STATE.waypoint?.active || null },
+          briefings: {
+            activeId: STATE.briefings.activeId,
+            list: STATE.briefings.list
+          }
         };
         localStorage.setItem(APP.storageKey, JSON.stringify(payload));
       } catch {}
@@ -2530,21 +2662,10 @@
         if (j.ui) {
           STATE.ui.followGps = !!j.ui.followGps;
           STATE.ui.base = j.ui.base === "sat" ? "sat" : "osm";
-          STATE.ui.windDockCollapsed = !!j.ui.windDockCollapsed;
-          STATE.ui.pointDockCollapsed = (j.ui.pointDockCollapsed !== undefined) ? !!j.ui.pointDockCollapsed : true;
-          STATE.ui.taskSubTab = (j.ui.taskSubTab === "live") ? "live" : "briefing";
-          STATE.ui.showAdvanced = !!j.ui.showAdvanced;
+          STATE.ui.selectedBriefingId = j.ui.selectedBriefingId || null;
         }
         if (j.wind && Array.isArray(j.wind.layers)) {
           STATE.wind.layers = j.wind.layers.filter(x => x && isFinite(x.altM));
-        }
-        if (j.task) {
-          STATE.task.active = j.task.active || null;
-          STATE.task.apt.startTs = j.task.aptStartTs || null;
-        }
-        if (j.briefing) {
-          STATE.briefing.title = (j.briefing.title || "");
-          if (Array.isArray(j.briefing.tasks)) STATE.briefing.tasks = j.briefing.tasks.filter(x => x && x.id && x.code);
         }
         if (j.flight) {
           STATE.flight.active = !!j.flight.active;
@@ -2553,8 +2674,14 @@
           STATE.flight.track = Array.isArray(j.flight.track) ? j.flight.track : [];
           STATE.flight.markers = Array.isArray(j.flight.markers) ? j.flight.markers : [];
           STATE.flight.archive = Array.isArray(j.flight.archive) ? j.flight.archive : [];
+          STATE.flight.briefingRun = j.flight.briefingRun || null;
         }
         if (j.sim) STATE.sim.enabled = !!j.sim.enabled;
+        if (j.waypoint) STATE.waypoint = { active: j.waypoint.active || null };
+        if (j.briefings) {
+          STATE.briefings.activeId = j.briefings.activeId || null;
+          STATE.briefings.list = Array.isArray(j.briefings.list) ? j.briefings.list : [];
+        }
       } catch {}
     }
 
@@ -2568,51 +2695,14 @@
       initMap();
       setBaseLayer(STATE.ui.base);
 
-      renderTaskTypeOptions();
-
-      // Briefing title restore
-      const bt = document.getElementById("briefingTitle");
-      if (bt) bt.value = STATE.briefing.title || "";
-
-      // Editor initial render
-      const initialCode = document.getElementById("taskType")?.value || "JDG";
-      renderTaskFieldsForCode(initialCode, null);
-      setEditorMarkerBadge(initialCode);
-
-      // Marker-Button Farbe nach aktivem Task
-      if (STATE.task.active) setMarkerButtonColor(STATE.task.active.code);
-      else setMarkerButtonColor("x");
-
-      // Track/Marker Restore
-      if (STATE.flight.active) {
-        try {
-          const latlngs = (STATE.flight.track||[]).map(p => [p.lat,p.lon]);
-          STATE.layers.trackLine?.setLatLngs(latlngs);
-        } catch {}
-        try {
-          (STATE.flight.markers||[]).forEach(m => {
-            const color = COLOR_HEX[m.color] || COLOR_HEX.pink;
-            L.circleMarker([m.lat,m.lon], { radius:8, color, weight:3, fillColor:color, fillOpacity:0.25, interactive:false })
-              .addTo(STATE.layers.markersLayer);
-          });
-        } catch {}
-      }
-
-      drawDisplayedTaskOnMap();
-
+      // Base UI
       updateGpsBadge();
       updateButtons();
-      updateInstruments();
       updateWindPanel();
+      updateWindHud();
       updateArchivePanel();
-      updateElbowResult();
       updateFollowToggleUi();
-      updateWindDockVisibility();
-      updateWindDock();
-      updatePointDockVisibility();
-      updatePointDock();
-      updateDrawerTabUi();
-      updateActiveTaskCard();
+      rebuildTrajectory();
 
       // Tabs
       document.querySelectorAll(".tabBtn").forEach(b => {
@@ -2627,80 +2717,108 @@
       document.getElementById("btnDrawerClose")?.addEventListener("click", () => openDrawer(false));
       document.getElementById("drawerBg")?.addEventListener("click", () => openDrawer(false));
 
-      // Task sub tabs
-      document.getElementById("btnTaskSubBriefing")?.addEventListener("click", () => setTaskSubTab("briefing"));
-      document.getElementById("btnTaskSubLive")?.addEventListener("click", () => setTaskSubTab("live"));
-
-      // Briefing title input
-      document.getElementById("briefingTitle")?.addEventListener("input", (e) => {
-        STATE.briefing.title = e.target.value || "";
-        persistAllThrottled();
-      });
-
-      // Briefing buttons
-      document.getElementById("btnBriefingNew")?.addEventListener("click", briefingNew);
-      document.getElementById("btnSaveBriefing")?.addEventListener("click", briefingSaveFromEditor);
-      document.getElementById("btnPreviewTask")?.addEventListener("click", previewEditorTask);
-      document.getElementById("btnSetActiveFromEditor")?.addEventListener("click", setActiveFromEditor);
-      document.getElementById("btnClearEditor")?.addEventListener("click", clearEditor);
-      document.getElementById("btnShowActiveOnMap")?.addEventListener("click", showActiveOnMap);
-
-      // Live buttons
-      document.getElementById("btnClearActive")?.addEventListener("click", clearActiveTask);
-      document.getElementById("btnCycleTask")?.addEventListener("click", cycleToNextTask);
-
-      // Wind dock toggle
-      document.getElementById("btnWindHud")?.addEventListener("click", toggleWindDock);
-      document.getElementById("btnWindDockCollapse")?.addEventListener("click", toggleWindDock);
-      document.getElementById("btnWindDockExpand")?.addEventListener("click", toggleWindDock);
-      document.getElementById("btnWindFetch")?.addEventListener("click", fetchWindFromOpenMeteo);
-      document.getElementById("btnWindDockFetchMini")?.addEventListener("click", fetchWindFromOpenMeteo);
-
-      // Point dock toggle (header + dock buttons)
-      document.getElementById("btnPointDock")?.addEventListener("click", () => togglePointDock());
-      document.getElementById("btnPointDockExpand")?.addEventListener("click", () => togglePointDock(true));
-      document.getElementById("btnPointDockCollapse")?.addEventListener("click", () => togglePointDock(false));
-      document.getElementById("btnPointPick")?.addEventListener("click", startPointPick);
-      document.getElementById("btnPointCancelPick")?.addEventListener("click", cancelPointPick);
-
-      // Map settings
+      // Header buttons
+      document.getElementById("btnWindHud")?.addEventListener("click", () => { STATE.ui.windHudOpen = !STATE.ui.windHudOpen; updateWindHud(); });
+      document.getElementById("btnWindClose")?.addEventListener("click", () => { STATE.ui.windHudOpen = false; updateWindHud(); });
       document.getElementById("btnMapSettings")?.addEventListener("click", () => openMapModal(true));
       document.getElementById("btnMapModalClose")?.addEventListener("click", () => openMapModal(false));
       document.getElementById("mapModalBg")?.addEventListener("click", () => openMapModal(false));
       document.getElementById("btnBaseOSM")?.addEventListener("click", () => { setBaseLayer("osm"); persistAll(); });
       document.getElementById("btnBaseSAT")?.addEventListener("click", () => { setBaseLayer("sat"); persistAll(); });
+      document.getElementById("btnCenter")?.addEventListener("click", () => {
+        const p = getCurrentPos();
+        if (!p || !STATE.map) return;
+        STATE.ui.followGps = true;
+        updateFollowToggleUi();
+        STATE.map.panTo([p.lat, p.lon], { animate:true, duration:0.35 });
+        showSnackbar("Zentriert.");
+      });
 
-      document.getElementById("btnCenter")?.addEventListener("click", centerOnPos);
-
-      // Follow toggle
       document.getElementById("tglFollow")?.addEventListener("change", (e) => {
         STATE.ui.followGps = !!e.target.checked;
         updateFollowToggleUi();
         persistAll();
       });
 
-      // Flight controls (nicht automatisch)
-      document.getElementById("btnStartFlight")?.addEventListener("click", beginFlight);
+      // Flight controls
+      document.getElementById("btnStartFlight")?.addEventListener("click", () => {
+        const b = getActiveBriefing();
+        const title = b ? `Briefing — ${b.title || "Fahrt"}` : "Fahrt";
+        beginFlight(title);
+      });
       document.getElementById("btnFinish")?.addEventListener("click", finishFlight);
 
-      // Marker
-      document.getElementById("btnMarker")?.addEventListener("click", dropMarker);
+      // Briefings UI init
+      renderBriefingSelect();
 
-      // Task type change -> rerender only necessary fields
-      document.getElementById("taskType")?.addEventListener("change", (e) => {
-        const code = e.target.value;
-        renderTaskFieldsForCode(code, null);
-        setEditorMarkerBadge(code);
-        persistAllThrottled();
-        updatePointDock();
+      document.getElementById("briefingSelect")?.addEventListener("change", (e) => {
+        STATE.ui.selectedBriefingId = e.target.value || null;
+        STATE.ui.selectedBriefTaskId = null;
+        renderBriefingForm();
+        renderBriefTasksList();
+        persistAll();
       });
 
-      // ELB helper
-      document.getElementById("btnSetA")?.addEventListener("click", () => setHelperPoint("A"));
-      document.getElementById("btnSetB")?.addEventListener("click", () => setHelperPoint("B"));
-      document.getElementById("btnSetC")?.addEventListener("click", () => setHelperPoint("C"));
+      document.getElementById("btnBriefNew")?.addEventListener("click", createBriefing);
+      document.getElementById("btnBriefDup")?.addEventListener("click", duplicateBriefing);
+      document.getElementById("btnBriefSave")?.addEventListener("click", saveBriefingFromForm);
+      document.getElementById("btnBriefDelete")?.addEventListener("click", deleteBriefing);
+      document.getElementById("btnBriefActivate")?.addEventListener("click", activateBriefing);
+      document.getElementById("btnBriefDeactivate")?.addEventListener("click", deactivateBriefing);
 
-      // Wind panel add/clear
+      // Task editor init
+      renderTaskTypeOptions();
+      const initialCode = document.getElementById("taskType")?.value || "JDG";
+      renderTaskFieldsForCode(initialCode);
+
+      // marker count defaults from task
+      const mcEl = document.getElementById("taskMarkerCount");
+      const applyDefaultMarkerForCode = (code) => {
+        const def = defaultMarkerCountForTask(code);
+        if (mcEl) mcEl.value = String(clamp(def, 0, APP.maxMarkerButtons));
+        renderMarkerColorPickers(def, defaultMarkerColors(def));
+      };
+      applyDefaultMarkerForCode(initialCode);
+
+      document.getElementById("taskType")?.addEventListener("change", (e) => {
+        const code = e.target.value;
+        renderTaskFieldsForCode(code);
+        applyDefaultMarkerForCode(code);
+        persistAll();
+      });
+
+      document.getElementById("taskMarkerCount")?.addEventListener("change", () => {
+        const count = clamp(parseInt(document.getElementById("taskMarkerCount")?.value || "0", 10) || 0, 0, APP.maxMarkerButtons);
+        const colors = [];
+        document.querySelectorAll("#taskMarkerColors input[type='color']").forEach(inp => colors.push(inp.value));
+        renderMarkerColorPickers(count, ensureMarkerColorsArray({ markerColors: colors }, count));
+      });
+
+      document.getElementById("btnAddTaskToBrief")?.addEventListener("click", addTaskToSelectedBriefing);
+      document.getElementById("btnClearTaskForm")?.addEventListener("click", () => {
+        const code = document.getElementById("taskType")?.value || "JDG";
+        document.getElementById("taskTitle").value = "";
+        renderTaskFieldsForCode(code);
+        const def = defaultMarkerCountForTask(code);
+        document.getElementById("taskMarkerCount").value = String(def);
+        renderMarkerColorPickers(def, defaultMarkerColors(def));
+        showSnackbar("Task-Form zurückgesetzt.");
+      });
+
+      // Use selected task from briefing list
+      document.getElementById("btnUseSelectedTask")?.addEventListener("click", () => {
+        const b = getSelectedBriefing();
+        if (!b) { showSnackbar("Kein Briefing."); return; }
+        const id = STATE.ui.selectedBriefTaskId || b.tasks?.[0]?.id;
+        if (!id) { showSnackbar("Kein Task."); return; }
+        // Free selection allowed if briefing is not active flight run; in flight the mode is enforced inside activateBriefingTask()
+        activateBriefingTask(id, true);
+      });
+
+      document.getElementById("btnClearActiveTask")?.addEventListener("click", clearActiveTaskOverlay);
+      document.getElementById("btnNextTask")?.addEventListener("click", nextTask);
+
+      // Wind panel
       document.getElementById("btnAddWind")?.addEventListener("click", () => {
         const alt = safeFloat(document.getElementById("windAlt")?.value, null);
         const dir = safeFloat(document.getElementById("windDirFrom")?.value, null);
@@ -2712,49 +2830,38 @@
         STATE.wind.layers = [];
         persistAll();
         updateWindPanel();
-        updateWindDock();
+        updateWindHud();
+        updateNavToast();
+        rebuildTrajectory();
         showSnackbar("Wind gelöscht.");
       });
 
-      // Setup: Simulation toggle (kept minimal)
+      // Setup
       const tglSim = document.getElementById("tglSim");
       const knobSim = document.getElementById("tglSimKnob");
       if (tglSim && knobSim) setToggleUI(tglSim, knobSim, STATE.sim.enabled);
       tglSim?.addEventListener("change", (e) => {
         if (tglSim && knobSim) setToggleUI(tglSim, knobSim, e.target.checked);
-        STATE.sim.enabled = !!e.target.checked;
-        showSnackbar("Simulation ist in dieser Version UI-only (GPS bleibt).");
-        persistAll();
-        updateButtons();
+        // keep it simple: simulation toggle removed here for brevity in briefing build
+        showSnackbar("Simulation in dieser Version deaktiviert (Briefing-Fokus).");
+        e.target.checked = false;
+        if (tglSim && knobSim) setToggleUI(tglSim, knobSim, false);
       });
 
-      // WakeLock (optional)
-      document.getElementById("btnWakeLock")?.addEventListener("click", async () => {
-        try {
-          if (!("wakeLock" in navigator)) { showSnackbar("Wake Lock nicht unterstützt."); return; }
-          STATE.ui.wakeLock = await navigator.wakeLock.request("screen");
-          showSnackbar("Wake Lock aktiv.");
-        } catch (e) {
-          console.warn(e);
-          showSnackbar("Wake Lock fehlgeschlagen.");
-        }
-      });
-
-      document.getElementById("btnReset")?.addEventListener("click", () => {
+      document.getElementById("btnWakeLock")?.addEventListener("click", requestWakeLock);
+      document.getElementById("btnResetUi")?.addEventListener("click", () => {
         STATE.ui.followGps = true;
+        STATE.ui.windHudOpen = false;
         updateFollowToggleUi();
+        updateWindHud();
         showSnackbar("UI zurückgesetzt.");
         persistAll();
-        updateWindDock();
       });
 
-      // KML import
-      document.getElementById("kmlFile")?.addEventListener("change", (e) => {
-        const f = e.target.files?.[0];
-        importKmlFile(f);
-      });
+      document.getElementById("btnClearWaypoint")?.addEventListener("click", clearWaypoint);
+      document.getElementById("kmlFile")?.addEventListener("change", (e) => importKmlFile(e.target.files?.[0]));
 
-      // Archive clear
+      // Archive
       document.getElementById("btnClearArchive")?.addEventListener("click", () => {
         STATE.flight.archive = [];
         persistAll();
@@ -2762,44 +2869,19 @@
         showSnackbar("Archiv gelöscht.");
       });
 
+      // WakeLock reacquire
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible" && STATE.ui.wakeLock) requestWakeLock();
+      });
+
       // Start GPS
       initGPS();
 
-      // Initial briefing UI
-      renderBriefingList();
-      renderBriefingQuickList();
-      setTaskSubTab(STATE.ui.taskSubTab);
-
-      // Default briefing title if empty
-      if (!STATE.briefing.title) {
-        STATE.briefing.title = "Morgenfahrt";
-        if (bt) bt.value = STATE.briefing.title;
-        persistAllThrottled();
-      }
+      // If an active briefing exists, show badge
+      updateBriefingHeaderBadge();
+      renderBriefTasksList();
+      renderMarkerStrip();
     };
-
-    function importKmlFile(file) {
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        try {
-          const txt = String(reader.result || "");
-          if (STATE.layers.kmlLayer) {
-            try { STATE.map.removeLayer(STATE.layers.kmlLayer); } catch {}
-            STATE.layers.kmlLayer = null;
-          }
-          const layer = omnivore.kml.parse(txt);
-          layer.eachLayer(l => { if (l && typeof l.options === "object") l.options.interactive = false; });
-          layer.addTo(STATE.map);
-          STATE.layers.kmlLayer = layer;
-          showSnackbar("KML importiert.");
-        } catch (e) {
-          console.error(e);
-          showSnackbar("KML Import fehlgeschlagen.");
-        }
-      };
-      reader.readAsText(file);
-    }
   </script>
 </body>
 </html>
